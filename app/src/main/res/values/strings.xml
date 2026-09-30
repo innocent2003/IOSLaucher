@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Oslaucher</string>
+    <string name="apps_count">Ứng dụng: %1$d</string>
 </resources>

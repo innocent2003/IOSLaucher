@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_wallpaper"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="22dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="22dp"
+        android:paddingBottom="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:gravity="center_vertical"
+            android:text="21:27      ●  ◉  ▣  ◌                         ◔  Wi-Fi  70%"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="178dp"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_glass"
+            android:gravity="bottom|start"
+            android:padding="18dp"
+            android:text="AD"
+            android:textColor="#B7D8F6"
+            android:textSize="13sp" />
+
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:background="@drawable/bg_glass"
+            android:columnCount="4"
+            android:padding="12dp"
+            android:rowCount="2">
+
+            <TextView style="@style/AppPreviewIcon" android:text="⇄" android:backgroundTint="#EAF5F8" android:textColor="#2A77DF" />
+            <TextView style="@style/AppPreviewIcon" android:text="A" android:backgroundTint="#2498F1" android:textColor="#FFFFFF" />
+            <TextView style="@style/AppPreviewIcon" android:text="棋" android:backgroundTint="#E8CA7B" android:textColor="#9F2924" />
+            <TextView style="@style/AppPreviewIcon" android:text="OS" android:backgroundTint="#786557" android:textColor="#FFFFFF" />
+            <TextView style="@style/AppPreviewIcon" android:text="▲" android:backgroundTint="#FFFFFF" android:textColor="#31A879" />
+            <TextView style="@style/AppPreviewIcon" android:text="➤" android:backgroundTint="#FFFFFF" android:textColor="#32A8CE" />
+            <TextView style="@style/AppPreviewIcon" android:text="▣" android:backgroundTint="#FFFFFF" android:textColor="#1477A9" />
+            <TextView style="@style/AppPreviewIcon" android:text="☎" android:backgroundTint="#18C96D" android:textColor="#FFFFFF" />
+        </GridLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="190dp"
+            android:layout_marginTop="28dp"
+            android:background="@drawable/bg_widget"
+            android:orientation="horizontal"
+            android:padding="16dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:orientation="vertical">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="THỨ TƯ" android:textColor="#FFFFFF" android:textSize="13sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="30" android:textColor="#FFFFFF" android:textSize="34sp" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Không có quyền truy cập Lịch. Nhấn để cấp quyền và hiển thị sự kiện!" android:textColor="#EEEEEE" android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="THÁNG 9" android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:gravity="center" android:text="M   T   W   T   F   S   S\n\n 1   2   3   4   5   6\n7   8   9  10  11  12  13\n14  15  16  17  18  19  20\n21  22  23  24  25  26  27\n28  29  30" android:textColor="#FFFFFF" android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="190dp"
+            android:layout_marginTop="28dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="10dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_widget"
+                android:gravity="center"
+                android:text="◷\n\n  9      12      3\n\n       6"
+                android:textColor="#FFFFFF"
+                android:textSize="23sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_widget"
+                android:gravity="center_vertical|start"
+                android:padding="18dp"
+                android:text="◉  70%\n\n\n70%"
+                android:textColor="#FFFFFF"
+                android:textSize="27sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView android:id="@+id/home_settings" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" android:clickable="true" android:focusable="true" android:gravity="center" android:text="☰" android:textColor="#D7E5F5" android:textSize="22sp" />
+            <TextView android:id="@+id/open_apps" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" android:clickable="true" android:focusable="true" android:gravity="center" android:text="▦ Ứng dụng" android:textColor="#D7E5F5" android:textSize="14sp" />
+            <TextView android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="◁" android:textColor="#D7E5F5" android:textSize="22sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
