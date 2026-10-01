@@ -43,19 +43,21 @@
         android:textColor="#FFFFFF"
         android:textSize="14sp" />
 
-    <GridView
-        android:id="@+id/apps_grid"
+    <ViewFlipper
+        android:id="@+id/apps_pages"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
         android:layout_weight="1"
-        android:clipToPadding="false"
-        android:columnWidth="72dp"
-        android:drawSelectorOnTop="true"
-        android:horizontalSpacing="8dp"
-        android:numColumns="4"
-        android:paddingTop="8dp"
-        android:paddingBottom="12dp"
-        android:stretchMode="columnWidth"
-        android:verticalSpacing="8dp" />
+        android:inAnimation="@android:anim/fade_in"
+        android:outAnimation="@android:anim/fade_out" />
+
+    <LinearLayout
+        android:id="@+id/apps_page_indicator"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="8dp"
+        android:gravity="center"
+        android:orientation="horizontal" />
 </LinearLayout>
