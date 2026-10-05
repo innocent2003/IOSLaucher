@@ -5,59 +5,46 @@
     android:layout_height="match_parent"
     android:background="@drawable/bg_wallpaper"
     android:orientation="vertical"
-    android:paddingStart="22dp"
-    android:paddingTop="18dp"
-    android:paddingEnd="22dp"
+    android:paddingStart="16dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="16dp"
     android:paddingBottom="12dp">
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="38dp"
-        android:gravity="center_vertical"
-        android:text="21:27      ●  ◉  ▣  ◌                         ◔  Wi-Fi  70%"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp" />
-
-    <EditText
-        android:id="@+id/app_search"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:layout_marginTop="12dp"
-        android:background="@drawable/bg_glass"
-        android:hint="⌕  Thư viện ứng dụng"
-        android:inputType="text"
-        android:maxLines="1"
-        android:paddingStart="18dp"
-        android:paddingEnd="18dp"
-        android:singleLine="true"
-        android:textColor="#FFFFFF"
-        android:textColorHint="#E0E7F0"
-        android:textSize="18sp" />
-
-    <TextView
-        android:id="@+id/apps_count"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Đang tải ứng dụng..."
-        android:textColor="#FFFFFF"
-        android:textSize="14sp" />
 
     <ViewFlipper
         android:id="@+id/apps_pages"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
-        android:layout_weight="1"
-        android:inAnimation="@android:anim/fade_in"
-        android:outAnimation="@android:anim/fade_out" />
+        android:layout_weight="1" />
 
     <LinearLayout
         android:id="@+id/apps_page_indicator"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:layout_marginBottom="8dp"
+        android:layout_marginTop="4dp"
         android:gravity="center"
         android:orientation="horizontal" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/bg_glass"
+        android:gravity="center"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="⌕  Tìm kiếm"
+        android:textColor="#EAF5FF"
+        android:textSize="14sp" />
+
+    <LinearLayout
+        android:id="@+id/apps_dock"
+        android:layout_width="match_parent"
+        android:layout_height="84dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_glass"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="8dp" />
 </LinearLayout>
