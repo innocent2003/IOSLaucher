@@ -1,19 +1,27 @@
 package com.example.oslaucher.ui
 
+import android.content.Intent
+import android.graphics.drawable.ColorDrawable
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.VelocityTracker
 import android.view.ViewConfiguration
+import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import android.widget.GridView
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.TextView
+import android.widget.Toast
 import android.widget.ViewFlipper
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
@@ -49,26 +57,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var homeSwipeSettling = false
     private var ignoreTouchSequence = false
     private var velocityTracker: VelocityTracker? = null
+    private val hiddenAppPackages = mutableSetOf<String>()
     private val swipeTouchSlop by lazy { ViewConfiguration.get(this).scaledTouchSlop }
     private val swipeMinVelocity by lazy { ViewConfiguration.get(this).scaledMinimumFlingVelocity }
-
-    private data class HomeSwipeTransition(
-        val fromScreen: Screen,
-        val toScreen: Screen,
-        val incomingFragment: Fragment?,
-        val incomingView: View,
-        val outgoingFragment: Fragment?,
-        val outgoingView: View,
-        val width: Float,
-        val direction: Int
-    )
 
     private val screenLayouts = mapOf(
         Screen.SETTINGS to R.layout.activity_main,
         Screen.APPS to R.layout.screen_apps
     )
 
-    private enum class Screen { SETTINGS, HOME, HOME_SECOND, APPS }
     private var currentScreen = Screen.SETTINGS
     private var lastHomeScreen = Screen.HOME
 
@@ -381,10 +378,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 val appLauncher: (AppInfo) -> Unit = { app ->
                     packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity)
                 }
+                val appLongPress: (AppInfo, View) -> Unit = { app, anchor ->
+                    showAppOptions(app, anchor)
+                }
 
                 fun buildHomeApps(apps: List<AppInfo>) {
-                    val dockApps = apps.take(4)
-                    val gridApps = apps.drop(dockApps.size)
+                    val visibleApps = apps.filterNot { it.packageName in hiddenAppPackages }
+                    val dockApps = visibleApps.take(4)
+                    val gridApps = visibleApps.drop(dockApps.size)
                     val appPageSize = 24
                     val appChunks = gridApps.chunked(appPageSize).ifEmpty { listOf(emptyList()) }
                     appPageCount = appChunks.size
@@ -400,7 +401,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             stretchMode = GridView.STRETCH_COLUMN_WIDTH
                             isVerticalScrollBarEnabled = false
                             clipToPadding = false
-                            adapter = AppAdapter(this@MainActivity, appLauncher).apply {
+                            adapter = AppAdapter(this@MainActivity, appLauncher, appLongPress).apply {
                                 setApps(pageApps)
                             }
                         }
@@ -522,6 +523,72 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             dot.alpha = if (selected) 1f else 0.45f
             dot.setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF9DB7D0.toInt())
         }
+    }
+
+    private fun showAppOptions(app: AppInfo, anchor: View) {
+        val popupView = LayoutInflater.from(this).inflate(R.layout.popup_app_actions, null)
+        val popupWindow = PopupWindow(
+            popupView,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            true
+        )
+        popupWindow.setBackgroundDrawable(ColorDrawable(0x00000000))
+        popupWindow.isOutsideTouchable = true
+        popupWindow.isFocusable = true
+        popupWindow.elevation = 18f
+
+        popupView.findViewById<View>(R.id.app_action_info).setOnClickListener {
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", app.packageName, null)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+            } catch (_: Exception) {
+                Toast.makeText(this, "Không thể mở thông tin ứng dụng", Toast.LENGTH_SHORT).show()
+            }
+            popupWindow.dismiss()
+        }
+
+        popupView.findViewById<View>(R.id.app_action_select).setOnClickListener {
+            Toast.makeText(this, "Đã chọn ${app.name}", Toast.LENGTH_SHORT).show()
+            popupWindow.dismiss()
+        }
+
+        popupView.findViewById<View>(R.id.app_action_hide).setOnClickListener {
+            hiddenAppPackages.add(app.packageName)
+            installedApps?.let { apps ->
+                renderApps?.invoke(apps)
+            }
+            popupWindow.dismiss()
+        }
+
+        popupView.findViewById<View>(R.id.app_action_edit).setOnClickListener {
+            Toast.makeText(this, "Tính năng chỉnh sửa sẽ có trong phiên bản sau", Toast.LENGTH_SHORT).show()
+            popupWindow.dismiss()
+        }
+
+        popupView.findViewById<View>(R.id.app_action_delete).setOnClickListener {
+            try {
+                val intent = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+                    data = Uri.parse("package:${app.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+            } catch (_: Exception) {
+                Toast.makeText(this, "Không thể xóa ứng dụng", Toast.LENGTH_SHORT).show()
+            }
+            popupWindow.dismiss()
+        }
+
+        val anchorLocation = IntArray(2)
+        anchor.getLocationOnScreen(anchorLocation)
+        val screenWidth = resources.displayMetrics.widthPixels
+        val popupWidth = popupView.measuredWidth.takeIf { it > 0 } ?: dp(220)
+        val x = (anchorLocation[0] + anchor.width / 2 - popupWidth / 2).coerceIn(0, screenWidth - popupWidth)
+        val y = (anchorLocation[1] + anchor.height / 2).coerceAtLeast(0)
+        popupWindow.showAtLocation(anchor, Gravity.NO_GRAVITY, x, y)
     }
 
     private fun dp(value: Int): Int =

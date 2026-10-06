@@ -12,7 +12,8 @@ import com.example.oslaucher.models.AppInfo
 
 class AppAdapter(
     context: Context,
-    private val onAppClick: (AppInfo) -> Unit
+    private val onAppClick: (AppInfo) -> Unit,
+    private val onAppLongClick: ((AppInfo, View) -> Unit)? = null
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
     private var allApps: List<AppInfo> = emptyList()
@@ -46,6 +47,10 @@ class AppAdapter(
         itemView.findViewById<TextView>(R.id.app_name).text = app.name
         itemView.contentDescription = app.name
         itemView.setOnClickListener { onAppClick(app) }
+        itemView.setOnLongClickListener {
+            onAppLongClick?.invoke(app, itemView)
+            true
+        }
         return itemView
     }
 }
