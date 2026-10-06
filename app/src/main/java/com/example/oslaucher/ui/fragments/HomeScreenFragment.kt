@@ -22,6 +22,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import com.example.oslaucher.R
+import com.example.oslaucher.ui.widgets.BatteryRingView
 import org.json.JSONException
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -107,10 +108,11 @@ abstract class HomeScreenFragment : Fragment() {
         val localizedDate = SimpleDateFormat("EEEE, d 'THÁNG' M", locale)
             .format(now)
             .uppercase(locale)
-        val batteryLevel = requireContext()
+        val batteryPercent = requireContext()
             .getSystemService(BatteryManager::class.java)
             .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
             .takeIf { it in 0..100 }
+        val batteryLevel = batteryPercent
             ?.let { "$it%" }
             ?: "--%"
 
@@ -118,8 +120,9 @@ abstract class HomeScreenFragment : Fragment() {
             DateFormat.getTimeFormat(requireContext()).format(now)
         root.findViewById<TextView>(R.id.home_date)?.text = localizedDate
         root.findViewById<TextView>(R.id.home_battery)?.text = batteryLevel
-        root.findViewById<TextView>(R.id.home_battery_widget)?.text =
-            "◉  $batteryLevel\n\n\n$batteryLevel"
+        root.findViewById<TextView>(R.id.home_battery_widget)?.text = batteryLevel
+        root.findViewById<BatteryRingView>(R.id.home_battery_ring)?.batteryLevel = batteryPercent
+        root.findViewById<View>(R.id.home_analog_clock)?.invalidate()
 
         updateMiniCalendar(root, now, locale)
     }
