@@ -36,6 +36,7 @@ import com.example.oslaucher.repositories.InstalledAppRepository
 import com.example.oslaucher.ui.fragments.HomeFragment
 import com.example.oslaucher.ui.fragments.HomeScreenActions
 import com.example.oslaucher.ui.fragments.HomeSecondFragment
+import com.example.oslaucher.utils.Screen
 import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.max

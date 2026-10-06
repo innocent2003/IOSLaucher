@@ -1,4 +1,4 @@
-package com.example.oslaucher.ui
+package com.example.oslaucher.utils
 
 internal enum class Screen {
     SETTINGS,

@@ -2,6 +2,7 @@ package com.example.oslaucher.ui
 
 import android.view.View
 import androidx.fragment.app.Fragment
+import com.example.oslaucher.utils.Screen
 
 internal data class HomeSwipeTransition(
     val fromScreen: Screen,
