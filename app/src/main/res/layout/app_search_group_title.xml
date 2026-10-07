@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:gravity="center_vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="4dp"
+    android:layout_marginHorizontal="8dp">
+    <com.truelab.common.view.TextViewCustomFont
+        android:textSize="14dp"
+        android:textColor="@color/app_search_title_primary"
+        android:ellipsize="end"
+        android:id="@+id/txt_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:lines="1"
+        android:layout_centerVertical="true"
+        android:layout_alignParentStart="true"
+        android:paddingVertical="8dp"
+        app:customFont="2"/>
+    <com.truelab.common.view.TextViewCustomFont
+        android:textSize="14dp"
+        android:textColor="@color/app_search_title_primary"
+        android:ellipsize="end"
+        android:id="@+id/textAction"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:lines="1"
+        android:drawablePadding="@dimen/dp6"
+        android:layout_centerVertical="true"
+        android:drawableEnd="@drawable/ic_arrow_find_in_app"
+        android:layout_marginEnd="8dp"
+        android:layout_alignEnd="@+id/txt_title"
+        android:layout_alignParentEnd="true"
+        android:paddingVertical="8dp"
+        app:customFont="2"/>
+    <View
+        android:id="@+id/divider"
+        android:background="@color/app_search_divider_color"
+        android:layout_width="match_parent"
+        android:layout_height="1px"
+        android:layout_below="@+id/txt_title"
+        android:layout_marginHorizontal="@dimen/margin_16dp"/>
+</RelativeLayout>

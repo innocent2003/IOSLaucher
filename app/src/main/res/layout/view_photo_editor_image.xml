@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+    <ImageView
+        android:layout_gravity="start|top"
+        android:id="@+id/imgPhotoEditorClose"
+        android:layout_width="25dp"
+        android:layout_height="25dp"
+        android:src="@drawable/close_emoji"
+        android:elevation="1dp"/>
+    <FrameLayout
+        android:id="@+id/frmBorder"
+        android:background="@drawable/bg_rounded"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="8dp">
+        <ImageView
+            android:layout_gravity="center"
+            android:id="@+id/imgPhotoEditorImage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:src="@drawable/ic_quick_remove"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"/>
+    </FrameLayout>
+</FrameLayout>

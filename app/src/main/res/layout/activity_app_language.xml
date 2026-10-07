@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main_frame"
+    android:background="@color/new_background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <include
+        android:id="@+id/action_bar"
+        app:layout_constraintTop_toTopOf="parent"
+        layout="@layout/action_bar_settings"/>
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/list"
+        android:fadingEdgeLength="30dp"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginBottom="@dimen/margin_8dp"
+        android:requiresFadingEdge="vertical"
+        android:layout_marginHorizontal="@dimen/margin_8dp"
+        app:layout_constraintBottom_toTopOf="@+id/ads_frame"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/action_bar"/>
+    <FrameLayout
+        android:id="@+id/ads_frame"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"/>
+    <com.truelab.common.view.LoadingView
+        android:id="@+id/loading_view"
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -365,8 +365,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
 
         when (screen) {
-            Screen.SETTINGS -> view.findViewById<View>(R.id.open_home).setOnClickListener {
-                showScreen(Screen.HOME, 1)
+            Screen.SETTINGS -> {
+                view.findViewById<View>(R.id.open_home).setOnClickListener {
+                    showScreen(Screen.HOME, 1)
+                }
+                view.findViewById<View>(R.id.wallpaper_setting).setOnClickListener {
+                    startActivity(Intent(this, WallpaperActivity::class.java))
+                }
             }
             Screen.HOME, Screen.HOME_SECOND -> Unit
             Screen.APPS -> {

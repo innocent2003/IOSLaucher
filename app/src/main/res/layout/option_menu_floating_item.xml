@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:background="@drawable/ripple_transparent_background_16"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="8dp"
+    android:layout_marginVertical="2dp">
+    <ImageView
+        android:layout_gravity="center_vertical"
+        android:id="@+id/icon"
+        android:layout_width="@dimen/system_shortcut_icon_size"
+        android:layout_height="@dimen/system_shortcut_icon_size"
+        android:scaleType="fitCenter"
+        android:layout_marginStart="@dimen/system_shortcut_margin_start"/>
+    <com.truelab.common.view.TextViewCustomFont
+        android:textSize="14dp"
+        android:textColor="@color/popup_text_color"
+        android:ellipsize="end"
+        android:gravity="start|center_vertical"
+        android:layout_gravity="center_vertical"
+        android:id="@+id/txt_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:lines="1"
+        android:layout_weight="1"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:paddingVertical="8dp"/>
+</LinearLayout>

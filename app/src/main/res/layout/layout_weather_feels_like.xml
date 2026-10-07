@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:aapt="http://schemas.android.com/aapt"
+    android:id="@+id/weather_feels_like"
+    android:background="@drawable/bg_weather_detail"
+    android:padding="12dp"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    app:layout_constraintDimensionRatio="w, 1:1"
+    app:layout_constraintStart_toStartOf="parent">
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/icon"
+        android:padding="3dp"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:src="@drawable/ic_weather_feels_like"
+        android:scaleType="fitStart"
+        android:tint="#80ffffff"
+        app:layout_constraintBottom_toBottomOf="@+id/title"
+        app:layout_constraintDimensionRatio="h, 1:1"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/title"/>
+    <TextView
+        android:textColor="#80ffffff"
+        android:id="@+id/title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/feeling"
+        app:layout_constraintStart_toEndOf="@+id/icon"
+        app:layout_constraintTop_toTopOf="parent"/>
+    <TextView
+        android:textSize="25dp"
+        android:textColor="@color/white"
+        android:id="@+id/feels_like"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="20"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/title"/>
+    <TextView
+        android:textColor="@color/white"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/similar_to_the_actual_temperature"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"/>
+</androidx.constraintlayout.widget.ConstraintLayout>

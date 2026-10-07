@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wallpaper_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#050505"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="18dp"
+        android:paddingTop="20dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="28dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/wallpaper_back"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_round_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="‹"
+                android:textColor="#FFFFFF"
+                android:textSize="42sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:text="Hình nền"
+                android:textColor="#FFFFFF"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="480dp"
+            android:layout_marginTop="28dp"
+            android:background="@drawable/bg_round_button"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingStart="18dp"
+            android:paddingTop="38dp"
+            android:paddingEnd="18dp"
+            android:paddingBottom="18dp">
+
+            <LinearLayout
+                android:id="@+id/wallpaper_previews"
+                android:layout_width="match_parent"
+                android:layout_height="250dp"
+                android:orientation="horizontal">
+
+                <FrameLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginEnd="7dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_round_button"
+                    android:clipToOutline="true">
+
+                    <ImageView
+                        android:id="@+id/wallpaper_lock_preview"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/wallpaper_preview_1"
+                        android:contentDescription="Xem trước màn hình khóa"
+                        android:scaleType="centerCrop" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="top"
+                        android:gravity="center"
+                        android:paddingTop="22dp"
+                        android:text="Monday, 20 November\n09:41"
+                        android:textColor="#FFFFFF"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom|center_horizontal"
+                        android:layout_marginBottom="16dp"
+                        android:background="@drawable/bg_round_button"
+                        android:backgroundTint="#55FFFFFF"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="6dp"
+                        android:text="Tùy chỉnh"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="7dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_round_button"
+                    android:clipToOutline="true">
+
+                    <ImageView
+                        android:id="@+id/wallpaper_home_preview"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/wallpaper_preview_1"
+                        android:contentDescription="Xem trước màn hình chính"
+                        android:scaleType="centerCrop" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="top"
+                        android:gravity="center"
+                        android:paddingHorizontal="5dp"
+                        android:paddingTop="18dp"
+                        android:text="🌈  ▮  ✎  ◩\n\n📚  ▦  31  ◉\n\n◷  ◉  ☎  ▣\n\n▤  ◈  ♥  ⌂"
+                        android:textColor="#FFFFFF"
+                        android:textSize="15sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom|center_horizontal"
+                        android:layout_marginBottom="16dp"
+                        android:background="@drawable/bg_round_button"
+                        android:backgroundTint="#55FFFFFF"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="6dp"
+                        android:text="Tùy chỉnh"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp" />
+                </FrameLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/wallpaper_dot_0"
+                    android:layout_width="18dp"
+                    android:layout_height="28dp"
+                    android:gravity="center"
+                    android:text="●"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/wallpaper_dot_1"
+                    android:layout_width="18dp"
+                    android:layout_height="28dp"
+                    android:gravity="center"
+                    android:text="●"
+                    android:textColor="#777777"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/wallpaper_dot_2"
+                    android:layout_width="18dp"
+                    android:layout_height="28dp"
+                    android:gravity="center"
+                    android:text="●"
+                    android:textColor="#777777"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/set_wallpaper"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_round_button"
+                    android:backgroundTint="#F2F2F2"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:text="Đặt làm hiện tại"
+                    android:textColor="#1685E8"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/add_wallpaper"
+                    android:layout_width="112dp"
+                    android:layout_height="50dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_blue_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:text="+ Thêm"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
