@@ -387,7 +387,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     val visibleApps = apps.filterNot { it.packageName in hiddenAppPackages }
                     val dockApps = visibleApps.take(4)
                     val gridApps = visibleApps.drop(dockApps.size)
-                    val appPageSize = 24
+                    val appPageSize = 28
                     val appChunks = gridApps.chunked(appPageSize).ifEmpty { listOf(emptyList()) }
                     appPageCount = appChunks.size
                     appPageIndex = appPageIndex.coerceIn(0, appPageCount - 1)
@@ -398,7 +398,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         val gridView = GridView(this).apply {
                             numColumns = 4
                             horizontalSpacing = dp(6)
-                            verticalSpacing = dp(2)
+                            verticalSpacing = dp(0)
                             stretchMode = GridView.STRETCH_COLUMN_WIDTH
                             isVerticalScrollBarEnabled = false
                             clipToPadding = false
