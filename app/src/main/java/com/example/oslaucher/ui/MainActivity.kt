@@ -399,7 +399,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     val gridRows = getSharedPreferences(
                         ScreenGridActivity.PREFERENCES_NAME,
                         MODE_PRIVATE
-                    ).getInt(ScreenGridActivity.GRID_ROWS_KEY, ScreenGridActivity.DEFAULT_GRID_ROWS)
+                    ).getInt(
+                        ScreenGridActivity.GRID_ROWS_KEY,
+                        ScreenGridActivity.DEFAULT_GRID_ROWS
+                    ).coerceIn(
+                        ScreenGridActivity.MIN_GRID_ROWS,
+                        ScreenGridActivity.MAX_GRID_ROWS
+                    )
                     val appPageSize = 4 * gridRows
                     val appChunks = gridApps.chunked(appPageSize).ifEmpty { listOf(emptyList()) }
                     appPageCount = appChunks.size
@@ -415,7 +421,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             stretchMode = GridView.STRETCH_COLUMN_WIDTH
                             isVerticalScrollBarEnabled = false
                             clipToPadding = false
-                            adapter = AppAdapter(this@MainActivity, appLauncher, appLongPress).apply {
+                            adapter = AppAdapter(
+                                this@MainActivity,
+                                appLauncher,
+                                appLongPress,
+                                gridRows
+                            ).apply {
                                 setApps(pageApps)
                             }
                         }

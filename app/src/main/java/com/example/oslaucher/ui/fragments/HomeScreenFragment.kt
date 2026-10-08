@@ -57,9 +57,6 @@ abstract class HomeScreenFragment : Fragment() {
             root.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
-        view.findViewById<View>(R.id.open_apps).setOnClickListener {
-            (activity as? HomeScreenActions)?.openApps()
-        }
         view.findViewById<View>(R.id.home_settings).setOnClickListener {
             (activity as? HomeScreenActions)?.openSettings()
         }
