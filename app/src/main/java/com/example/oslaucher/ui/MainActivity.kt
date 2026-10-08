@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appsIndicator: LinearLayout? = null
     private var appPageIndex = 0
     private var appPageCount = 1
+    private var appPageSwipeTransition: AppPageSwipeTransition? = null
     private var isLoadingApps = false
     private var downX = 0f
     private var downY = 0f
@@ -369,6 +370,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 view.findViewById<View>(R.id.open_home).setOnClickListener {
                     showScreen(Screen.HOME, 1)
                 }
+                view.findViewById<View>(R.id.screen_grid_setting).setOnClickListener {
+                    startActivity(Intent(this, ScreenGridActivity::class.java))
+                }
                 view.findViewById<View>(R.id.wallpaper_setting).setOnClickListener {
                     startActivity(Intent(this, WallpaperActivity::class.java))
                 }
@@ -392,7 +396,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     val visibleApps = apps.filterNot { it.packageName in hiddenAppPackages }
                     val dockApps = visibleApps.take(4)
                     val gridApps = visibleApps.drop(dockApps.size)
-                    val appPageSize = 28
+                    val gridRows = getSharedPreferences(
+                        ScreenGridActivity.PREFERENCES_NAME,
+                        MODE_PRIVATE
+                    ).getInt(ScreenGridActivity.GRID_ROWS_KEY, ScreenGridActivity.DEFAULT_GRID_ROWS)
+                    val appPageSize = 4 * gridRows
                     val appChunks = gridApps.chunked(appPageSize).ifEmpty { listOf(emptyList()) }
                     appPageCount = appChunks.size
                     appPageIndex = appPageIndex.coerceIn(0, appPageCount - 1)
@@ -474,6 +482,83 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         appPageIndex = pageIndex.coerceIn(0, appPageCount - 1)
         appsPages?.displayedChild = appPageIndex
         updateAppPageIndicator()
+    }
+
+    private fun startAppPageSwipe(direction: Int): AppPageSwipeTransition? {
+        val pages = appsPages ?: return null
+        val targetPage = appPageIndex + if (direction < 0) 1 else -1
+        if (targetPage !in 0 until appPageCount) return null
+
+        val outgoingView = pages.getChildAt(appPageIndex) ?: return null
+        val incomingView = pages.getChildAt(targetPage) ?: return null
+        val width = pages.width.takeIf { it > 0 }?.toFloat()
+            ?: screenContainer.width.takeIf { it > 0 }?.toFloat()
+            ?: resources.displayMetrics.widthPixels.toFloat()
+
+        outgoingView.animate().cancel()
+        incomingView.animate().cancel()
+        pages.displayedChild = targetPage
+        outgoingView.visibility = View.VISIBLE
+        incomingView.visibility = View.VISIBLE
+        outgoingView.translationX = 0f
+        incomingView.translationX = -direction * width
+
+        return AppPageSwipeTransition(
+            appPageIndex,
+            targetPage,
+            outgoingView,
+            incomingView,
+            width,
+            direction
+        )
+    }
+
+    private fun updateAppPageSwipe(transition: AppPageSwipeTransition, distanceX: Float) {
+        val resistedDistance = if (distanceX * transition.direction < 0f) {
+            distanceX * 0.25f
+        } else {
+            distanceX
+        }
+        val offset = resistedDistance.coerceIn(-transition.width, transition.width)
+        transition.outgoingView.translationX = offset
+        transition.incomingView.translationX = offset - transition.direction * transition.width
+    }
+
+    private fun settleAppPageSwipe(
+        transition: AppPageSwipeTransition,
+        commit: Boolean,
+        velocityX: Float
+    ) {
+        homeSwipeSettling = true
+        val outgoingTarget = if (commit) transition.direction * transition.width else 0f
+        val incomingTarget = if (commit) 0f else -transition.direction * transition.width
+        val outgoingDistance = abs(outgoingTarget - transition.outgoingView.translationX)
+        val speed = max(abs(velocityX), transition.width / 0.36f)
+        val duration = (outgoingDistance / speed * 1000f).toLong().coerceIn(150L, 360L)
+        val easing = PathInterpolator(0.2f, 0f, 0.2f, 1f)
+        val pages = appsPages
+
+        transition.outgoingView.animate()
+            .translationX(outgoingTarget)
+            .setDuration(duration)
+            .setInterpolator(easing)
+            .withEndAction {
+                pages?.displayedChild = if (commit) transition.toPage else transition.fromPage
+                transition.outgoingView.translationX = 0f
+                transition.incomingView.translationX = 0f
+                if (commit) {
+                    appPageIndex = transition.toPage
+                }
+                updateAppPageIndicator()
+                appPageSwipeTransition = null
+                homeSwipeSettling = false
+            }
+            .start()
+        transition.incomingView.animate()
+            .translationX(incomingTarget)
+            .setDuration(duration)
+            .setInterpolator(easing)
+            .start()
     }
 
     private fun moveAppPageWithSwipe(direction: Int) {
@@ -650,6 +735,27 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     updateHomeSwipe(transition, deltaX)
                     return true
                 }
+                var appPageTransition = appPageSwipeTransition
+                if (appPageTransition == null &&
+                    currentScreen == Screen.APPS &&
+                    abs(deltaX) > swipeTouchSlop &&
+                    abs(deltaX) > abs(deltaY) * 1.2f
+                ) {
+                    val direction = if (deltaX < 0f) -1 else 1
+                    appPageTransition = startAppPageSwipe(direction)
+                    if (appPageTransition != null) {
+                        appPageSwipeTransition = appPageTransition
+                        val cancel = MotionEvent.obtain(event).apply {
+                            action = MotionEvent.ACTION_CANCEL
+                        }
+                        super.dispatchTouchEvent(cancel)
+                        cancel.recycle()
+                    }
+                }
+                if (appPageTransition != null) {
+                    updateAppPageSwipe(appPageTransition, deltaX)
+                    return true
+                }
             }
 
             MotionEvent.ACTION_UP -> {
@@ -659,6 +765,22 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 val velocityY = velocityTracker?.yVelocity ?: 0f
                 val distance = event.x - downX
                 var transition = homeSwipeTransition
+
+                val appPageTransition = appPageSwipeTransition
+                if (appPageTransition != null) {
+                    val movedEnough =
+                        distance * appPageTransition.direction / appPageTransition.width >= 0.33f
+                    val flungFarEnough = abs(velocityX) >= swipeMinVelocity &&
+                        velocityX * appPageTransition.direction > 0f
+                    updateAppPageSwipe(appPageTransition, distance)
+                    settleAppPageSwipe(
+                        appPageTransition,
+                        movedEnough || flungFarEnough,
+                        velocityX
+                    )
+                    recycleVelocityTracker()
+                    return true
+                }
 
                 if (transition == null && currentScreen == Screen.APPS) {
                     val width = screenContainer.width.takeIf { it > 0 }
@@ -720,6 +842,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                val appPageTransition = appPageSwipeTransition
+                if (appPageTransition != null) {
+                    settleAppPageSwipe(appPageTransition, commit = false, velocityX = 0f)
+                    recycleVelocityTracker()
+                    return true
+                }
                 val transition = homeSwipeTransition
                 if (transition != null) {
                     settleHomeSwipe(transition, commit = false, velocityX = 0f)
