@@ -234,8 +234,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/general_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -545,8 +548,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/app_effects_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -680,8 +686,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/change_app_icon_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 

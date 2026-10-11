@@ -9,6 +9,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import com.example.oslaucher.R
 import com.example.oslaucher.models.AppInfo
+import com.example.oslaucher.utils.AppIconUtils
 
 class AppAdapter(
     context: Context,
@@ -58,7 +59,8 @@ class AppAdapter(
             }
         }
         val app = getItem(position)
-        itemView.findViewById<ImageView>(R.id.app_icon).setImageDrawable(app.icon)
+        itemView.findViewById<ImageView>(R.id.app_icon)
+            .setImageDrawable(AppIconUtils.getIcon(inflater.context, app))
         itemView.findViewById<TextView>(R.id.app_name).text = app.name
         itemView.contentDescription = app.name
         itemView.setOnClickListener { onAppClick(app) }

@@ -36,6 +36,8 @@ import com.example.oslaucher.repositories.InstalledAppRepository
 import com.example.oslaucher.ui.fragments.HomeFragment
 import com.example.oslaucher.ui.fragments.HomeScreenActions
 import com.example.oslaucher.ui.fragments.HomeSecondFragment
+import com.example.oslaucher.utils.AppIconUtils
+import com.example.oslaucher.utils.LauncherWallpaper
 import com.example.oslaucher.utils.Screen
 import java.util.concurrent.Executors
 import kotlin.math.abs
@@ -99,6 +101,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         })
 
         showScreen(Screen.SETTINGS, 0)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (currentScreen == Screen.APPS) {
+            screenContainer.getChildAt(0)
+                ?.findViewById<View>(R.id.main)
+                ?.let(LauncherWallpaper::applyTo)
+        }
     }
 
     private fun showScreen(screen: Screen, animationDirection: Int = 0) {
@@ -382,6 +393,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+        if (screen == Screen.APPS) {
+            view.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
+        }
 
         when (screen) {
             Screen.SETTINGS -> {
@@ -391,6 +405,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 view.findViewById<View>(R.id.appearance_setting).setOnClickListener {
                     startActivity(Intent(this, AppearanceActivity::class.java))
                 }
+                view.findViewById<View>(R.id.general_setting).setOnClickListener {
+                    startActivity(Intent(this, GeneralSettingsActivity::class.java))
+                }
                 view.findViewById<View>(R.id.screen_grid_setting).setOnClickListener {
                     startActivity(Intent(this, ScreenGridActivity::class.java))
                 }
@@ -399,6 +416,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
                 view.findViewById<View>(R.id.wallpaper_setting).setOnClickListener {
                     startActivity(Intent(this, WallpaperActivity::class.java))
+                }
+                view.findViewById<View>(R.id.app_effects_setting).setOnClickListener {
+                    startActivity(Intent(this, AppEffectsActivity::class.java))
+                }
+                view.findViewById<View>(R.id.change_app_icon_setting).setOnClickListener {
+                    startActivity(Intent(this, ChangeAppIconActivity::class.java))
                 }
             }
             Screen.HOME, Screen.HOME_SECOND -> Unit
@@ -470,7 +493,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     dock.removeAllViews()
                     dockApps.forEach { app ->
                         val icon = ImageView(this).apply {
-                            setImageDrawable(app.icon)
+                            setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
                             contentDescription = app.name
                             scaleType = ImageView.ScaleType.FIT_CENTER
                             setPadding(dp(6), dp(4), dp(6), dp(4))

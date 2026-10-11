@@ -34,6 +34,15 @@
             android:name=".ui.AppearanceActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.GeneralSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.AppEffectsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.ChangeAppIconActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
