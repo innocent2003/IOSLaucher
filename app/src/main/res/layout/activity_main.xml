@@ -360,8 +360,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/appearance_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -457,8 +460,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/page_transition_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 

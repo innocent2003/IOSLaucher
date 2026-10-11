@@ -21,5 +21,6 @@ internal data class AppPageSwipeTransition(
     val outgoingView: View,
     val incomingView: View,
     val width: Float,
-    val direction: Int
+    val direction: Int,
+    var progress: Float = 0f
 )

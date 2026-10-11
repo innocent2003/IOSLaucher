@@ -28,6 +28,12 @@
             android:name=".ui.ScreenGridActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.PageTransitionActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.AppearanceActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
