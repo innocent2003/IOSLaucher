@@ -1,6 +1,8 @@
 package com.example.oslaucher.adapters
 
 import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,7 +17,10 @@ class AppAdapter(
     context: Context,
     private val onAppClick: (AppInfo) -> Unit,
     private val onAppLongClick: ((AppInfo, View) -> Unit)? = null,
-    private val gridRows: Int = 7
+    private val gridRows: Int = 7,
+    private val selectedPackages: Set<String> = emptySet(),
+    private val isSelectionMode: () -> Boolean = { false },
+    private val canSelectApp: (AppInfo) -> Boolean = { true }
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
     private val iconMaxSize = (58 * context.resources.displayMetrics.density).toInt()
@@ -63,6 +68,20 @@ class AppAdapter(
             .setImageDrawable(AppIconUtils.getIcon(inflater.context, app))
         itemView.findViewById<TextView>(R.id.app_name).text = app.name
         itemView.contentDescription = app.name
+        val canSelect = canSelectApp(app)
+        val selectionBadge = itemView.findViewById<TextView>(R.id.app_selection_badge)
+        if (isSelectionMode() && canSelect) {
+            val selected = app.packageName in selectedPackages
+            selectionBadge.visibility = View.VISIBLE
+            selectionBadge.text = if (selected) "✓" else ""
+            selectionBadge.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (selected) 0xFF1685E8.toInt() else 0x66505050)
+                setStroke((1.5f * inflater.context.resources.displayMetrics.density).toInt(), Color.WHITE)
+            }
+        } else {
+            selectionBadge.visibility = View.GONE
+        }
         itemView.setOnClickListener { onAppClick(app) }
         itemView.setOnLongClickListener {
             onAppLongClick?.invoke(app, itemView)
