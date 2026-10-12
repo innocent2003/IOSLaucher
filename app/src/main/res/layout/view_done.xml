@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:elevation="5dp"
+    app:cardCornerRadius="@dimen/dp24"
+    app:cardElevation="5dp">
+    <LinearLayout
+        android:gravity="center"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:background="@drawable/new_background_item_group_setting"
+        android:clickable="false"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="38dp"
+        android:paddingVertical="32dp">
+        <ImageView
+            android:layout_gravity="center"
+            android:id="@+id/progress_item"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_marginBottom="4dp"
+            android:src="@drawable/ic_checkmark"/>
+        <com.truelab.common.view.TextViewCustomFont
+            android:textSize="17dp"
+            android:textColor="@color/color_container_solid_inverse"
+            android:layout_gravity="center"
+            android:id="@+id/tv_loading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/done"
+            app:customFont="2"/>
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

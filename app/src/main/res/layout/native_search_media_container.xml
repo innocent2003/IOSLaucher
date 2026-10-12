@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <FrameLayout
+        android:id="@+id/fl_adplaceholder"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+    <include layout="@layout/native_search_media_loading"/>
+</androidx.cardview.widget.CardView>

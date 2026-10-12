@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root_view"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <LinearLayout
+        android:orientation="horizontal"
+        android:id="@+id/layout_settings"
+        android:background="@drawable/selector_clickable"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+        <com.truelab.common.view.TextViewCustomFont
+            android:textSize="13dp"
+            android:textColor="@color/color_content_1st"
+            android:gravity="center_vertical"
+            android:id="@+id/settings_text"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/height_item_settings"
+            android:layout_weight="1"
+            android:layout_marginStart="@dimen/medium_margin"
+            app:customFont="2"/>
+        <ImageView
+            android:layout_gravity="center"
+            android:id="@+id/ic_checked"
+            android:padding="@dimen/margin_8dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_checked"
+            android:layout_marginEnd="@dimen/margin_8dp"/>
+    </LinearLayout>
+    <View
+        android:id="@+id/divider_line"
+        android:background="@color/divider_color"
+        android:layout_width="match_parent"
+        android:layout_height="1px"
+        android:layout_marginStart="@dimen/medium_margin"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/layout_settings"/>
+</androidx.constraintlayout.widget.ConstraintLayout>

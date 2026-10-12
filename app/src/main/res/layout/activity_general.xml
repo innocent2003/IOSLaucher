@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/general_settings_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/general_settings_back"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:background="@drawable/bg_round_button"
+            android:contentDescription="Quay lại"
+            android:gravity="center"
+            android:text="←"
+            android:textColor="#FFFFFF"
+            android:textSize="26sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="Cài Đặt Chung"
+            android:textColor="#FFFFFF"
+            android:textSize="23sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/bg_round_button"
+        android:orientation="vertical"
+        android:paddingStart="18dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:id="@+id/general_hide_navigation_row"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Ẩn điều hướng"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/general_hide_navigation"
+                android:layout_width="58dp"
+                android:layout_height="34dp"
+                android:contentDescription="Ẩn điều hướng" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/general_auto_arrange_row"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Sắp xếp tự động màn hình chính"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/general_auto_arrange"
+                android:layout_width="58dp"
+                android:layout_height="34dp"
+                android:contentDescription="Sắp xếp tự động màn hình chính" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/general_blur_row"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Hiệu ứng làm mờ"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/general_blur"
+                android:layout_width="58dp"
+                android:layout_height="34dp"
+                android:contentDescription="Hiệu ứng làm mờ" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#555555" />
+
+        <LinearLayout
+            android:id="@+id/general_flexible_text_row"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Kích thước văn bản linh hoạt"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/general_flexible_text"
+                android:layout_width="58dp"
+                android:layout_height="34dp"
+                android:contentDescription="Kích thước văn bản linh hoạt" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#555555" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="122dp"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/general_preview_icon"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_blue_button"
+                android:contentDescription="Biểu tượng thời tiết xem trước"
+                android:gravity="center"
+                android:text="🌤"
+                android:textSize="38sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Message"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/general_icon_size_value"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:gravity="center"
+            android:text="100%"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <SeekBar
+            android:id="@+id/general_icon_size"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:max="40"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:progress="20"
+            android:progressBackgroundTint="#666666"
+            android:progressTint="#168BFF"
+            android:thumbTint="#FFFFFF" />
+    </LinearLayout>
+</LinearLayout>

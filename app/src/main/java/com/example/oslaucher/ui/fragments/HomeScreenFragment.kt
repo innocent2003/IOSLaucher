@@ -22,6 +22,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import com.example.oslaucher.R
+import com.example.oslaucher.utils.LauncherWallpaper
 import com.example.oslaucher.ui.widgets.BatteryRingView
 import org.json.JSONException
 import org.json.JSONObject
@@ -40,7 +41,11 @@ abstract class HomeScreenFragment : Fragment() {
     private var weatherRequestInProgress = false
     private val updatesReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            view?.let(::updateWidgets)
+            when (intent?.action) {
+                ACTION_WALLPAPER_CHANGED ->
+                    view?.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
+                else -> view?.let(::updateWidgets)
+            }
         }
     }
 
@@ -52,13 +57,11 @@ abstract class HomeScreenFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        view.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
         ViewCompat.setOnApplyWindowInsetsListener(view.findViewById(R.id.main)) { root, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             root.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
-        }
-        view.findViewById<View>(R.id.open_apps).setOnClickListener {
-            (activity as? HomeScreenActions)?.openApps()
         }
         view.findViewById<View>(R.id.home_settings).setOnClickListener {
             (activity as? HomeScreenActions)?.openSettings()
@@ -80,6 +83,7 @@ abstract class HomeScreenFragment : Fragment() {
             addAction(Intent.ACTION_TIME_CHANGED)
             addAction(Intent.ACTION_TIMEZONE_CHANGED)
             addAction(Intent.ACTION_TIME_TICK)
+            addAction(ACTION_WALLPAPER_CHANGED)
         }
         ContextCompat.registerReceiver(
             requireContext(),
@@ -156,6 +160,7 @@ abstract class HomeScreenFragment : Fragment() {
                 isToday
             )
         }
+
     }
 
     private fun addCalendarCell(
@@ -297,5 +302,6 @@ abstract class HomeScreenFragment : Fragment() {
 
     private companion object {
         const val TAG = "HomeScreenFragment"
+        const val ACTION_WALLPAPER_CHANGED = "android.intent.action.WALLPAPER_CHANGED"
     }
 }

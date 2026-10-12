@@ -11,6 +11,7 @@
         </intent>
     </queries>
 
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -20,6 +21,27 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Oslaucher">
+        <activity
+            android:name=".ui.WallpaperActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.ScreenGridActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.PageTransitionActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.AppearanceActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.GeneralSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.AppEffectsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.ChangeAppIconActivity"
+            android:exported="false" />
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"

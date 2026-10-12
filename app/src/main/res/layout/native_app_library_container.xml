@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:id="@+id/card_view_ads"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    app:cardBackgroundColor="#fff"
+    app:cardCornerRadius="@dimen/native_ad_default_radius">
+    <FrameLayout
+        android:orientation="vertical"
+        android:id="@+id/content_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <FrameLayout
+            android:orientation="vertical"
+            android:id="@+id/fl_adplaceholder"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+        <include layout="@layout/native_app_library_loading"/>
+    </FrameLayout>
+</androidx.cardview.widget.CardView>

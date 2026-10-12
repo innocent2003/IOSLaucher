@@ -28,7 +28,7 @@
                 android:layout_weight="1"
                 android:text="Cài đặt  ✓"
                 android:textColor="#FFFFFF"
-                android:textSize="32sp"
+                android:textSize="24sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -43,7 +43,8 @@
                 android:paddingEnd="18dp"
                 android:text="Màn hình chính  ›"
                 android:textColor="#FFFFFF"
-                android:textSize="14sp" />
+                android:textSize="16sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <TextView
@@ -53,7 +54,7 @@
             android:layout_marginBottom="20dp"
             android:text="Chào mừng bạn đến với trung tâm chỉ huy cá nhân, hãy điều chỉnh từng chi tiết để phù hợp với phong cách của bạn."
             android:textColor="#E5E5E5"
-            android:textSize="16sp" />
+            android:textSize="14sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -181,7 +182,7 @@
             android:layout_marginBottom="8dp"
             android:text="Cài Đặt Chung"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <LinearLayout
@@ -233,8 +234,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/general_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -290,10 +294,13 @@
                     android:textSize="30sp" />
 
                 <TextView
+                    android:id="@+id/wallpaper_setting"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:text="Hình nền"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
@@ -356,8 +363,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/appearance_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -398,7 +408,7 @@
             android:layout_marginBottom="8dp"
             android:text="Màn hình chính &amp; Hiệu ứng chuyển cảnh"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <LinearLayout
@@ -409,8 +419,11 @@
             android:paddingHorizontal="14dp">
 
             <LinearLayout
+                android:id="@+id/screen_grid_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -450,8 +463,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/page_transition_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -532,8 +548,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/app_effects_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -615,7 +634,7 @@
             android:layout_marginBottom="8dp"
             android:text="Tùy chỉnh biểu tượng"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <LinearLayout
@@ -667,8 +686,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/change_app_icon_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -832,7 +854,7 @@
             android:layout_marginBottom="8dp"
             android:text="Liên hệ với chúng tôi"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <LinearLayout

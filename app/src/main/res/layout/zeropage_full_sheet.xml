@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.android.launcher3.zeropage.sheet.ZeroPageFullSheet xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:theme="?attr/widgetsTheme"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_marginBottom="-40dp"
+    android:layout_marginHorizontal="-1dp">
+    <include layout="@layout/widgets_full_sheet_content"/>
+</com.android.launcher3.zeropage.sheet.ZeroPageFullSheet>

@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/appearance_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/appearance_back"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:background="@drawable/bg_round_button"
+            android:contentDescription="Quay lại"
+            android:gravity="center"
+            android:text="←"
+            android:textColor="#FFFFFF"
+            android:textSize="26sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="Giao diện"
+            android:textColor="#FFFFFF"
+            android:textSize="23sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:background="@drawable/bg_round_button"
+        android:orientation="vertical"
+        android:paddingStart="18dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/appearance_light_option"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <FrameLayout
+                    android:id="@+id/appearance_light_preview"
+                    android:layout_width="116dp"
+                    android:layout_height="218dp"
+                    android:background="#FFFDFB"
+                    android:clipToOutline="true" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Sáng"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/appearance_light_radio"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_round_button"
+                    android:gravity="center"
+                    android:text="●"
+                    android:textColor="#32CF70"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/appearance_dark_option"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <FrameLayout
+                    android:id="@+id/appearance_dark_preview"
+                    android:layout_width="116dp"
+                    android:layout_height="218dp"
+                    android:background="#38383A"
+                    android:clipToOutline="true" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Tối"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/appearance_dark_radio"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_round_button"
+                    android:gravity="center"
+                    android:text="●"
+                    android:textColor="#32CF70"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="18dp"
+            android:background="#5C5C5E" />
+
+        <LinearLayout
+            android:id="@+id/appearance_auto_row"
+            android:layout_width="match_parent"
+            android:layout_height="72dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Auto"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+            <FrameLayout
+                android:id="@+id/appearance_auto_switch"
+                android:layout_width="50dp"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_round_button"
+                android:contentDescription="Tự động"
+                android:padding="3dp">
+
+                <View
+                    android:id="@+id/appearance_auto_thumb"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_gravity="center_vertical|end"
+                    android:background="@drawable/bg_round_button" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/appearance_system_row"
+            android:layout_width="match_parent"
+            android:layout_height="72dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="System"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+            <FrameLayout
+                android:id="@+id/appearance_system_switch"
+                android:layout_width="50dp"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_round_button"
+                android:contentDescription="Theo hệ thống"
+                android:padding="3dp">
+
+                <View
+                    android:id="@+id/appearance_system_thumb"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_gravity="center_vertical|start"
+                    android:background="@drawable/bg_round_button" />
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

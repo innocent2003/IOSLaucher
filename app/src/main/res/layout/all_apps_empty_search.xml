@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <com.truelab.common.view.TextViewCustomFont
+        android:textSize="20dp"
+        android:textColor="#eeffffff"
+        android:gravity="start"
+        android:id="@+id/empty_text"
+        android:paddingLeft="16dp"
+        android:paddingTop="@dimen/all_apps_empty_search_message_top_offset"
+        android:paddingRight="16dp"
+        android:paddingBottom="8dp"
+        android:focusable="false"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:drawableTop="@drawable/ic_allapps_empty_search"
+        app:customFont="2"/>
+    <com.truelab.common.view.TextViewCustomFont
+        android:textSize="15dp"
+        android:textColor="#eeffffff"
+        android:gravity="center"
+        android:id="@+id/empty_text_desc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/check_the_spelling_or_try_a_new_search"/>
+</LinearLayout>
