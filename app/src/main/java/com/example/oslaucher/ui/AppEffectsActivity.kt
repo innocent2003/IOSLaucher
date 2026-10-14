@@ -68,13 +68,6 @@ class AppEffectsActivity : AppCompatActivity() {
         }
     }
 
-    private data class EffectOption(
-        val rowId: Int,
-        val switchId: Int,
-        val preferenceKey: String,
-        val defaultValue: Boolean
-    )
-
     companion object {
         private const val PREFERENCES_NAME = "launcher_settings"
         private const val CONTINUE_EFFECTS_KEY = "app_effects_continue"

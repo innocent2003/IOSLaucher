@@ -14,13 +14,3 @@ internal data class HomeSwipeTransition(
     val width: Float,
     val direction: Int
 )
-
-internal data class AppPageSwipeTransition(
-    val fromPage: Int,
-    val toPage: Int,
-    val outgoingView: View,
-    val incomingView: View,
-    val width: Float,
-    val direction: Int,
-    var progress: Float = 0f
-)

@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private val appLoadExecutor = Executors.newSingleThreadExecutor()
     private lateinit var screenContainer: FrameLayout
     private var installedApps: List<AppInfo>? = null
+    private val installedAppsCallbacks = mutableListOf<(List<AppInfo>) -> Unit>()
     private var renderApps: ((List<AppInfo>) -> Unit)? = null
     private var appsPages: ViewFlipper? = null
     private var appsIndicator: LinearLayout? = null
@@ -79,11 +80,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var velocityTracker: VelocityTracker? = null
     private val hiddenAppPackages = mutableSetOf<String>()
 
-    private data class AppFolder(
-        val id: String,
-        val name: String,
-        val packageNames: List<String>
-    )
     private val swipeTouchSlop by lazy { ViewConfiguration.get(this).scaledTouchSlop }
     private val swipeMinVelocity by lazy { ViewConfiguration.get(this).scaledMinimumFlingVelocity }
 
@@ -603,20 +599,54 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 val loadedApps = installedApps
                 if (loadedApps != null) {
                     buildHomeApps(loadedApps)
-                } else if (!isLoadingApps) {
-                    isLoadingApps = true
-                    appLoadExecutor.execute {
-                        val apps = appRepository.loadInstalledApps()
-                        runOnUiThread {
-                            installedApps = apps
-                            isLoadingApps = false
-                            if (currentScreen == Screen.APPS) {
-                                renderApps?.invoke(apps)
-                            }
+                } else {
+                    requestInstalledApps { apps ->
+                        if (currentScreen == Screen.APPS) {
+                            renderApps?.invoke(apps)
                         }
                     }
                 }
             }
+        }
+    }
+
+    private fun requestInstalledApps(onLoaded: (List<AppInfo>) -> Unit) {
+        installedApps?.let {
+            onLoaded(it)
+            return
+        }
+
+        installedAppsCallbacks += onLoaded
+        if (isLoadingApps) return
+
+        isLoadingApps = true
+        appLoadExecutor.execute {
+            val apps = appRepository.loadInstalledApps()
+            runOnUiThread {
+                installedApps = apps
+                isLoadingApps = false
+                val callbacks = installedAppsCallbacks.toList()
+                installedAppsCallbacks.clear()
+                callbacks.forEach { callback -> callback(apps) }
+            }
+        }
+    }
+
+    override fun loadHomeScreenApps(onLoaded: (List<AppInfo>) -> Unit) {
+        requestInstalledApps(onLoaded)
+    }
+
+    override fun launchHomeScreenApp(packageName: String) {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        if (launchIntent == null) {
+            Toast.makeText(this, "Không thể mở ứng dụng", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            startActivity(launchIntent)
+        } catch (exception: SecurityException) {
+            Log.e(TAG, "Unable to launch app $packageName", exception)
+            Toast.makeText(this, "Không thể mở ứng dụng", Toast.LENGTH_SHORT).show()
         }
     }
 

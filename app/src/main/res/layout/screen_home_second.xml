@@ -4,7 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_wallpaper"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:scrollbars="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -60,102 +61,278 @@
             android:id="@+id/home_date"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="THỨ TƯ, 30 THÁNG 9"
+            android:layout_marginTop="18dp"
+            android:text="THỨ NĂM, 12 THÁNG 10"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="184dp"
-            android:layout_marginTop="14dp"
+            android:layout_height="52dp"
+            android:layout_marginTop="18dp"
             android:background="@drawable/bg_glass"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="22dp">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="HÀ NỘI" android:textColor="#E8F0F7" android:textSize="14sp" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="Thời tiết hôm nay" android:textColor="#FFFFFF" android:textSize="19sp" android:textStyle="bold" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Nắng nhẹ  ·  Gió 8 km/h" android:textColor="#E8F0F7" android:textSize="14sp" />
-            </LinearLayout>
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="28°"
-                android:textColor="#FFFFFF"
-                android:textSize="42sp" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="26dp"
-            android:text="TIỆN ÍCH"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="160dp"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_widget"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="20dp">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ĐANG PHÁT" android:textColor="#B6C8D8" android:textSize="12sp" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Chưa có nội dung" android:textColor="#FFFFFF" android:textSize="19sp" android:textStyle="bold" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="Trình phát nhạc" android:textColor="#C6C6C6" android:textSize="14sp" />
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="◀   ▶   ●"
-                android:textColor="#FFFFFF"
-                android:textSize="20sp" />
+                android:drawableStart="@android:drawable/ic_menu_search"
+                android:drawablePadding="10dp"
+                android:text="Thư viện ứng dụng"
+                android:textColor="#F2F5F8"
+                android:textSize="18sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <GridLayout
+            android:id="@+id/home_app_folders"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:background="@drawable/bg_glass"
-            android:columnCount="4"
-            android:padding="12dp"
-            android:rowCount="2">
+            android:layout_marginTop="18dp"
+            android:columnCount="2"
+            android:rowCount="3"
+            android:visibility="gone"
+            android:useDefaultMargins="false">
 
-            <TextView style="@style/AppPreviewIcon" android:text="◷" android:backgroundTint="#FFFFFF" android:textColor="#252525" />
-            <TextView style="@style/AppPreviewIcon" android:text="♫" android:backgroundTint="#2D6EEB" android:textColor="#FFFFFF" />
-            <TextView style="@style/AppPreviewIcon" android:text="☁" android:backgroundTint="#48A8DA" android:textColor="#FFFFFF" />
-            <TextView style="@style/AppPreviewIcon" android:text="▦" android:backgroundTint="#30B986" android:textColor="#FFFFFF" />
-            <TextView style="@style/AppPreviewIcon" android:text="✉" android:backgroundTint="#EAF2FA" android:textColor="#2676B9" />
-            <TextView style="@style/AppPreviewIcon" android:text="◎" android:backgroundTint="#E84B60" android:textColor="#FFFFFF" />
-            <TextView style="@style/AppPreviewIcon" android:text="⌕" android:backgroundTint="#FFFFFF" android:textColor="#333333" />
-            <TextView style="@style/AppPreviewIcon" android:text="＋" android:backgroundTint="#273B63" android:textColor="#FFFFFF" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="18dp"
+                android:orientation="vertical">
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass"
+                    android:columnCount="4"
+                    android:padding="10dp">
+
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#EAEAEA" android:text="◉" android:textColor="#2F2F2F" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#4F90FF" android:text="◌" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#1DAD7C" android:text="◍" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FFB041" android:text="◎" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F5F7FA" android:text="◐" android:textColor="#2F2F2F" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#5B9DFF" android:text="◈" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF7F50" android:text="◒" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#7D86FF" android:text="◔" />
+                </GridLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="Khác"
+                    android:textColor="#F3F7FB"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginStart="12dp"
+                android:layout_marginBottom="18dp"
+                android:orientation="vertical">
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass"
+                    android:columnCount="4"
+                    android:padding="10dp">
+
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#E5EAF5" android:text="◌" android:textColor="#2F2F2F" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#00B4D8" android:text="◍" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#6EE7B7" android:text="◐" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F7D154" android:text="★" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#32B8FF" android:text="◢" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF7E6B" android:text="◈" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#4757D7" android:text="◉" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F1F5F9" android:text="■" android:textColor="#2F2F2F" />
+                </GridLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="Xã hội và truyền thông"
+                    android:textColor="#F3F7FB"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="18dp"
+                android:orientation="vertical">
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass"
+                    android:columnCount="4"
+                    android:padding="10dp">
+
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F1F3F5" android:text="◫" android:textColor="#2F2F2F" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#3A82F7" android:text="◐" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#2CCB8A" android:text="◍" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F7C24A" android:text="◌" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F7F7F8" android:text="◴" android:textColor="#2F2F2F" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#6C63FF" android:text="◉" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF7F50" android:text="◈" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#2FC5E0" android:text="◔" />
+                </GridLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="Sản xuất"
+                    android:textColor="#F3F7FB"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginStart="12dp"
+                android:layout_marginBottom="18dp"
+                android:orientation="vertical">
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass"
+                    android:columnCount="4"
+                    android:padding="10dp">
+
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F3F5F7" android:text="◰" android:textColor="#2F2F2F" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#45A1FF" android:text="◍" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F8B900" android:text="G" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FFFFFF" android:text="◫" android:textColor="#2F2F2F" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF5A5F" android:text="◉" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#6DC9FF" android:text="◡" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#5B5CE0" android:text="◒" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F2F5F9" android:text="◲" android:textColor="#2F2F2F" />
+                </GridLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="Ảnh và hình ảnh"
+                    android:textColor="#F3F7FB"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginEnd="12dp"
+                android:orientation="vertical">
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass"
+                    android:columnCount="4"
+                    android:padding="10dp">
+
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F7F8FA" android:text="✉" android:textColor="#2F2F2F" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#1F7BFF" android:text="◫" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF9E44" android:text="◉" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#25C97B" android:text="◐" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#3B82F6" android:text="◍" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F34C5B" android:text="◒" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#6AD7FF" android:text="◔" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F2F4F7" android:text="◲" android:textColor="#2F2F2F" />
+                </GridLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="Phim và video"
+                    android:textColor="#F3F7FB"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_marginStart="12dp"
+                android:orientation="vertical">
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass"
+                    android:columnCount="4"
+                    android:padding="10dp">
+
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F5F7FA" android:text="♫" android:textColor="#2F2F2F" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#5D9BFF" android:text="◍" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#A5D8FF" android:text="◉" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F5C45B" android:text="◌" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F15A5A" android:text="◈" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#2EC4B6" android:text="◍" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F4D35E" android:text="✦" />
+                    <TextView style="@style/AppTileIcon" android:backgroundTint="#E8EDF6" android:text="◲" android:textColor="#2F2F2F" />
+                </GridLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="Tin tức và tạp chí"
+                    android:textColor="#F3F7FB"
+                    android:textSize="16sp" />
+            </LinearLayout>
         </GridLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="24dp"
             android:gravity="center"
             android:orientation="horizontal">
-            <TextView android:id="@+id/home_settings" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" android:clickable="true" android:focusable="true" android:gravity="center" android:text="☰" android:textColor="#D7E5F5" android:textSize="22sp" />
-            <TextView android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center|end" android:text="○ ●" android:textColor="#D7E5F5" android:textSize="14sp" />
+            <TextView
+                android:id="@+id/home_settings"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="☰"
+                android:textColor="#D7E5F5"
+                android:textSize="22sp" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center|end"
+                android:text="○ ●"
+                android:textColor="#D7E5F5"
+                android:textSize="14sp" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>
