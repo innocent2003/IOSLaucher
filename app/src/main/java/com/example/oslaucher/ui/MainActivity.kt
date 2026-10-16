@@ -63,6 +63,11 @@ import kotlin.math.abs
 import kotlin.math.max
 
 class MainActivity : AppCompatActivity(), HomeScreenActions {
+    private data class AppDragCandidate(
+        val app: AppInfo,
+        val source: View
+    )
+
     private data class FolderDragState(
         val folder: AppFolder,
         val draggedApp: AppInfo,
@@ -88,14 +93,16 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appPageIndex = 0
     private var appPageCount = 1
     private var appGridPageSize = 1
-    private var appGridPackages: List<String> = emptyList()
-    private val appGridOrderPackages = mutableListOf<String>()
+    private var appGridPackages: List<String?> = emptyList()
+    private val appGridOrderPackages = mutableListOf<String?>()
     private var appPageSwipeTransition: AppPageSwipeTransition? = null
     private var isLoadingApps = false
     private var isAppSelectionMode = false
     private val selectedAppPackages = mutableSetOf<String>()
     private val appFolders = mutableListOf<AppFolder>()
     private var draggedApp: AppInfo? = null
+    private var appDragCandidate: AppDragCandidate? = null
+    private var appOptionsPopup: PopupWindow? = null
     private var folderDragState: FolderDragState? = null
     private var dragShadow: ImageView? = null
     private var dragTargetLabel: TextView? = null
@@ -570,7 +577,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                 }
                 val appLongPress: (AppInfo, View) -> Unit = { app, anchor ->
-                    startAppDrag(app, anchor)
+                    if (app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                        startAppDrag(app, anchor)
+                    } else {
+                        appDragCandidate = AppDragCandidate(app, anchor)
+                        showAppOptions(app, anchor)
+                    }
                 }
 
                 fun buildHomeApps(apps: List<AppInfo>) {
@@ -590,7 +602,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     val gridApps = orderAppGridApps(
                         visibleApps.drop(dockApps.size) + folderTiles
                     )
-                    appGridPackages = gridApps.map { it.packageName }
+                    appGridPackages = gridApps.map { it?.packageName }
                     val gridRows = getSharedPreferences(
                         ScreenGridActivity.PREFERENCES_NAME,
                         MODE_PRIVATE
@@ -627,7 +639,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                                 { isAppSelectionMode },
                                 { !it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) }
                             ).apply {
-                                setApps(pageApps)
+                                setGridApps(
+                                    pageApps + List(appPageSize - pageApps.size) { null }
+                                )
                             }
                         }
                         pages.addView(gridView)
@@ -950,6 +964,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         popupWindow.isOutsideTouchable = true
         popupWindow.isFocusable = true
         popupWindow.elevation = 18f
+        appOptionsPopup = popupWindow
+        popupWindow.setOnDismissListener {
+            if (appOptionsPopup === popupWindow) {
+                appOptionsPopup = null
+            }
+            appDragCandidate = null
+        }
 
         popupView.findViewById<View>(R.id.app_action_info).setOnClickListener {
             try {
@@ -1153,10 +1174,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         dragMoved = false
     }
 
-    private fun orderAppGridApps(apps: List<AppInfo>): List<AppInfo> {
-        val savedPositions = appGridOrderPackages.withIndex()
-            .associate { it.value to it.index }
-        return apps.sortedBy { savedPositions[it.packageName] ?: Int.MAX_VALUE }
+    private fun orderAppGridApps(apps: List<AppInfo>): List<AppInfo?> {
+        if (appGridOrderPackages.isEmpty()) return apps
+
+        val appsByPackage = apps.associateBy { it.packageName }
+        val orderedPackages = mutableSetOf<String>()
+        val orderedApps = mutableListOf<AppInfo?>()
+        appGridOrderPackages.forEach { packageName ->
+            when {
+                packageName.isNullOrBlank() -> orderedApps.add(null)
+                !orderedPackages.add(packageName) -> orderedApps.add(null)
+                else -> orderedApps.add(appsByPackage[packageName])
+            }
+        }
+        orderedApps.addAll(apps.filterNot { it.packageName in orderedPackages })
+        return orderedApps
     }
 
     private fun reorderAppGridItem(
@@ -1170,46 +1202,52 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         val pageStart = pageIndex * appGridPageSize
         val pageEnd = minOf(pageStart + appGridPageSize, appGridPackages.size)
+        val directTargetIndex = if (pagePosition == GridView.INVALID_POSITION) {
+            -1
+        } else {
+            pageStart + pagePosition
+        }
+        val targetIsEmpty = directTargetIndex >= 0 &&
+            appGridPackages.getOrNull(directTargetIndex) == null
         val targetIndex = if (pagePosition == GridView.INVALID_POSITION) {
-            pageEnd
+            pageEnd.coerceAtMost(pageStart + appGridPageSize - 1)
+        } else if (targetIsEmpty) {
+            directTargetIndex
         } else {
             (pageStart + pagePosition + if (dropAfterTarget) 1 else 0)
-                .coerceIn(pageStart, pageEnd)
+                .coerceIn(pageStart, pageStart + appGridPageSize - 1)
         }
         val reorderedPackages = appGridPackages.toMutableList().apply {
-            removeAt(sourceIndex)
+            while (size <= maxOf(sourceIndex, targetIndex)) add(null)
         }
-        var insertionIndex = targetIndex
-        if (sourceIndex < insertionIndex) insertionIndex--
-        val adjustedPageStart = pageIndex * appGridPageSize
-        val adjustedPageEnd = minOf(
-            adjustedPageStart + appGridPageSize,
-            reorderedPackages.size
-        )
-        insertionIndex = insertionIndex.coerceIn(adjustedPageStart, adjustedPageEnd)
-        insertionIndex = insertionIndex.coerceIn(0, reorderedPackages.size)
-        reorderedPackages.add(insertionIndex, app.packageName)
+        if (targetIndex == sourceIndex) return
+
+        val targetPackage = reorderedPackages[targetIndex]
+        if (targetPackage == null) {
+            reorderedPackages[sourceIndex] = null
+            reorderedPackages[targetIndex] = app.packageName
+        } else {
+            reorderedPackages[sourceIndex] = null
+            reorderedPackages.add(targetIndex, app.packageName)
+        }
 
         appGridPackages = reorderedPackages
-        val reorderedPackageSet = reorderedPackages.toSet()
-        appGridOrderPackages.removeAll(reorderedPackageSet)
-        appGridOrderPackages.addAll(0, reorderedPackages)
+        appGridOrderPackages.clear()
+        appGridOrderPackages.addAll(reorderedPackages)
         saveAppGridOrder()
         installedApps?.let { renderApps?.invoke(it) }
     }
 
-    private fun loadAppGridOrder(): List<String> {
+    private fun loadAppGridOrder(): List<String?> {
         val stored = getSharedPreferences(APP_GRID_ORDER_PREFERENCES, MODE_PRIVATE)
             .getString(APP_GRID_ORDER_KEY, null) ?: return emptyList()
         return try {
             val packages = JSONArray(stored)
-            buildList {
+            buildList<String?> {
                 for (index in 0 until packages.length()) {
-                    packages.optString(index)
-                        .takeIf(String::isNotBlank)
-                        ?.let(::add)
+                    add(if (packages.isNull(index)) null else packages.optString(index))
                 }
-            }.distinct()
+            }
         } catch (exception: org.json.JSONException) {
             Log.w(TAG, "Could not read saved app grid order", exception)
             emptyList()
@@ -1310,7 +1348,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 },
                 { app, anchor ->
                     val currentFolder = appFolders.firstOrNull { it.id == folder.id } ?: folder
-                    val currentApps = (0 until folderAdapter.count).map(folderAdapter::getItem)
+                    val currentApps = (0 until folderAdapter.count)
+                        .mapNotNull(folderAdapter::getItem)
                     startFolderAppDrag(
                         currentFolder,
                         app,
@@ -1610,6 +1649,25 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         (value * resources.displayMetrics.density).toInt()
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        val dragCandidate = appDragCandidate
+        if (dragCandidate != null) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> {
+                    if (abs(event.x - downX) > swipeTouchSlop ||
+                        abs(event.y - downY) > swipeTouchSlop
+                    ) {
+                        appDragCandidate = null
+                        appOptionsPopup?.dismiss()
+                        appOptionsPopup = null
+                        startAppDrag(dragCandidate.app, dragCandidate.source)
+                        dragMoved = true
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    appDragCandidate = null
+                }
+            }
+        }
         if (draggedApp != null) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_MOVE -> {

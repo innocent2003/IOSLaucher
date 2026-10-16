@@ -24,10 +24,16 @@ class AppAdapter(
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
     private val iconMaxSize = (58 * context.resources.displayMetrics.density).toInt()
-    private var allApps: List<AppInfo> = emptyList()
-    private var visibleApps: List<AppInfo> = emptyList()
+    private var allApps: List<AppInfo?> = emptyList()
+    private var visibleApps: List<AppInfo?> = emptyList()
 
     fun setApps(apps: List<AppInfo>) {
+        allApps = apps
+        visibleApps = apps
+        notifyDataSetChanged()
+    }
+
+    fun setGridApps(apps: List<AppInfo?>) {
         allApps = apps
         visibleApps = apps
         notifyDataSetChanged()
@@ -37,16 +43,17 @@ class AppAdapter(
         visibleApps = if (query.isBlank()) {
             allApps
         } else {
-            allApps.filter { it.name.contains(query.trim(), ignoreCase = true) }
+            allApps.filter { it?.name?.contains(query.trim(), ignoreCase = true) == true }
         }
         notifyDataSetChanged()
     }
 
     override fun getCount(): Int = visibleApps.size
 
-    override fun getItem(position: Int): AppInfo = visibleApps[position]
+    override fun getItem(position: Int): AppInfo? = visibleApps[position]
 
-    override fun getItemId(position: Int): Long = getItem(position).packageName.hashCode().toLong()
+    override fun getItemId(position: Int): Long =
+        getItem(position)?.packageName?.hashCode()?.toLong() ?: Long.MIN_VALUE + position
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
         val itemView = convertView ?: inflater.inflate(R.layout.item_app, parent, false)
@@ -64,9 +71,21 @@ class AppAdapter(
             }
         }
         val app = getItem(position)
-        itemView.findViewById<ImageView>(R.id.app_icon)
-            .setImageDrawable(AppIconUtils.getIcon(inflater.context, app))
-        itemView.findViewById<TextView>(R.id.app_name).text = app.name
+        val icon = itemView.findViewById<ImageView>(R.id.app_icon)
+        val name = itemView.findViewById<TextView>(R.id.app_name)
+        if (app == null) {
+            icon.setImageDrawable(null)
+            name.text = ""
+            itemView.contentDescription = null
+            itemView.findViewById<TextView>(R.id.app_selection_badge).visibility = View.GONE
+            itemView.setOnClickListener(null)
+            itemView.setOnLongClickListener(null)
+            itemView.isClickable = false
+            itemView.isLongClickable = false
+            return itemView
+        }
+        icon.setImageDrawable(AppIconUtils.getIcon(inflater.context, app))
+        name.text = app.name
         itemView.contentDescription = app.name
         val canSelect = canSelectApp(app)
         val selectionBadge = itemView.findViewById<TextView>(R.id.app_selection_badge)
@@ -82,6 +101,8 @@ class AppAdapter(
         } else {
             selectionBadge.visibility = View.GONE
         }
+        itemView.isClickable = true
+        itemView.isLongClickable = true
         itemView.setOnClickListener { onAppClick(app) }
         itemView.setOnLongClickListener {
             onAppLongClick?.invoke(app, itemView)
