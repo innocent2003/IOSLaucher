@@ -1,10 +1,18 @@
 package com.example.oslaucher.ui
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -18,6 +26,7 @@ import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import android.widget.GridView
 import android.widget.ImageView
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.TextView
@@ -25,6 +34,7 @@ import android.widget.Toast
 import android.widget.ViewFlipper
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.core.view.ViewCompat
@@ -39,7 +49,10 @@ import com.example.oslaucher.ui.fragments.HomeSecondFragment
 import com.example.oslaucher.utils.AppIconUtils
 import com.example.oslaucher.utils.LauncherWallpaper
 import com.example.oslaucher.utils.Screen
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.Executors
+import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -48,6 +61,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private val appLoadExecutor = Executors.newSingleThreadExecutor()
     private lateinit var screenContainer: FrameLayout
     private var installedApps: List<AppInfo>? = null
+    private val installedAppsCallbacks = mutableListOf<(List<AppInfo>) -> Unit>()
     private var renderApps: ((List<AppInfo>) -> Unit)? = null
     private var appsPages: ViewFlipper? = null
     private var appsIndicator: LinearLayout? = null
@@ -55,6 +69,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appPageCount = 1
     private var appPageSwipeTransition: AppPageSwipeTransition? = null
     private var isLoadingApps = false
+    private var isAppSelectionMode = false
+    private val selectedAppPackages = mutableSetOf<String>()
+    private val appFolders = mutableListOf<AppFolder>()
     private var downX = 0f
     private var downY = 0f
     private var homeSwipeTransition: HomeSwipeTransition? = null
@@ -62,6 +79,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var ignoreTouchSequence = false
     private var velocityTracker: VelocityTracker? = null
     private val hiddenAppPackages = mutableSetOf<String>()
+
     private val swipeTouchSlop by lazy { ViewConfiguration.get(this).scaledTouchSlop }
     private val swipeMinVelocity by lazy { ViewConfiguration.get(this).scaledMinimumFlingVelocity }
 
@@ -85,9 +103,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             )
         }
         setContentView(screenContainer)
+        appFolders.addAll(loadAppFolders())
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (isAppSelectionMode) {
+                    exitAppSelectionMode()
+                    return
+                }
                 when (currentScreen) {
                     Screen.APPS -> showScreen(
                         lastHomeScreen,
@@ -428,21 +451,48 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             Screen.APPS -> {
                 val pages = view.findViewById<ViewFlipper>(R.id.apps_pages)
                 val pageIndicator = view.findViewById<LinearLayout>(R.id.apps_page_indicator)
+                val selectionBar = view.findViewById<LinearLayout>(R.id.apps_selection_bar)
+                val selectionCount = view.findViewById<TextView>(R.id.apps_selection_count)
                 appsPages = pages
                 appsIndicator = pageIndicator
                 appPageIndex = 0
                 val dock = view.findViewById<LinearLayout>(R.id.apps_dock)
                 val appLauncher: (AppInfo) -> Unit = { app ->
-                    packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity)
+                    if (app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                        val folderId = app.packageName.removePrefix(FOLDER_PACKAGE_PREFIX)
+                        appFolders.find { it.id == folderId }?.let { folder ->
+                            showFolderContents(folder, installedApps.orEmpty())
+                        }
+                    } else if (isAppSelectionMode) {
+                        if (!selectedAppPackages.add(app.packageName)) {
+                            selectedAppPackages.remove(app.packageName)
+                        }
+                        installedApps?.let { renderApps?.invoke(it) }
+                    } else {
+                        packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity)
+                    }
                 }
                 val appLongPress: (AppInfo, View) -> Unit = { app, anchor ->
-                    showAppOptions(app, anchor)
+                    if (!app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                        showAppOptions(app, anchor)
+                    }
                 }
 
                 fun buildHomeApps(apps: List<AppInfo>) {
-                    val visibleApps = apps.filterNot { it.packageName in hiddenAppPackages }
+                    val folderPackages = appFolders.flatMapTo(mutableSetOf()) { it.packageNames }
+                    val visibleApps = apps.filterNot {
+                        it.packageName in hiddenAppPackages || it.packageName in folderPackages
+                    }
                     val dockApps = visibleApps.take(4)
-                    val gridApps = visibleApps.drop(dockApps.size)
+                    val folderTiles = appFolders.map { folder ->
+                        val folderApps = apps.filter { it.packageName in folder.packageNames }
+                        AppInfo(
+                            packageName = FOLDER_PACKAGE_PREFIX + folder.id,
+                            name = folder.name,
+                            icon = createFolderIcon(folderApps)
+                        )
+                    }
+                    val gridApps = visibleApps.drop(dockApps.size) + folderTiles
                     val gridRows = getSharedPreferences(
                         ScreenGridActivity.PREFERENCES_NAME,
                         MODE_PRIVATE
@@ -472,7 +522,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                                 this@MainActivity,
                                 appLauncher,
                                 appLongPress,
-                                gridRows
+                                gridRows,
+                                selectedAppPackages,
+                                { isAppSelectionMode },
+                                { !it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) }
                             ).apply {
                                 setApps(pageApps)
                             }
@@ -489,6 +542,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     pages.displayedChild = appPageIndex
                     updateAppPageIndicator()
+                    selectionBar.visibility = if (isAppSelectionMode) View.VISIBLE else View.GONE
+                    selectionCount.text = "${selectedAppPackages.size} đã chọn"
 
                     dock.removeAllViews()
                     dockApps.forEach { app ->
@@ -497,34 +552,101 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             contentDescription = app.name
                             scaleType = ImageView.ScaleType.FIT_CENTER
                             setPadding(dp(6), dp(4), dp(6), dp(4))
+                        }
+                        val iconContainer = FrameLayout(this).apply {
+                            addView(
+                                icon,
+                                FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                            )
+                            addView(
+                                TextView(this@MainActivity).apply {
+                                    val selected = app.packageName in selectedAppPackages
+                                    visibility = if (isAppSelectionMode) View.VISIBLE else View.GONE
+                                    text = if (selected) "✓" else ""
+                                    gravity = Gravity.CENTER
+                                    textSize = 13f
+                                    setTextColor(0xFFFFFFFF.toInt())
+                                    background = android.graphics.drawable.GradientDrawable().apply {
+                                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                                        setColor(
+                                            if (selected) 0xFF1685E8.toInt() else 0x66505050
+                                        )
+                                        setStroke(dp(1), 0xFFFFFFFF.toInt())
+                                    }
+                                },
+                                FrameLayout.LayoutParams(dp(20), dp(20), Gravity.TOP or Gravity.START)
+                            )
                             setOnClickListener { appLauncher(app) }
                         }
                         dock.addView(
-                            icon,
+                            iconContainer,
                             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
                         )
                     }
                 }
 
+                view.findViewById<View>(R.id.apps_selection_cancel).setOnClickListener {
+                    exitAppSelectionMode()
+                }
+                view.findViewById<View>(R.id.apps_selection_folder).setOnClickListener {
+                    promptCreateAppFolder()
+                }
                 renderApps = { apps -> buildHomeApps(apps) }
 
                 val loadedApps = installedApps
                 if (loadedApps != null) {
                     buildHomeApps(loadedApps)
-                } else if (!isLoadingApps) {
-                    isLoadingApps = true
-                    appLoadExecutor.execute {
-                        val apps = appRepository.loadInstalledApps()
-                        runOnUiThread {
-                            installedApps = apps
-                            isLoadingApps = false
-                            if (currentScreen == Screen.APPS) {
-                                renderApps?.invoke(apps)
-                            }
+                } else {
+                    requestInstalledApps { apps ->
+                        if (currentScreen == Screen.APPS) {
+                            renderApps?.invoke(apps)
                         }
                     }
                 }
             }
+        }
+    }
+
+    private fun requestInstalledApps(onLoaded: (List<AppInfo>) -> Unit) {
+        installedApps?.let {
+            onLoaded(it)
+            return
+        }
+
+        installedAppsCallbacks += onLoaded
+        if (isLoadingApps) return
+
+        isLoadingApps = true
+        appLoadExecutor.execute {
+            val apps = appRepository.loadInstalledApps()
+            runOnUiThread {
+                installedApps = apps
+                isLoadingApps = false
+                val callbacks = installedAppsCallbacks.toList()
+                installedAppsCallbacks.clear()
+                callbacks.forEach { callback -> callback(apps) }
+            }
+        }
+    }
+
+    override fun loadHomeScreenApps(onLoaded: (List<AppInfo>) -> Unit) {
+        requestInstalledApps(onLoaded)
+    }
+
+    override fun launchHomeScreenApp(packageName: String) {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        if (launchIntent == null) {
+            Toast.makeText(this, "Không thể mở ứng dụng", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            startActivity(launchIntent)
+        } catch (exception: SecurityException) {
+            Log.e(TAG, "Unable to launch app $packageName", exception)
+            Toast.makeText(this, "Không thể mở ứng dụng", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -731,7 +853,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
 
         popupView.findViewById<View>(R.id.app_action_select).setOnClickListener {
-            Toast.makeText(this, "Đã chọn ${app.name}", Toast.LENGTH_SHORT).show()
+            isAppSelectionMode = true
+            selectedAppPackages.clear()
+            selectedAppPackages.add(app.packageName)
+            installedApps?.let { renderApps?.invoke(it) }
             popupWindow.dismiss()
         }
 
@@ -768,6 +893,204 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val x = (anchorLocation[0] + anchor.width / 2 - popupWidth / 2).coerceIn(0, screenWidth - popupWidth)
         val y = (anchorLocation[1] + anchor.height / 2).coerceAtLeast(0)
         popupWindow.showAtLocation(anchor, Gravity.NO_GRAVITY, x, y)
+    }
+
+    private fun exitAppSelectionMode() {
+        isAppSelectionMode = false
+        selectedAppPackages.clear()
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun promptCreateAppFolder() {
+        if (selectedAppPackages.size < 2) {
+            Toast.makeText(this, "Chọn ít nhất hai ứng dụng để tạo thư mục.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val nameInput = EditText(this).apply {
+            setText("Thư mục")
+            setSelection(text.length)
+            setPadding(dp(20), dp(12), dp(20), dp(12))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Tạo thư mục")
+            .setView(nameInput)
+            .setNegativeButton("Hủy", null)
+            .setPositiveButton("Tạo") { _, _ ->
+                val name = nameInput.text.toString().trim()
+                if (name.isEmpty()) {
+                    Toast.makeText(this, "Nhập tên thư mục.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                createAppFolder(name)
+            }
+            .show()
+    }
+
+    private fun createAppFolder(name: String) {
+        val availablePackages = installedApps.orEmpty()
+            .mapTo(mutableSetOf()) { it.packageName }
+        val members = selectedAppPackages.filter { it in availablePackages }
+        if (members.size < 2) {
+            Toast.makeText(this, "Không đủ ứng dụng để tạo thư mục.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        appFolders += AppFolder(UUID.randomUUID().toString(), name, members)
+        saveAppFolders()
+        exitAppSelectionMode()
+        Toast.makeText(this, "Đã tạo thư mục $name.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showFolderContents(folder: AppFolder, apps: List<AppInfo>) {
+        val folderApps = apps.filter { it.packageName in folder.packageNames }
+        lateinit var popupWindow: PopupWindow
+        val overlay = FrameLayout(this).apply {
+            setBackgroundColor(0xAA111018.toInt())
+            setOnClickListener { popupWindow.dismiss() }
+        }
+        val folderCard = FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                setColor(0xCC38373F.toInt())
+                cornerRadius = dp(30).toFloat()
+                setStroke(dp(1), 0x447D8EA1)
+            }
+            isClickable = true
+            isFocusable = true
+        }
+        val grid = GridView(this).apply {
+            numColumns = 4
+            horizontalSpacing = dp(6)
+            verticalSpacing = dp(2)
+            stretchMode = GridView.STRETCH_COLUMN_WIDTH
+            isVerticalScrollBarEnabled = false
+            clipToPadding = false
+            setPadding(dp(16), dp(24), dp(16), dp(12))
+            adapter = AppAdapter(
+                this@MainActivity,
+                { app ->
+                    packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity)
+                    popupWindow.dismiss()
+                },
+                gridRows = 3
+            ).apply {
+                setApps(folderApps)
+            }
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+        folderCard.addView(grid)
+
+        val title = TextView(this).apply {
+            text = folder.name
+            gravity = Gravity.CENTER
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 30f
+            setShadowLayer(dp(4).toFloat(), 0f, dp(2).toFloat(), 0x99000000.toInt())
+        }
+        val cardSize = dp(300)
+        overlay.addView(
+            folderCard,
+            FrameLayout.LayoutParams(cardSize, cardSize, Gravity.CENTER)
+        )
+        overlay.addView(
+            title,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(52),
+                Gravity.CENTER
+            ).apply {
+                bottomMargin = cardSize + dp(8)
+            }
+        )
+
+        popupWindow = PopupWindow(
+            overlay,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            true
+        ).apply {
+            setBackgroundDrawable(ColorDrawable(0x00000000))
+            isOutsideTouchable = true
+            elevation = dp(16).toFloat()
+        }
+        popupWindow.showAtLocation(screenContainer, Gravity.CENTER, 0, 0)
+    }
+
+    private fun createFolderIcon(apps: List<AppInfo>): Drawable {
+        val size = (96 * resources.displayMetrics.density).toInt().coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFD9C8FF.toInt() }
+        canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.2f, size * 0.2f, paint)
+
+        val iconSize = size * 0.34f
+        val inset = size * 0.12f
+        val positions = listOf(
+            inset to inset,
+            (size - inset - iconSize) to inset,
+            inset to (size - inset - iconSize),
+            (size - inset - iconSize) to (size - inset - iconSize)
+        )
+        apps.take(4).forEachIndexed { index, app ->
+            val (left, top) = positions[index]
+            val icon = AppIconUtils.getIcon(this, app)
+                .constantState
+                ?.newDrawable(resources)
+                ?.mutate() ?: AppIconUtils.getIcon(this, app).mutate()
+            icon.setBounds(left.toInt(), top.toInt(), (left + iconSize).toInt(), (top + iconSize).toInt())
+            icon.draw(canvas)
+        }
+        return BitmapDrawable(resources, bitmap)
+    }
+
+    private fun loadAppFolders(): List<AppFolder> {
+        val stored = getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .getString(APP_FOLDERS_KEY, null) ?: return emptyList()
+        return try {
+            val jsonFolders = JSONArray(stored)
+            buildList {
+                for (index in 0 until jsonFolders.length()) {
+                    val jsonFolder = jsonFolders.getJSONObject(index)
+                    val packages = jsonFolder.getJSONArray("packages")
+                    val packageNames = buildList {
+                        for (packageIndex in 0 until packages.length()) {
+                            add(packages.getString(packageIndex))
+                        }
+                    }
+                    if (packageNames.size >= 2) {
+                        add(
+                            AppFolder(
+                                jsonFolder.getString("id"),
+                                jsonFolder.getString("name"),
+                                packageNames
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (exception: org.json.JSONException) {
+            Log.w(TAG, "Could not read saved app folders", exception)
+            emptyList()
+        }
+    }
+
+    private fun saveAppFolders() {
+        val jsonFolders = JSONArray()
+        appFolders.forEach { folder ->
+            jsonFolders.put(
+                JSONObject()
+                    .put("id", folder.id)
+                    .put("name", folder.name)
+                    .put("packages", JSONArray(folder.packageNames))
+            )
+        }
+        getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .putString(APP_FOLDERS_KEY, jsonFolders.toString())
+            .apply()
     }
 
     private fun dp(value: Int): Int =
@@ -961,5 +1284,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     override fun onDestroy() {
         appLoadExecutor.shutdownNow()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val APP_FOLDER_PREFERENCES = "launcher_app_folders"
+        const val APP_FOLDERS_KEY = "folders"
+        const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
+        const val TAG = "MainActivity"
     }
 }

@@ -10,6 +10,43 @@
     android:paddingEnd="12dp"
     android:paddingBottom="8dp">
 
+    <LinearLayout
+        android:id="@+id/apps_selection_bar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/apps_selection_cancel"
+            android:layout_width="48dp"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:text="✕"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/apps_selection_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="0 đã chọn"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/apps_selection_folder"
+            android:layout_width="52dp"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:text="▣"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp" />
+    </LinearLayout>
+
     <ViewFlipper
         android:id="@+id/apps_pages"
         android:layout_width="match_parent"

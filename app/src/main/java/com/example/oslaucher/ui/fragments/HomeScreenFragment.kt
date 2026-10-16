@@ -1,12 +1,15 @@
 package com.example.oslaucher.ui.fragments
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.BatteryManager
+import android.os.Build
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.util.Log
@@ -21,6 +24,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import com.example.oslaucher.R
 import com.example.oslaucher.utils.LauncherWallpaper
 import com.example.oslaucher.ui.widgets.BatteryRingView
@@ -36,6 +41,13 @@ import java.util.Locale
 
 abstract class HomeScreenFragment : Fragment() {
     protected abstract val layoutResId: Int
+
+    private val wallpaperPermissionRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                view?.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
+            }
+        }
 
     private var receiverRegistered = false
     private var weatherRequestInProgress = false
@@ -57,7 +69,11 @@ abstract class HomeScreenFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        view.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
+        view.findViewById<View>(R.id.main)?.let { root ->
+            if (!LauncherWallpaper.applyTo(root)) {
+                requestWallpaperPermission()
+            }
+        }
         ViewCompat.setOnApplyWindowInsetsListener(view.findViewById(R.id.main)) { root, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             root.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -96,6 +112,11 @@ abstract class HomeScreenFragment : Fragment() {
         if (view?.findViewById<View?>(R.id.home_weather_widget) != null) {
             refreshWeather()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        view?.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
     }
 
     override fun onStop() {
@@ -299,6 +320,27 @@ abstract class HomeScreenFragment : Fragment() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    private fun requestWallpaperPermission() {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (ContextCompat.checkSelfPermission(requireContext(), permission) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setMessage("Cho phép truy cập ảnh để màn hình chính hiển thị cùng hình nền của thiết bị.")
+            .setPositiveButton("Tiếp tục") { _, _ ->
+                wallpaperPermissionRequest.launch(permission)
+            }
+            .setNegativeButton("Để sau", null)
+            .show()
+    }
 
     private companion object {
         const val TAG = "HomeScreenFragment"

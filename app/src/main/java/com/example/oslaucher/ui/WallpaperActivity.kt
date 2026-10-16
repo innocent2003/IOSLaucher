@@ -1,6 +1,7 @@
 package com.example.oslaucher.ui
 
 import android.app.WallpaperManager
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -20,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
+import com.example.oslaucher.utils.LauncherWallpaper
 import java.io.IOException
 import kotlin.math.abs
 import kotlin.math.max
@@ -57,9 +59,24 @@ class WallpaperActivity : AppCompatActivity() {
                 null
             }
             if (bitmap != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (exception: SecurityException) {
+                    bitmap.recycle()
+                    Toast.makeText(
+                        this,
+                        "Không thể lưu quyền truy cập ảnh đã chọn.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@registerForActivityResult
+                }
                 val previousBitmap = selectedBitmap
                 selectedImageUri = uri
                 selectedBitmap = bitmap
+                LauncherWallpaper.saveUri(this, uri)
                 updatePreview()
                 previousBitmap?.recycle()
             } else {
@@ -102,6 +119,33 @@ class WallpaperActivity : AppCompatActivity() {
             dot.setOnClickListener {
                 selectWallpaper(index)
             }
+        }
+        val savedUri = LauncherWallpaper.getSavedUri(this)
+        if (savedUri != null) {
+            try {
+                val bitmap = decodePreview(savedUri)
+                if (bitmap != null) {
+                    selectedImageUri = savedUri
+                    selectedBitmap = bitmap
+                } else {
+                    Toast.makeText(this, "Không thể tải hình nền đã lưu.", Toast.LENGTH_LONG).show()
+                    LauncherWallpaper.saveResource(this, wallpaperResources.first())
+                }
+            } catch (exception: IOException) {
+                Toast.makeText(
+                    this,
+                    "Không thể tải hình nền đã lưu: ${exception.localizedMessage}",
+                    Toast.LENGTH_LONG
+                ).show()
+                LauncherWallpaper.saveResource(this, wallpaperResources.first())
+            } catch (exception: SecurityException) {
+                Toast.makeText(this, "Không còn quyền truy cập hình nền đã lưu.", Toast.LENGTH_LONG).show()
+                LauncherWallpaper.saveResource(this, wallpaperResources.first())
+            }
+        } else {
+            selectedIndex = wallpaperResources.indexOf(
+                LauncherWallpaper.getSavedResource(this)
+            ).takeIf { it >= 0 } ?: 0
         }
         updatePreview()
     }
@@ -255,6 +299,7 @@ class WallpaperActivity : AppCompatActivity() {
         selectedIndex = index
         selectedImageUri = null
         selectedBitmap = null
+        LauncherWallpaper.saveResource(this, wallpaperResources[index])
         updatePreview()
         previousBitmap?.recycle()
     }

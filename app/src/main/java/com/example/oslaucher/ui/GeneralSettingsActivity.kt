@@ -101,13 +101,6 @@ class GeneralSettingsActivity : AppCompatActivity() {
             .coerceIn(0, sizeSlider.max)
     }
 
-    private data class SwitchOption(
-        val rowId: Int,
-        val switchId: Int,
-        val preferenceKey: String,
-        val defaultValue: Boolean
-    )
-
     companion object {
         private const val PREFERENCES_NAME = "launcher_settings"
         private const val HIDE_NAVIGATION_KEY = "general_hide_navigation"
