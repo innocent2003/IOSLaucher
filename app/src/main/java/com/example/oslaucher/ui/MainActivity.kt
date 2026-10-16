@@ -12,6 +12,8 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -21,6 +23,7 @@ import android.view.ViewGroup
 import android.view.VelocityTracker
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
@@ -28,6 +31,7 @@ import android.widget.GridView
 import android.widget.ImageView
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ListView
 import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
@@ -39,8 +43,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.content.getSystemService
 import com.example.oslaucher.R
 import com.example.oslaucher.adapters.AppAdapter
+import com.example.oslaucher.adapters.AlphabeticalAppAdapter
 import com.example.oslaucher.models.AppInfo
 import com.example.oslaucher.repositories.InstalledAppRepository
 import com.example.oslaucher.ui.fragments.HomeFragment
@@ -67,11 +73,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appsIndicator: LinearLayout? = null
     private var appPageIndex = 0
     private var appPageCount = 1
+    private var appGridPageSize = 1
+    private var appGridPackages: List<String> = emptyList()
+    private val appGridOrderPackages = mutableListOf<String>()
     private var appPageSwipeTransition: AppPageSwipeTransition? = null
     private var isLoadingApps = false
     private var isAppSelectionMode = false
     private val selectedAppPackages = mutableSetOf<String>()
     private val appFolders = mutableListOf<AppFolder>()
+    private var draggedApp: AppInfo? = null
+    private var dragShadow: ImageView? = null
+    private var dragTargetLabel: TextView? = null
+    private var dragEdge = 0
+    private var dragMoved = false
+    private var dragStartedInAppGrid = false
     private var downX = 0f
     private var downY = 0f
     private var homeSwipeTransition: HomeSwipeTransition? = null
@@ -90,6 +105,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private var currentScreen = Screen.SETTINGS
     private var lastHomeScreen = Screen.HOME
+    private var isAlphabeticalLibrary = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +120,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
         setContentView(screenContainer)
         appFolders.addAll(loadAppFolders())
+        appGridOrderPackages.addAll(loadAppGridOrder())
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -112,10 +129,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     return
                 }
                 when (currentScreen) {
-                    Screen.APPS -> showScreen(
-                        lastHomeScreen,
-                        if (lastHomeScreen == Screen.HOME) 1 else -1
-                    )
+                    Screen.APPS -> {
+                        isAlphabeticalLibrary = false
+                        showScreen(
+                            lastHomeScreen,
+                            if (lastHomeScreen == Screen.HOME) 1 else -1
+                        )
+                    }
                     Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
                     Screen.HOME -> showScreen(Screen.SETTINGS, -1)
                     Screen.SETTINGS -> finish()
@@ -124,6 +144,60 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         })
 
         showScreen(Screen.SETTINGS, 0)
+    }
+
+    private fun bindAlphabeticalAppLibrary(view: View) {
+        val appList = view.findViewById<ListView>(R.id.app_library_list)
+        val search = view.findViewById<EditText>(R.id.app_library_search)
+        val adapter = AlphabeticalAppAdapter(
+            this,
+            { app -> launchHomeScreenApp(app.packageName) },
+            { app, anchor -> showAppOptions(app, anchor) }
+        )
+        appList.adapter = adapter
+
+        val alphabet = view.findViewById<LinearLayout>(R.id.app_library_alphabet)
+        ('A'..'Z').forEach { letter ->
+            alphabet.addView(TextView(this).apply {
+                text = letter.toString()
+                gravity = Gravity.CENTER
+                setTextColor(0xFFFFFFFF.toInt())
+                textSize = 11f
+                contentDescription = "Chữ $letter"
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f
+                )
+                setOnClickListener {
+                    adapter.positionFor(letter).takeIf { it >= 0 }?.let(appList::smoothScrollToPosition)
+                }
+            })
+        }
+
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(text: Editable?) {
+                adapter.filter(text?.toString().orEmpty())
+            }
+        })
+
+        view.findViewById<View>(R.id.app_library_cancel).setOnClickListener {
+            isAlphabeticalLibrary = false
+            getSystemService<InputMethodManager>()
+                ?.hideSoftInputFromWindow(search.windowToken, 0)
+            showScreen(
+                lastHomeScreen,
+                if (lastHomeScreen == Screen.HOME) 1 else -1
+            )
+        }
+
+        requestInstalledApps { apps ->
+            if (currentScreen == Screen.APPS && isAlphabeticalLibrary) {
+                adapter.setApps(apps)
+            }
+        }
     }
 
     override fun onResume() {
@@ -142,11 +216,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             showHomeFragment(screen, animationDirection)
             return
         }
-
         val previousFragment = supportFragmentManager.findFragmentById(R.id.screen_container)
         val previousView = previousFragment?.view
             ?: screenContainer.childCount.takeIf { it > 0 }?.let(screenContainer::getChildAt)
-        val newView = LayoutInflater.from(this).inflate(screenLayouts.getValue(screen), screenContainer, false)
+        val layoutResId = if (screen == Screen.APPS && isAlphabeticalLibrary) {
+            R.layout.screen_app_library
+        } else {
+            screenLayouts.getValue(screen)
+        }
+        val newView = LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
         bindScreen(newView, screen)
 
         if (previousView != null && animationDirection != 0) {
@@ -288,6 +366,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             fromScreen == Screen.HOME_SECOND && direction > 0 -> Screen.APPS
             else -> return null
         }
+        isAlphabeticalLibrary = false
         val fragmentManager = supportFragmentManager
         val outgoingFragment = fragmentManager.findFragmentById(R.id.screen_container)
         val outgoingView = outgoingFragment?.view
@@ -308,12 +387,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 return null
             }
         } else {
-            LayoutInflater.from(this)
+            val view = LayoutInflater.from(this)
                 .inflate(screenLayouts.getValue(toScreen), screenContainer, false)
-                .also { view ->
-                    bindScreen(view, toScreen)
-                    screenContainer.addView(view)
-                }
+                .also { bindScreen(it, toScreen) }
+            screenContainer.addView(view)
+            view
         }
         val width = screenContainer.width.takeIf { it > 0 }?.toFloat()
             ?: resources.displayMetrics.widthPixels.toFloat()
@@ -449,6 +527,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
             Screen.HOME, Screen.HOME_SECOND -> Unit
             Screen.APPS -> {
+                if (isAlphabeticalLibrary) {
+                    bindAlphabeticalAppLibrary(view)
+                    return
+                }
                 val pages = view.findViewById<ViewFlipper>(R.id.apps_pages)
                 val pageIndicator = view.findViewById<LinearLayout>(R.id.apps_page_indicator)
                 val selectionBar = view.findViewById<LinearLayout>(R.id.apps_selection_bar)
@@ -474,7 +556,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
                 val appLongPress: (AppInfo, View) -> Unit = { app, anchor ->
                     if (!app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
-                        showAppOptions(app, anchor)
+                        startAppDrag(app, anchor)
                     }
                 }
 
@@ -492,7 +574,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             icon = createFolderIcon(folderApps)
                         )
                     }
-                    val gridApps = visibleApps.drop(dockApps.size) + folderTiles
+                    val gridApps = orderAppGridApps(
+                        visibleApps.drop(dockApps.size) + folderTiles
+                    )
+                    appGridPackages = gridApps.map { it.packageName }
                     val gridRows = getSharedPreferences(
                         ScreenGridActivity.PREFERENCES_NAME,
                         MODE_PRIVATE
@@ -504,6 +589,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         ScreenGridActivity.MAX_GRID_ROWS
                     )
                     val appPageSize = 4 * gridRows
+                    appGridPageSize = appPageSize
                     val appChunks = gridApps.chunked(appPageSize).ifEmpty { listOf(emptyList()) }
                     appPageCount = appChunks.size
                     appPageIndex = appPageIndex.coerceIn(0, appPageCount - 1)
@@ -518,6 +604,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             stretchMode = GridView.STRETCH_COLUMN_WIDTH
                             isVerticalScrollBarEnabled = false
                             clipToPadding = false
+                            tag = "$APP_GRID_TAG:$pageIndex"
                             adapter = AppAdapter(
                                 this@MainActivity,
                                 appLauncher,
@@ -650,7 +737,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
     }
 
+    override fun openHomeScreenFolder(name: String, apps: List<AppInfo>) {
+        showFolderContents(
+            AppFolder("home:$name", name, apps.map { it.packageName }),
+            apps
+        )
+    }
+
     override fun openApps() {
+        if (currentScreen != Screen.APPS && currentScreen != Screen.SETTINGS) {
+            lastHomeScreen = currentScreen
+        }
+        isAlphabeticalLibrary = true
         showScreen(Screen.APPS, if (lastHomeScreen == Screen.HOME) -1 else 1)
     }
 
@@ -667,6 +765,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val incomingView = pages.getChildAt(targetPage) ?: return
         val direction = if (targetPage > appPageIndex) -1 else 1
         pages.displayedChild = targetPage
+        appPageIndex = targetPage
         outgoingView.visibility = View.VISIBLE
         incomingView.visibility = View.VISIBLE
         homeSwipeSettling = true
@@ -901,6 +1000,190 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         installedApps?.let { renderApps?.invoke(it) }
     }
 
+    private fun startAppDrag(app: AppInfo, source: View) {
+        dragStartedInAppGrid = true
+        draggedApp = app
+        dragEdge = 0
+        dragMoved = false
+        dragShadow = ImageView(this).apply {
+            setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            alpha = 0.9f
+            elevation = dp(12).toFloat()
+        }
+        screenContainer.addView(
+            dragShadow,
+            FrameLayout.LayoutParams(dp(64), dp(64))
+        )
+        dragTargetLabel = TextView(this).apply {
+            textSize = 14f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(10), dp(18), dp(10))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(24).toFloat()
+                setColor(0xE6212733.toInt())
+                setStroke(dp(1), 0xFF7DB8FF.toInt())
+            }
+            elevation = dp(16).toFloat()
+            visibility = View.GONE
+        }.also { label ->
+            screenContainer.addView(
+                label,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                ).apply {
+                    topMargin = dp(56)
+                }
+            )
+        }
+        source.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        updateDragTargetLabel()
+        updateDragShadow(downX, downY)
+    }
+
+    private fun updateDragShadow(x: Float, y: Float) {
+        val shadow = dragShadow ?: return
+        val layoutParams = shadow.layoutParams as? FrameLayout.LayoutParams ?: return
+        layoutParams.leftMargin = (x - dp(32)).toInt().coerceAtLeast(0)
+        layoutParams.topMargin = (y - dp(32)).toInt().coerceAtLeast(0)
+        shadow.layoutParams = layoutParams
+    }
+
+    private fun navigateAppGridDuringDrag(x: Float) {
+        if (!dragStartedInAppGrid || currentScreen != Screen.APPS || isAlphabeticalLibrary) return
+        val width = screenContainer.width.toFloat()
+        if (width <= 0f) return
+        val edgeWidth = dp(48).toFloat()
+        val edge = when {
+            x < edgeWidth -> -1
+            x > width - edgeWidth -> 1
+            else -> 0
+        }
+        if (edge == 0) {
+            dragEdge = 0
+            return
+        }
+        if (edge == dragEdge) return
+        dragEdge = edge
+
+        val targetPage = appPageIndex + if (edge < 0) 1 else -1
+        if (targetPage in 0 until appPageCount) {
+            showAppPage(targetPage)
+            appPageIndex = targetPage
+            updateAppPageIndicator()
+        }
+        updateDragTargetLabel()
+        dragShadow?.let(screenContainer::bringChildToFront)
+        dragTargetLabel?.let(screenContainer::bringChildToFront)
+    }
+
+    private fun updateDragTargetLabel() {
+        val label = dragTargetLabel ?: return
+        if (dragStartedInAppGrid && currentScreen == Screen.APPS && !isAlphabeticalLibrary) {
+            label.text = "Thả vào lưới ứng dụng ${appPageIndex + 1}"
+            label.visibility = View.VISIBLE
+        } else {
+            label.visibility = View.GONE
+        }
+    }
+
+    private fun dropDraggedApp(x: Float, y: Float) {
+        val app = draggedApp ?: return
+        val grid = appsPages
+            ?.getChildAt(appPageIndex)
+            ?.findViewWithTag<View>("$APP_GRID_TAG:$appPageIndex") as? GridView
+        if (currentScreen != Screen.APPS || isAlphabeticalLibrary || grid == null) {
+            Toast.makeText(this, "Chỉ có thể thả ứng dụng trong lưới ứng dụng.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val gridLocation = IntArray(2)
+        grid.getLocationOnScreen(gridLocation)
+        val insideGrid = x >= gridLocation[0] &&
+            x <= gridLocation[0] + grid.width &&
+            y >= gridLocation[1] &&
+            y <= gridLocation[1] + grid.height
+        if (!insideGrid) {
+            Toast.makeText(this, "Thả ứng dụng vào lưới ứng dụng.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val position = grid.pointToPosition(
+            (x - gridLocation[0]).toInt(),
+            (y - gridLocation[1]).toInt()
+        )
+        reorderAppGridItem(app, appPageIndex, position)
+    }
+
+    private fun finishAppDrag() {
+        dragShadow?.let(screenContainer::removeView)
+        dragTargetLabel?.let(screenContainer::removeView)
+        dragShadow = null
+        dragTargetLabel = null
+        draggedApp = null
+        dragStartedInAppGrid = false
+        dragEdge = 0
+        dragMoved = false
+    }
+
+    private fun orderAppGridApps(apps: List<AppInfo>): List<AppInfo> {
+        val savedPositions = appGridOrderPackages.withIndex()
+            .associate { it.value to it.index }
+        return apps.sortedBy { savedPositions[it.packageName] ?: Int.MAX_VALUE }
+    }
+
+    private fun reorderAppGridItem(app: AppInfo, pageIndex: Int, pagePosition: Int) {
+        val sourceIndex = appGridPackages.indexOf(app.packageName)
+        if (sourceIndex < 0) return
+
+        val reorderedPackages = appGridPackages.toMutableList().apply {
+            removeAt(sourceIndex)
+        }
+        val pageStart = pageIndex * appGridPageSize
+        val pageEnd = minOf(pageStart + appGridPageSize, reorderedPackages.size)
+        var insertionIndex = if (pagePosition == GridView.INVALID_POSITION) {
+            pageEnd
+        } else {
+            pageStart + pagePosition
+        }.coerceIn(pageStart, pageEnd)
+        insertionIndex = insertionIndex.coerceIn(0, reorderedPackages.size)
+        reorderedPackages.add(insertionIndex, app.packageName)
+
+        appGridPackages = reorderedPackages
+        val reorderedPackageSet = reorderedPackages.toSet()
+        appGridOrderPackages.removeAll(reorderedPackageSet)
+        appGridOrderPackages.addAll(0, reorderedPackages)
+        saveAppGridOrder()
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun loadAppGridOrder(): List<String> {
+        val stored = getSharedPreferences(APP_GRID_ORDER_PREFERENCES, MODE_PRIVATE)
+            .getString(APP_GRID_ORDER_KEY, null) ?: return emptyList()
+        return try {
+            val packages = JSONArray(stored)
+            buildList {
+                for (index in 0 until packages.length()) {
+                    packages.optString(index)
+                        .takeIf(String::isNotBlank)
+                        ?.let(::add)
+                }
+            }.distinct()
+        } catch (exception: org.json.JSONException) {
+            Log.w(TAG, "Could not read saved app grid order", exception)
+            emptyList()
+        }
+    }
+
+    private fun saveAppGridOrder() {
+        getSharedPreferences(APP_GRID_ORDER_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .putString(APP_GRID_ORDER_KEY, JSONArray(appGridOrderPackages).toString())
+            .apply()
+    }
+
     private fun promptCreateAppFolder() {
         if (selectedAppPackages.size < 2) {
             Toast.makeText(this, "Chọn ít nhất hai ứng dụng để tạo thư mục.", Toast.LENGTH_SHORT).show()
@@ -1097,6 +1380,32 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         (value * resources.displayMetrics.density).toInt()
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (draggedApp != null) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> {
+                    updateDragShadow(event.x, event.y)
+                    updateDragTargetLabel()
+                    if (abs(event.x - downX) > swipeTouchSlop ||
+                        abs(event.y - downY) > swipeTouchSlop
+                    ) {
+                        dragMoved = true
+                    }
+                    navigateAppGridDuringDrag(event.x)
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (dragMoved) {
+                        dropDraggedApp(event.rawX, event.rawY)
+                    }
+                    finishAppDrag()
+                    recycleVelocityTracker()
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    finishAppDrag()
+                    recycleVelocityTracker()
+                }
+            }
+            return true
+        }
         if (ignoreTouchSequence) {
             if (event.actionMasked == MotionEvent.ACTION_UP ||
                 event.actionMasked == MotionEvent.ACTION_CANCEL
@@ -1216,7 +1525,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
 
                 if (transition == null &&
-                    (currentScreen == Screen.HOME || currentScreen == Screen.HOME_SECOND)
+                    (currentScreen == Screen.HOME ||
+                        currentScreen == Screen.HOME_SECOND)
                 ) {
                     val width = screenContainer.width.takeIf { it > 0 }
                         ?.toFloat() ?: resources.displayMetrics.widthPixels.toFloat()
@@ -1289,6 +1599,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private companion object {
         const val APP_FOLDER_PREFERENCES = "launcher_app_folders"
         const val APP_FOLDERS_KEY = "folders"
+        const val APP_GRID_ORDER_PREFERENCES = "launcher_app_grid_order"
+        const val APP_GRID_ORDER_KEY = "packages"
+        const val APP_GRID_TAG = "app_grid_page"
         const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
         const val TAG = "MainActivity"
     }
