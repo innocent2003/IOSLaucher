@@ -63,6 +63,20 @@ import kotlin.math.abs
 import kotlin.math.max
 
 class MainActivity : AppCompatActivity(), HomeScreenActions {
+    private data class FolderDragState(
+        val folder: AppFolder,
+        val draggedApp: AppInfo,
+        var apps: List<AppInfo>,
+        val grid: GridView,
+        val adapter: AppAdapter,
+        val root: FrameLayout,
+        val shadow: ImageView,
+        val label: TextView,
+        val downX: Float,
+        val downY: Float,
+        var moved: Boolean = false
+    )
+
     private val appRepository by lazy { InstalledAppRepository(applicationContext) }
     private val appLoadExecutor = Executors.newSingleThreadExecutor()
     private lateinit var screenContainer: FrameLayout
@@ -82,6 +96,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private val selectedAppPackages = mutableSetOf<String>()
     private val appFolders = mutableListOf<AppFolder>()
     private var draggedApp: AppInfo? = null
+    private var folderDragState: FolderDragState? = null
     private var dragShadow: ImageView? = null
     private var dragTargetLabel: TextView? = null
     private var dragEdge = 0
@@ -555,9 +570,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                 }
                 val appLongPress: (AppInfo, View) -> Unit = { app, anchor ->
-                    if (!app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
-                        startAppDrag(app, anchor)
-                    }
+                    startAppDrag(app, anchor)
                 }
 
                 fun buildHomeApps(apps: List<AppInfo>) {
@@ -1114,7 +1127,19 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             (x - gridLocation[0]).toInt(),
             (y - gridLocation[1]).toInt()
         )
-        reorderAppGridItem(app, appPageIndex, position)
+        val dropAfterTarget = if (position == GridView.INVALID_POSITION) {
+            false
+        } else {
+            val targetView = grid.getChildAt(position - grid.firstVisiblePosition)
+            if (targetView == null) {
+                false
+            } else {
+                val targetLocation = IntArray(2)
+                targetView.getLocationOnScreen(targetLocation)
+                x >= targetLocation[0] + targetView.width / 2f
+            }
+        }
+        reorderAppGridItem(app, appPageIndex, position, dropAfterTarget)
     }
 
     private fun finishAppDrag() {
@@ -1134,20 +1159,34 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         return apps.sortedBy { savedPositions[it.packageName] ?: Int.MAX_VALUE }
     }
 
-    private fun reorderAppGridItem(app: AppInfo, pageIndex: Int, pagePosition: Int) {
+    private fun reorderAppGridItem(
+        app: AppInfo,
+        pageIndex: Int,
+        pagePosition: Int,
+        dropAfterTarget: Boolean
+    ) {
         val sourceIndex = appGridPackages.indexOf(app.packageName)
         if (sourceIndex < 0) return
 
+        val pageStart = pageIndex * appGridPageSize
+        val pageEnd = minOf(pageStart + appGridPageSize, appGridPackages.size)
+        val targetIndex = if (pagePosition == GridView.INVALID_POSITION) {
+            pageEnd
+        } else {
+            (pageStart + pagePosition + if (dropAfterTarget) 1 else 0)
+                .coerceIn(pageStart, pageEnd)
+        }
         val reorderedPackages = appGridPackages.toMutableList().apply {
             removeAt(sourceIndex)
         }
-        val pageStart = pageIndex * appGridPageSize
-        val pageEnd = minOf(pageStart + appGridPageSize, reorderedPackages.size)
-        var insertionIndex = if (pagePosition == GridView.INVALID_POSITION) {
-            pageEnd
-        } else {
-            pageStart + pagePosition
-        }.coerceIn(pageStart, pageEnd)
+        var insertionIndex = targetIndex
+        if (sourceIndex < insertionIndex) insertionIndex--
+        val adjustedPageStart = pageIndex * appGridPageSize
+        val adjustedPageEnd = minOf(
+            adjustedPageStart + appGridPageSize,
+            reorderedPackages.size
+        )
+        insertionIndex = insertionIndex.coerceIn(adjustedPageStart, adjustedPageEnd)
         insertionIndex = insertionIndex.coerceIn(0, reorderedPackages.size)
         reorderedPackages.add(insertionIndex, app.packageName)
 
@@ -1226,9 +1265,22 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun showFolderContents(folder: AppFolder, apps: List<AppInfo>) {
-        val folderApps = apps.filter { it.packageName in folder.packageNames }
+        val folderApps = orderFolderApps(folder, apps)
         lateinit var popupWindow: PopupWindow
-        val overlay = FrameLayout(this).apply {
+        var touchDownX = 0f
+        var touchDownY = 0f
+        val overlay = object : FrameLayout(this) {
+            override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+                if (folderDragState != null) {
+                    return handleFolderDragTouch(event)
+                }
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    touchDownX = event.rawX
+                    touchDownY = event.rawY
+                }
+                return super.dispatchTouchEvent(event)
+            }
+        }.apply {
             setBackgroundColor(0xAA111018.toInt())
             setOnClickListener { popupWindow.dismiss() }
         }
@@ -1241,6 +1293,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             isClickable = true
             isFocusable = true
         }
+        lateinit var folderAdapter: AppAdapter
         val grid = GridView(this).apply {
             numColumns = 4
             horizontalSpacing = dp(6)
@@ -1255,10 +1308,25 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity)
                     popupWindow.dismiss()
                 },
+                { app, anchor ->
+                    val currentFolder = appFolders.firstOrNull { it.id == folder.id } ?: folder
+                    val currentApps = (0 until folderAdapter.count).map(folderAdapter::getItem)
+                    startFolderAppDrag(
+                        currentFolder,
+                        app,
+                        currentApps,
+                        this,
+                        folderAdapter,
+                        overlay,
+                        anchor,
+                        touchDownX,
+                        touchDownY
+                    )
+                },
                 gridRows = 3
             ).apply {
                 setApps(folderApps)
-            }
+            }.also { folderAdapter = it }
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -1300,6 +1368,168 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             elevation = dp(16).toFloat()
         }
         popupWindow.showAtLocation(screenContainer, Gravity.CENTER, 0, 0)
+    }
+
+    private fun orderFolderApps(folder: AppFolder, apps: List<AppInfo>): List<AppInfo> {
+        val appsByPackage = apps.associateBy { it.packageName }
+        return folder.packageNames.mapNotNull(appsByPackage::get)
+    }
+
+    private fun startFolderAppDrag(
+        folder: AppFolder,
+        app: AppInfo,
+        apps: List<AppInfo>,
+        grid: GridView,
+        adapter: AppAdapter,
+        root: FrameLayout,
+        source: View,
+        downX: Float,
+        downY: Float
+    ) {
+        val shadow = ImageView(this).apply {
+            setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            alpha = 0.9f
+            elevation = dp(12).toFloat()
+            isClickable = false
+        }
+        val label = TextView(this).apply {
+            text = "Thả để sắp xếp ứng dụng"
+            textSize = 14f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(10), dp(18), dp(10))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(24).toFloat()
+                setColor(0xE6212733.toInt())
+                setStroke(dp(1), 0xFF7DB8FF.toInt())
+            }
+            elevation = dp(16).toFloat()
+            isClickable = false
+        }
+        root.addView(shadow, FrameLayout.LayoutParams(dp(64), dp(64)))
+        root.addView(
+            label,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            ).apply {
+                topMargin = dp(56)
+            }
+        )
+        folderDragState = FolderDragState(
+            folder = folder,
+            draggedApp = app,
+            apps = apps,
+            grid = grid,
+            adapter = adapter,
+            root = root,
+            shadow = shadow,
+            label = label,
+            downX = downX,
+            downY = downY
+        )
+        source.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        updateFolderDragShadow(downX, downY)
+        shadow.bringToFront()
+        label.bringToFront()
+    }
+
+    private fun handleFolderDragTouch(event: MotionEvent): Boolean {
+        val state = folderDragState ?: return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_MOVE -> {
+                if (abs(event.rawX - state.downX) > swipeTouchSlop ||
+                    abs(event.rawY - state.downY) > swipeTouchSlop
+                ) {
+                    state.moved = true
+                }
+                updateFolderDragShadow(event.rawX, event.rawY)
+            }
+            MotionEvent.ACTION_UP -> {
+                if (state.moved) {
+                    dropFolderApp(state, event.rawX, event.rawY)
+                }
+                finishFolderAppDrag()
+            }
+            MotionEvent.ACTION_CANCEL -> finishFolderAppDrag()
+        }
+        return true
+    }
+
+    private fun updateFolderDragShadow(x: Float, y: Float) {
+        val state = folderDragState ?: return
+        val rootLocation = IntArray(2)
+        state.root.getLocationOnScreen(rootLocation)
+        val layoutParams = state.shadow.layoutParams as? FrameLayout.LayoutParams ?: return
+        layoutParams.leftMargin = (x - rootLocation[0] - dp(32)).toInt().coerceAtLeast(0)
+        layoutParams.topMargin = (y - rootLocation[1] - dp(32)).toInt().coerceAtLeast(0)
+        state.shadow.layoutParams = layoutParams
+    }
+
+    private fun dropFolderApp(state: FolderDragState, x: Float, y: Float) {
+        val gridLocation = IntArray(2)
+        state.grid.getLocationOnScreen(gridLocation)
+        val insideGrid = x >= gridLocation[0] &&
+            x <= gridLocation[0] + state.grid.width &&
+            y >= gridLocation[1] &&
+            y <= gridLocation[1] + state.grid.height
+        if (!insideGrid) return
+
+        val position = state.grid.pointToPosition(
+            (x - gridLocation[0]).toInt(),
+            (y - gridLocation[1]).toInt()
+        )
+        val targetView = if (position == GridView.INVALID_POSITION) {
+            null
+        } else {
+            state.grid.getChildAt(position - state.grid.firstVisiblePosition)
+        }
+        val dropAfterTarget = targetView?.let {
+            val targetLocation = IntArray(2)
+            it.getLocationOnScreen(targetLocation)
+            x >= targetLocation[0] + it.width / 2f
+        } ?: false
+
+        val sourceIndex = state.apps.indexOfFirst {
+            it.packageName == state.draggedApp.packageName
+        }
+        if (sourceIndex < 0) return
+
+        val targetIndex = if (position == GridView.INVALID_POSITION) {
+            state.apps.size
+        } else {
+            (position + if (dropAfterTarget) 1 else 0).coerceIn(0, state.apps.size)
+        }
+        val reorderedApps = state.apps.toMutableList().apply {
+            removeAt(sourceIndex)
+        }
+        var insertionIndex = targetIndex
+        if (sourceIndex < insertionIndex) insertionIndex--
+        reorderedApps.add(insertionIndex.coerceIn(0, reorderedApps.size), state.draggedApp)
+
+        val visiblePackages = state.apps.mapTo(mutableSetOf()) { it.packageName }
+        val unavailablePackages = state.folder.packageNames.filterNot { it in visiblePackages }
+        val updatedFolder = state.folder.copy(
+            packageNames = reorderedApps.map { it.packageName } + unavailablePackages
+        )
+        val folderIndex = appFolders.indexOfFirst { it.id == updatedFolder.id }
+        if (folderIndex >= 0) {
+            appFolders[folderIndex] = updatedFolder
+            saveAppFolders()
+        }
+        state.apps = reorderedApps
+        state.adapter.setApps(reorderedApps)
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun finishFolderAppDrag() {
+        val state = folderDragState ?: return
+        folderDragState = null
+        state.root.removeView(state.shadow)
+        state.root.removeView(state.label)
     }
 
     private fun createFolderIcon(apps: List<AppInfo>): Drawable {
