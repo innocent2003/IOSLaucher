@@ -1,4 +1,4 @@
-package com.example.oslaucher.ui
+package com.example.oslaucher.models
 
 internal data class EffectOption(
     val rowId: Int,

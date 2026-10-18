@@ -27,6 +27,7 @@ import androidx.fragment.app.Fragment
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import com.example.oslaucher.R
+import com.example.oslaucher.models.Weather
 import com.example.oslaucher.utils.LauncherWallpaper
 import com.example.oslaucher.ui.widgets.BatteryRingView
 import org.json.JSONException

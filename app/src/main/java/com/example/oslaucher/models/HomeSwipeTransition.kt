@@ -1,4 +1,4 @@
-package com.example.oslaucher.ui
+package com.example.oslaucher.models
 
 import android.view.View
 import androidx.fragment.app.Fragment

@@ -10,6 +10,7 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
+import com.example.oslaucher.models.EffectOption
 
 class AppEffectsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

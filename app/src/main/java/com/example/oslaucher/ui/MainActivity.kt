@@ -11,6 +11,8 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
@@ -47,7 +49,12 @@ import androidx.core.content.getSystemService
 import com.example.oslaucher.R
 import com.example.oslaucher.adapters.AppAdapter
 import com.example.oslaucher.adapters.AlphabeticalAppAdapter
+import com.example.oslaucher.models.AppDragCandidate
+import com.example.oslaucher.models.AppFolder
 import com.example.oslaucher.models.AppInfo
+import com.example.oslaucher.models.AppPageSwipeTransition
+import com.example.oslaucher.models.FolderDragState
+import com.example.oslaucher.models.HomeSwipeTransition
 import com.example.oslaucher.repositories.InstalledAppRepository
 import com.example.oslaucher.ui.fragments.HomeFragment
 import com.example.oslaucher.ui.fragments.HomeScreenActions
@@ -63,25 +70,6 @@ import kotlin.math.abs
 import kotlin.math.max
 
 class MainActivity : AppCompatActivity(), HomeScreenActions {
-    private data class AppDragCandidate(
-        val app: AppInfo,
-        val source: View
-    )
-
-    private data class FolderDragState(
-        val folder: AppFolder,
-        val draggedApp: AppInfo,
-        var apps: List<AppInfo>,
-        val grid: GridView,
-        val adapter: AppAdapter,
-        val root: FrameLayout,
-        val shadow: ImageView,
-        val label: TextView,
-        val downX: Float,
-        val downY: Float,
-        var moved: Boolean = false
-    )
-
     private val appRepository by lazy { InstalledAppRepository(applicationContext) }
     private val appLoadExecutor = Executors.newSingleThreadExecutor()
     private lateinit var screenContainer: FrameLayout
@@ -101,14 +89,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private val selectedAppPackages = mutableSetOf<String>()
     private val appFolders = mutableListOf<AppFolder>()
     private var draggedApp: AppInfo? = null
+    private var dragSource: View? = null
+    private var dragSourceVisibility = View.VISIBLE
     private var appDragCandidate: AppDragCandidate? = null
     private var appOptionsPopup: PopupWindow? = null
     private var folderDragState: FolderDragState? = null
     private var dragShadow: ImageView? = null
     private var dragTargetLabel: TextView? = null
     private var dragEdge = 0
+    private var dragPageChangeRunnable: Runnable? = null
+    private val dragPageHandler = Handler(Looper.getMainLooper())
     private var dragMoved = false
     private var dragStartedInAppGrid = false
+    private var dragLastRawX = 0f
+    private var dragLastRawY = 0f
     private var downX = 0f
     private var downY = 0f
     private var homeSwipeTransition: HomeSwipeTransition? = null
@@ -1037,6 +1031,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun startAppDrag(app: AppInfo, source: View) {
         dragStartedInAppGrid = true
         draggedApp = app
+        dragSource = source
+        dragSourceVisibility = source.visibility
+        source.visibility = View.INVISIBLE
         dragEdge = 0
         dragMoved = false
         dragShadow = ImageView(this).apply {
@@ -1077,6 +1074,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         source.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
         updateDragTargetLabel()
         updateDragShadow(downX, downY)
+        val screenLocation = IntArray(2)
+        screenContainer.getLocationOnScreen(screenLocation)
+        dragLastRawX = screenLocation[0] + downX
+        dragLastRawY = screenLocation[1] + downY
     }
 
     private fun updateDragShadow(x: Float, y: Float) {
@@ -1087,32 +1088,67 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         shadow.layoutParams = layoutParams
     }
 
+    private fun updateDragShadowFromScreen(x: Float, y: Float) {
+        val location = IntArray(2)
+        screenContainer.getLocationOnScreen(location)
+        dragLastRawX = x
+        dragLastRawY = y
+        updateDragShadow(x - location[0], y - location[1])
+    }
+
     private fun navigateAppGridDuringDrag(x: Float) {
         if (!dragStartedInAppGrid || currentScreen != Screen.APPS || isAlphabeticalLibrary) return
-        val width = screenContainer.width.toFloat()
-        if (width <= 0f) return
+        val location = IntArray(2)
+        screenContainer.getLocationOnScreen(location)
+        val left = location[0].toFloat()
+        val right = left + screenContainer.width
+        if (screenContainer.width <= 0) return
         val edgeWidth = dp(48).toFloat()
         val edge = when {
-            x < edgeWidth -> -1
-            x > width - edgeWidth -> 1
+            x < left + edgeWidth -> -1
+            x > right - edgeWidth -> 1
             else -> 0
         }
         if (edge == 0) {
+            cancelDragPageChange()
             dragEdge = 0
             return
         }
-        if (edge == dragEdge) return
-        dragEdge = edge
-
-        val targetPage = appPageIndex + if (edge < 0) 1 else -1
-        if (targetPage in 0 until appPageCount) {
-            showAppPage(targetPage)
-            appPageIndex = targetPage
-            updateAppPageIndicator()
+        if (edge != dragEdge) {
+            cancelDragPageChange()
+            dragEdge = edge
         }
-        updateDragTargetLabel()
-        dragShadow?.let(screenContainer::bringChildToFront)
-        dragTargetLabel?.let(screenContainer::bringChildToFront)
+        if (dragPageChangeRunnable == null) {
+            scheduleDragPageChange(edge)
+        }
+    }
+
+    private fun scheduleDragPageChange(edge: Int) {
+        val changePage = Runnable {
+            dragPageChangeRunnable = null
+            if (draggedApp == null || dragEdge != edge ||
+                currentScreen != Screen.APPS || isAlphabeticalLibrary
+            ) {
+                return@Runnable
+            }
+            val targetPage = appPageIndex + if (edge > 0) 1 else -1
+            if (targetPage !in 0 until appPageCount) return@Runnable
+
+            showAppPage(targetPage)
+            updateAppPageIndicator()
+            updateDragTargetLabel()
+            updateDragShadowFromScreen(dragLastRawX, dragLastRawY)
+            dragShadow?.let(screenContainer::bringChildToFront)
+            dragTargetLabel?.let(screenContainer::bringChildToFront)
+            scheduleDragPageChange(edge)
+        }
+        dragPageChangeRunnable = changePage
+        dragPageHandler.postDelayed(changePage, DRAG_PAGE_CHANGE_DELAY_MS)
+    }
+
+    private fun cancelDragPageChange() {
+        dragPageChangeRunnable?.let(dragPageHandler::removeCallbacks)
+        dragPageChangeRunnable = null
     }
 
     private fun updateDragTargetLabel() {
@@ -1148,6 +1184,22 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             (x - gridLocation[0]).toInt(),
             (y - gridLocation[1]).toInt()
         )
+        if (position != GridView.INVALID_POSITION &&
+            !app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)
+        ) {
+            val targetPackage = appGridPackages
+                .getOrNull(appPageIndex * appGridPageSize + position)
+            val targetFolderId = targetPackage
+                ?.takeIf { it.startsWith(FOLDER_PACKAGE_PREFIX) }
+                ?.removePrefix(FOLDER_PACKAGE_PREFIX)
+            val targetFolderIndex = targetFolderId?.let { id ->
+                appFolders.indexOfFirst { it.id == id }
+            } ?: -1
+            if (targetFolderIndex >= 0) {
+                addAppToFolder(app, targetFolderIndex)
+                return
+            }
+        }
         val dropAfterTarget = if (position == GridView.INVALID_POSITION) {
             false
         } else {
@@ -1163,13 +1215,38 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         reorderAppGridItem(app, appPageIndex, position, dropAfterTarget)
     }
 
+    private fun addAppToFolder(app: AppInfo, folderIndex: Int) {
+        val folder = appFolders[folderIndex]
+        if (app.packageName in folder.packageNames) return
+
+        appFolders[folderIndex] = folder.copy(
+            packageNames = folder.packageNames + app.packageName
+        )
+        saveAppFolders()
+
+        val sourceIndex = appGridPackages.indexOf(app.packageName)
+        if (sourceIndex >= 0) {
+            val orderedPackages = appGridPackages.toMutableList().apply {
+                this[sourceIndex] = null
+            }
+            appGridPackages = orderedPackages
+            appGridOrderPackages.clear()
+            appGridOrderPackages.addAll(orderedPackages)
+            saveAppGridOrder()
+        }
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
     private fun finishAppDrag() {
         dragShadow?.let(screenContainer::removeView)
         dragTargetLabel?.let(screenContainer::removeView)
+        dragSource?.visibility = dragSourceVisibility
         dragShadow = null
         dragTargetLabel = null
         draggedApp = null
+        dragSource = null
         dragStartedInAppGrid = false
+        cancelDragPageChange()
         dragEdge = 0
         dragMoved = false
     }
@@ -1465,11 +1542,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             grid = grid,
             adapter = adapter,
             root = root,
+            source = source,
+            sourceVisibility = source.visibility,
             shadow = shadow,
             label = label,
             downX = downX,
             downY = downY
         )
+        source.visibility = View.INVISIBLE
         source.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
         updateFolderDragShadow(downX, downY)
         shadow.bringToFront()
@@ -1567,6 +1647,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun finishFolderAppDrag() {
         val state = folderDragState ?: return
         folderDragState = null
+        state.source.visibility = state.sourceVisibility
         state.root.removeView(state.shadow)
         state.root.removeView(state.label)
     }
@@ -1671,14 +1752,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         if (draggedApp != null) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_MOVE -> {
-                    updateDragShadow(event.x, event.y)
+                    updateDragShadowFromScreen(event.rawX, event.rawY)
                     updateDragTargetLabel()
                     if (abs(event.x - downX) > swipeTouchSlop ||
                         abs(event.y - downY) > swipeTouchSlop
                     ) {
                         dragMoved = true
                     }
-                    navigateAppGridDuringDrag(event.x)
+                    navigateAppGridDuringDrag(event.rawX)
                 }
                 MotionEvent.ACTION_UP -> {
                     if (dragMoved) {
@@ -1880,6 +1961,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     override fun onDestroy() {
+        cancelDragPageChange()
         appLoadExecutor.shutdownNow()
         super.onDestroy()
     }
@@ -1890,6 +1972,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val APP_GRID_ORDER_PREFERENCES = "launcher_app_grid_order"
         const val APP_GRID_ORDER_KEY = "packages"
         const val APP_GRID_TAG = "app_grid_page"
+        const val DRAG_PAGE_CHANGE_DELAY_MS = 500L
         const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
         const val TAG = "MainActivity"
     }
