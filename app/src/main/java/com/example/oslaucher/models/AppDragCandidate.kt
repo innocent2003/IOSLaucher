@@ -4,6 +4,7 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.GridView
 import android.widget.ImageView
+import android.widget.PopupWindow
 import android.widget.TextView
 import com.example.oslaucher.adapters.AppAdapter
 
@@ -19,6 +20,7 @@ internal data class FolderDragState(
     val grid: GridView,
     val adapter: AppAdapter,
     val root: FrameLayout,
+    val popupWindow: PopupWindow,
     val source: View,
     val sourceVisibility: Int,
     val shadow: ImageView,
