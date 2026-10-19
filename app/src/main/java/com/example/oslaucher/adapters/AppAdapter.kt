@@ -20,7 +20,8 @@ class AppAdapter(
     private val gridRows: Int = 7,
     private val selectedPackages: Set<String> = emptySet(),
     private val isSelectionMode: () -> Boolean = { false },
-    private val canSelectApp: (AppInfo) -> Boolean = { true }
+    private val canSelectApp: (AppInfo) -> Boolean = { true },
+    private val onEmptySlotClick: (() -> Unit)? = null
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
     private val iconMaxSize = (58 * context.resources.displayMetrics.density).toInt()
@@ -78,9 +79,9 @@ class AppAdapter(
             name.text = ""
             itemView.contentDescription = null
             itemView.findViewById<TextView>(R.id.app_selection_badge).visibility = View.GONE
-            itemView.setOnClickListener(null)
+            itemView.setOnClickListener { onEmptySlotClick?.invoke() }
             itemView.setOnLongClickListener(null)
-            itemView.isClickable = false
+            itemView.isClickable = onEmptySlotClick != null
             itemView.isLongClickable = false
             return itemView
         }

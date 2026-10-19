@@ -1,5 +1,6 @@
 package com.example.oslaucher.ui
 
+import android.animation.ObjectAnimator
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -27,6 +28,7 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.LinearInterpolator
 import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import android.widget.GridView
@@ -100,6 +102,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appOptionsPopup: PopupWindow? = null
     private var folderDragState: FolderDragState? = null
     private var dragShadow: ImageView? = null
+    private var dragCheckBadge: TextView? = null
+    private val dragWiggleAnimators = mutableListOf<ObjectAnimator>()
     private var dragTargetLabel: TextView? = null
     private var dragEdge = 0
     private var dragPageChangeRunnable: Runnable? = null
@@ -583,7 +587,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                 }
                 val appLongPress: (AppInfo, View) -> Unit = { app, anchor ->
-                    if (app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                    if (isAppSelectionMode || app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
                         startAppDrag(app, anchor)
                     } else {
                         appDragCandidate = AppDragCandidate(app, anchor)
@@ -592,6 +596,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
 
                 fun buildHomeApps(apps: List<AppInfo>) {
+                    if (isAppSelectionMode) stopDragWiggle()
                     val folderPackages = appFolders.flatMapTo(mutableSetOf()) { it.packageNames }
                     val visibleApps = apps.filterNot {
                         it.packageName in hiddenAppPackages || it.packageName in folderPackages
@@ -694,12 +699,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                                 gridRows,
                                 selectedAppPackages,
                                 { isAppSelectionMode },
-                                { !it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) }
+                                { !it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) },
+                                onEmptySlotClick = {
+                                    if (isAppSelectionMode) exitAppSelectionMode()
+                                }
                             ).apply {
                                 setGridApps(
                                     pageApps + List(appPageSize - pageApps.size) { null }
                                 )
                             }
+                        }
+                        gridView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                            if (isAppSelectionMode) refreshSelectionWiggle()
                         }
                         pages.addView(gridView)
 
@@ -720,7 +731,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     dockSlots.forEach { app ->
                         if (app == null) {
                             dock.addView(
-                                FrameLayout(this),
+                                FrameLayout(this).apply {
+                                    isClickable = isAppSelectionMode
+                                    setOnClickListener {
+                                        if (isAppSelectionMode) exitAppSelectionMode()
+                                    }
+                                },
                                 LinearLayout.LayoutParams(
                                     0,
                                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -767,8 +783,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             )
                             setOnClickListener { appLauncher(app) }
                             setOnLongClickListener {
-                                if (isAppSelectionMode) return@setOnLongClickListener false
-                                if (app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                                if (isAppSelectionMode ||
+                                    app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)
+                                ) {
                                     startAppDrag(app, this)
                                 } else {
                                     appDragCandidate = AppDragCandidate(app, this)
@@ -781,6 +798,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
                         )
                     }
+                    refreshSelectionWiggle()
                 }
 
                 view.findViewById<View>(R.id.apps_selection_cancel).setOnClickListener {
@@ -874,6 +892,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val direction = if (targetPage > appPageIndex) -1 else 1
         pages.displayedChild = targetPage
         appPageIndex = targetPage
+        refreshSelectionWiggle()
         outgoingView.visibility = View.VISIBLE
         incomingView.visibility = View.VISIBLE
         homeSwipeSettling = true
@@ -982,6 +1001,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             updateAppPageIndicator()
             appPageSwipeTransition = null
             homeSwipeSettling = false
+            refreshSelectionWiggle()
         }
     }
 
@@ -1020,6 +1040,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             appPageIndex = targetPage
             updateAppPageIndicator()
             homeSwipeSettling = false
+            refreshSelectionWiggle()
         }
     }
 
@@ -1123,6 +1144,28 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         dragSource = source
         dragSourceVisibility = source.visibility
         source.visibility = View.INVISIBLE
+        val iconsToWiggle = mutableListOf<View>()
+        appsPages?.let { pages ->
+            val grid = pages.getChildAt(appPageIndex) as? GridView
+            if (grid != null) {
+                for (childIndex in 0 until grid.childCount) {
+                    val adapterPosition = grid.firstVisiblePosition + childIndex
+                    if (grid.adapter?.getItem(adapterPosition) != null) {
+                        grid.getChildAt(childIndex)
+                            .findViewById<ImageView>(R.id.app_icon)
+                            ?.let(iconsToWiggle::add)
+                    }
+                }
+            }
+        }
+        appsDock?.let { dock ->
+            for (index in 0 until dock.childCount) {
+                val icon = dock.getChildAt(index)
+                if (icon.tag is String) {
+                    icon.findViewById<ImageView>(R.id.app_icon)?.let(iconsToWiggle::add)
+                }
+            }
+        }
         dragEdge = 0
         dragMoved = false
         dragShadow = ImageView(this).apply {
@@ -1135,6 +1178,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             dragShadow,
             FrameLayout.LayoutParams(dp(64), dp(64))
         )
+        dragCheckBadge = createDragCheckBadge().also { badge ->
+            screenContainer.addView(
+                badge,
+                FrameLayout.LayoutParams(dp(20), dp(20))
+            )
+        }
+        startDragWiggle(iconsToWiggle + dragShadow!!)
         dragTargetLabel = TextView(this).apply {
             textSize = 14f
             setTextColor(0xFFFFFFFF.toInt())
@@ -1175,6 +1225,93 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         layoutParams.leftMargin = (x - dp(32)).toInt().coerceAtLeast(0)
         layoutParams.topMargin = (y - dp(32)).toInt().coerceAtLeast(0)
         shadow.layoutParams = layoutParams
+        dragCheckBadge?.let { badge ->
+            val badgeParams = badge.layoutParams as? FrameLayout.LayoutParams ?: return@let
+            badgeParams.leftMargin = (layoutParams.leftMargin + dp(42))
+                .coerceAtMost((screenContainer.width - dp(20)).coerceAtLeast(0))
+            badgeParams.topMargin = (layoutParams.topMargin - dp(4)).coerceAtLeast(0)
+            badge.layoutParams = badgeParams
+        }
+    }
+
+    private fun createDragCheckBadge() = TextView(this).apply {
+        text = "✓"
+        gravity = Gravity.CENTER
+        textSize = 13f
+        setTextColor(0xFFFFFFFF.toInt())
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(0xFF1685E8.toInt())
+            setStroke(dp(1), 0xFFFFFFFF.toInt())
+        }
+        elevation = dp(14).toFloat()
+    }
+
+    private fun startDragWiggle(icons: List<View>) {
+        stopDragWiggle()
+        icons.forEachIndexed { index, icon ->
+            ObjectAnimator.ofFloat(icon, View.ROTATION, -5f, 5f, -5f).apply {
+                duration = 180L
+                startDelay = (index % 4) * 30L
+                repeatCount = ObjectAnimator.INFINITE
+                interpolator = LinearInterpolator()
+                start()
+                dragWiggleAnimators += this
+            }
+        }
+    }
+
+    private fun refreshSelectionWiggle() {
+        if (!isAppSelectionMode) {
+            stopDragWiggle()
+            return
+        }
+        if (draggedApp != null || folderDragState != null) return
+
+        val pages = appsPages
+        if (pages != null) {
+            for (pageIndex in 0 until pages.childCount) {
+                val grid = pages.getChildAt(pageIndex) as? GridView ?: continue
+                for (childIndex in 0 until grid.childCount) {
+                    val adapterPosition = grid.firstVisiblePosition + childIndex
+                    if (grid.adapter?.getItem(adapterPosition) != null) {
+                        grid.getChildAt(childIndex)
+                            .findViewById<ImageView>(R.id.app_icon)
+                            ?.let(::startSelectionWiggle)
+                    }
+                }
+            }
+        }
+        appsDock?.let { dock ->
+            for (index in 0 until dock.childCount) {
+                val child = dock.getChildAt(index)
+                if (child.tag is String) {
+                    child.findViewById<ImageView>(R.id.app_icon)?.let(::startSelectionWiggle)
+                }
+            }
+        }
+    }
+
+    private fun startSelectionWiggle(icon: View) {
+        if (dragWiggleAnimators.any { it.target === icon }) return
+        ObjectAnimator.ofFloat(icon, View.ROTATION, -5f, 5f, -5f).apply {
+            duration = 180L
+            startDelay = (dragWiggleAnimators.size % 4) * 30L
+            repeatCount = ObjectAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            start()
+            dragWiggleAnimators += this
+        }
+    }
+
+    private fun stopDragWiggle() {
+        dragWiggleAnimators.forEach { animator ->
+            animator.cancel()
+            animator.target?.let { target ->
+                (target as? View)?.rotation = 0f
+            }
+        }
+        dragWiggleAnimators.clear()
     }
 
     private fun updateDragShadowFromScreen(x: Float, y: Float) {
@@ -1499,10 +1636,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun finishAppDrag() {
+        stopDragWiggle()
         dragShadow?.let(screenContainer::removeView)
+        dragCheckBadge?.let(screenContainer::removeView)
         dragTargetLabel?.let(screenContainer::removeView)
         dragSource?.visibility = dragSourceVisibility
         dragShadow = null
+        dragCheckBadge = null
         dragTargetLabel = null
         draggedApp = null
         dragSource = null
@@ -1512,6 +1652,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         cancelDragPageChange()
         dragEdge = 0
         dragMoved = false
+        refreshSelectionWiggle()
     }
 
     private fun orderAppGridApps(apps: List<AppInfo>): List<AppInfo?> {
@@ -1789,7 +1930,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             elevation = dp(16).toFloat()
             isClickable = false
         }
+        val checkBadge = createDragCheckBadge()
         root.addView(shadow, FrameLayout.LayoutParams(dp(64), dp(64)))
+        root.addView(checkBadge, FrameLayout.LayoutParams(dp(20), dp(20)))
         root.addView(
             label,
             FrameLayout.LayoutParams(
@@ -1811,9 +1954,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             source = source,
             sourceVisibility = source.visibility,
             shadow = shadow,
+            checkBadge = checkBadge,
             label = label,
             downX = downX,
             downY = downY
+        )
+        startDragWiggle(
+            (0 until grid.childCount).mapNotNull { childIndex ->
+                val adapterPosition = grid.firstVisiblePosition + childIndex
+                grid.getChildAt(childIndex).takeIf {
+                    adapter.getItem(adapterPosition) != null
+                }?.findViewById<ImageView>(R.id.app_icon)
+            } + shadow
         )
         source.visibility = View.INVISIBLE
         source.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
@@ -1852,6 +2004,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         layoutParams.leftMargin = (x - rootLocation[0] - dp(32)).toInt().coerceAtLeast(0)
         layoutParams.topMargin = (y - rootLocation[1] - dp(32)).toInt().coerceAtLeast(0)
         state.shadow.layoutParams = layoutParams
+        val badgeParams = state.checkBadge.layoutParams as? FrameLayout.LayoutParams ?: return
+        badgeParams.leftMargin = (layoutParams.leftMargin + dp(42))
+            .coerceAtMost((state.root.width - dp(20)).coerceAtLeast(0))
+        badgeParams.topMargin = (layoutParams.topMargin - dp(4)).coerceAtLeast(0)
+        state.checkBadge.layoutParams = badgeParams
     }
 
     private fun dropFolderApp(state: FolderDragState, x: Float, y: Float) {
@@ -2039,8 +2196,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun finishFolderAppDrag() {
         val state = folderDragState ?: return
         folderDragState = null
+        stopDragWiggle()
         state.source.visibility = state.sourceVisibility
         state.root.removeView(state.shadow)
+        state.root.removeView(state.checkBadge)
         state.root.removeView(state.label)
     }
 

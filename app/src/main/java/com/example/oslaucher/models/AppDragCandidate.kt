@@ -24,6 +24,7 @@ internal data class FolderDragState(
     val source: View,
     val sourceVisibility: Int,
     val shadow: ImageView,
+    val checkBadge: TextView,
     val label: TextView,
     val downX: Float,
     val downY: Float,

@@ -268,7 +268,7 @@ abstract class HomeScreenFragment : Fragment() {
         }
         try {
             if (connection.responseCode !in 200..299) {
-                error("Weather service returned HTTP ${connection.responseCode}")
+                throw IOException("Weather service returned HTTP ${connection.responseCode}")
             }
             val response = connection.inputStream.bufferedReader().use { it.readText() }
             val json = JSONObject(response)
