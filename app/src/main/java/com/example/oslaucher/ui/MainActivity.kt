@@ -85,6 +85,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appGridPageSize = 1
     private var appGridPackages: List<String?> = emptyList()
     private val appGridOrderPackages = mutableListOf<String?>()
+    private var dragCreatedEmptyAppPage = false
     private var appPageSwipeTransition: AppPageSwipeTransition? = null
     private var isLoadingApps = false
     private var isAppSelectionMode = false
@@ -126,11 +127,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private val swipeMinVelocity by lazy { ViewConfiguration.get(this).scaledMinimumFlingVelocity }
 
     private val screenLayouts = mapOf(
+        Screen.LOADING to R.layout.screen_loading,
         Screen.SETTINGS to R.layout.activity_main,
         Screen.APPS to R.layout.screen_apps
     )
 
-    private var currentScreen = Screen.SETTINGS
+    private var currentScreen = Screen.LOADING
     private var lastHomeScreen = Screen.HOME
     private var isAlphabeticalLibrary = false
 
@@ -169,12 +171,17 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
                     Screen.HOME -> showScreen(Screen.SETTINGS, -1)
-                    Screen.SETTINGS -> finish()
+                    Screen.LOADING, Screen.SETTINGS -> finish()
                 }
             }
         })
 
-        showScreen(Screen.SETTINGS, 0)
+        showScreen(Screen.LOADING, 0)
+        requestInstalledApps {
+            if (!isFinishing && !isDestroyed && currentScreen == Screen.LOADING) {
+                showScreen(Screen.SETTINGS, 0)
+            }
+        }
     }
 
     private fun bindAlphabeticalAppLibrary(view: View) {
@@ -407,7 +414,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             Screen.HOME -> HomeFragment()
             Screen.HOME_SECOND -> HomeSecondFragment()
             Screen.APPS -> null
-            Screen.SETTINGS -> return null
+            Screen.LOADING, Screen.SETTINGS -> return null
         }
         val incomingView = if (incomingFragment != null) {
             fragmentManager.beginTransaction()
@@ -530,6 +537,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
 
         when (screen) {
+            Screen.LOADING -> Unit
             Screen.SETTINGS -> {
                 view.findViewById<View>(R.id.open_home).setOnClickListener {
                     showScreen(Screen.HOME, 1)
@@ -668,7 +676,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     val gridApps = orderAppGridApps(
                         visibleApps.filterNot { it.packageName in dockPackages } + gridFolderTiles
                     )
-                    appGridPackages = gridApps.map { it?.packageName }
                     val gridRows = getSharedPreferences(
                         ScreenGridActivity.PREFERENCES_NAME,
                         MODE_PRIVATE
@@ -681,9 +688,23 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     )
                     val appPageSize = 4 * gridRows
                     appGridPageSize = appPageSize
-                    val appChunks = gridApps.chunked(appPageSize).ifEmpty { listOf(emptyList()) }
+                    val appChunks = gridApps.chunked(appPageSize)
+                        .filterIndexed { pageIndex, pageApps ->
+                            pageApps.any { it != null } ||
+                                (dragCreatedEmptyAppPage && pageIndex == gridApps.lastIndex / appPageSize)
+                        }
+                    appGridPackages = appChunks.flatten().map { it?.packageName }
+                    if (appGridOrderPackages != appGridPackages) {
+                        appGridOrderPackages.clear()
+                        appGridOrderPackages.addAll(appGridPackages)
+                        saveAppGridOrder()
+                    }
                     appPageCount = appChunks.size
-                    appPageIndex = appPageIndex.coerceIn(0, appPageCount - 1)
+                    appPageIndex = if (appPageCount == 0) {
+                        0
+                    } else {
+                        appPageIndex.coerceIn(0, appPageCount - 1)
+                    }
                     pages.removeAllViews()
                     pageIndicator.removeAllViews()
 
@@ -888,6 +909,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun showAppPage(pageIndex: Int) {
+        if (appPageCount == 0) return
         val targetPage = pageIndex.coerceIn(0, appPageCount - 1)
         if (targetPage == appPageIndex) return
 
@@ -1173,6 +1195,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
         dragEdge = 0
         dragMoved = false
+        dragCreatedEmptyAppPage = false
         dragShadow = ImageView(this).apply {
             setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -1363,18 +1386,39 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 return@Runnable
             }
             val targetPage = appPageIndex + if (edge > 0) 1 else -1
-            if (targetPage !in 0 until appPageCount) return@Runnable
+            if (targetPage >= appPageCount && edge > 0 && !dragCreatedEmptyAppPage) {
+                createAppGridPageDuringDrag()
+            } else if (targetPage !in 0 until appPageCount) {
+                return@Runnable
+            }
 
-            showAppPage(targetPage)
+            showAppPage(appPageIndex + 1)
             updateAppPageIndicator()
             updateDragTargetLabel()
             updateDragShadowFromScreen(dragLastRawX, dragLastRawY)
             dragShadow?.let(screenContainer::bringChildToFront)
             dragTargetLabel?.let(screenContainer::bringChildToFront)
-            scheduleDragPageChange(edge)
+            if (appPageIndex < appPageCount - 1) {
+                scheduleDragPageChange(edge)
+            }
         }
         dragPageChangeRunnable = changePage
         dragPageHandler.postDelayed(changePage, DRAG_PAGE_CHANGE_DELAY_MS)
+    }
+
+    private fun createAppGridPageDuringDrag() {
+        val apps = installedApps ?: return
+        val pageStart = appPageCount * appGridPageSize
+        val orderedPackages = appGridPackages.toMutableList()
+        while (orderedPackages.size < pageStart + appGridPageSize) {
+            orderedPackages.add(null)
+        }
+        appGridPackages = orderedPackages
+        appGridOrderPackages.clear()
+        appGridOrderPackages.addAll(orderedPackages)
+        saveAppGridOrder()
+        dragCreatedEmptyAppPage = true
+        renderApps?.invoke(apps)
     }
 
     private fun cancelDragPageChange() {
@@ -1392,11 +1436,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
     }
 
-    private fun dropDraggedApp(x: Float, y: Float) {
-        val app = draggedApp ?: return
+    private fun dropDraggedApp(x: Float, y: Float): Boolean {
+        val app = draggedApp ?: return false
         if (currentScreen != Screen.APPS || isAlphabeticalLibrary) {
             Toast.makeText(this, "Chỉ có thể thả ứng dụng trong lưới ứng dụng.", Toast.LENGTH_SHORT).show()
-            return
+            return false
         }
         val grid = appsPages
             ?.getChildAt(appPageIndex)
@@ -1435,8 +1479,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
         val targetPackage = dockPackage ?: gridPackage
         if (dockTargetIndex != null && dockPackage == null) {
-            moveGridIconToDock(app, dockTargetIndex)
-            return
+            return moveGridIconToDock(app, dockTargetIndex)
         }
         if (targetPackage != null && targetPackage != app.packageName) {
             val targetFolderId = targetPackage
@@ -1447,7 +1490,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             } ?: -1
             if (targetFolderIndex >= 0 && !app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
                 addAppToFolder(app, targetFolderIndex)
-                return
+                return false
             }
             if (!app.packageName.startsWith(FOLDER_PACKAGE_PREFIX) &&
                 !targetPackage.startsWith(FOLDER_PACKAGE_PREFIX)
@@ -1462,7 +1505,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         -1
                     }
                 )
-                return
+                return false
             }
             if (app.packageName.startsWith(FOLDER_PACKAGE_PREFIX) &&
                 !targetPackage.startsWith(FOLDER_PACKAGE_PREFIX)
@@ -1474,7 +1517,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
                 if (folderIndex >= 0 && targetApp != null) {
                     addAppToFolder(targetApp, folderIndex)
-                    return
+                    return false
                 }
             }
         }
@@ -1484,17 +1527,17 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     app,
                     appPageIndex * appGridPageSize + appGridPageSize - 1
                 )
-                return
+                return true
             }
             Toast.makeText(this, "Thả ứng dụng lên một biểu tượng trong lưới hoặc dock.", Toast.LENGTH_SHORT).show()
-            return
+            return false
         }
         if (dragStartedInDock && targetPackage == null) {
             moveDockIconToGrid(
                 app,
                 appPageIndex * appGridPageSize + gridPosition
             )
-            return
+            return true
         }
         val dropAfterTarget = if (gridPosition == GridView.INVALID_POSITION) {
             false
@@ -1508,12 +1551,17 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 x >= targetLocation[0] + targetView.width / 2f
             }
         }
-        reorderAppGridItem(app, appPageIndex, gridPosition, dropAfterTarget)
+        return reorderAppGridItem(app, appPageIndex, gridPosition, dropAfterTarget)
     }
 
-    private fun moveGridIconToDock(app: AppInfo, targetSlot: Int) {
+    private fun moveGridIconToDock(app: AppInfo, targetSlot: Int): Boolean {
         val packageName = app.packageName
         val sourceIndex = appGridPackages.indexOf(packageName)
+        val moved = if (dragStartedInDock) {
+            draggedDockSlot != targetSlot
+        } else {
+            sourceIndex >= 0
+        }
         if (dragStartedInDock) {
             draggedDockSlot?.takeIf { it != targetSlot }?.let { dockEmptySlots += it }
         }
@@ -1543,6 +1591,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             saveAppGridOrder()
         }
         installedApps?.let { renderApps?.invoke(it) }
+        return moved
     }
 
     private fun moveDockIconToGrid(app: AppInfo, targetIndex: Int) {
@@ -1641,6 +1690,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun finishAppDrag() {
+        val shouldRefreshGrid = dragCreatedEmptyAppPage
+        dragCreatedEmptyAppPage = false
         stopDragWiggle()
         dragShadow?.let(screenContainer::removeView)
         dragCheckBadge?.let(screenContainer::removeView)
@@ -1657,6 +1708,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         cancelDragPageChange()
         dragEdge = 0
         dragMoved = false
+        if (shouldRefreshGrid) {
+            installedApps?.let { renderApps?.invoke(it) }
+        }
         refreshSelectionWiggle()
     }
 
@@ -1682,9 +1736,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         pageIndex: Int,
         pagePosition: Int,
         dropAfterTarget: Boolean
-    ) {
+    ): Boolean {
         val sourceIndex = appGridPackages.indexOf(app.packageName)
-        if (sourceIndex < 0) return
+        if (sourceIndex < 0) return false
 
         val pageStart = pageIndex * appGridPageSize
         val pageEnd = minOf(pageStart + appGridPageSize, appGridPackages.size)
@@ -1706,7 +1760,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val reorderedPackages = appGridPackages.toMutableList().apply {
             while (size <= maxOf(sourceIndex, targetIndex)) add(null)
         }
-        if (targetIndex == sourceIndex) return
+        if (targetIndex == sourceIndex) return false
 
         val targetPackage = reorderedPackages[targetIndex]
         if (targetPackage == null) {
@@ -1722,6 +1776,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         appGridOrderPackages.addAll(reorderedPackages)
         saveAppGridOrder()
         installedApps?.let { renderApps?.invoke(it) }
+        return true
     }
 
     private fun loadAppGridOrder(): List<String?> {
@@ -2399,10 +2454,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     navigateAppGridDuringDrag(event.rawX)
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (dragMoved) {
-                        dropDraggedApp(event.rawX, event.rawY)
+                    val movedApp = if (dragMoved) {
+                        draggedApp?.takeIf { dropDraggedApp(event.rawX, event.rawY) }
+                    } else {
+                        null
                     }
                     finishAppDrag()
+                    movedApp
+                        ?.takeUnless { it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) }
+                        ?.let { app ->
+                            isAppSelectionMode = true
+                            selectedAppPackages.clear()
+                            selectedAppPackages.add(app.packageName)
+                            installedApps?.let { renderApps?.invoke(it) }
+                        }
                     recycleVelocityTracker()
                 }
                 MotionEvent.ACTION_CANCEL -> {

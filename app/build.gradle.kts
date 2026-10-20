@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
 }
 
 val activeResourcesDir = layout.buildDirectory.dir("generated/res/active/main")
@@ -18,6 +19,7 @@ val prepareActiveResources by tasks.registering(Sync::class) {
             "activity_app_effects.xml",
             "activity_change_app_icon.xml",
             "activity_wallpaper.xml",
+            "screen_loading.xml",
             "item_app.xml",
             "popup_app_actions.xml",
             "screen_apps.xml",
@@ -34,7 +36,7 @@ val prepareActiveResources by tasks.registering(Sync::class) {
 android {
     namespace = "com.example.oslaucher"
     compileSdk {
-        version = release(37)
+        version = release(36)
     }
 
     sourceSets {
@@ -54,16 +56,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildTypes {
-        release {
-            optimization {
-                enable = false
-            }
-        }
-    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 
