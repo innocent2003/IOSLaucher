@@ -21,7 +21,8 @@ class AppAdapter(
     private val selectedPackages: Set<String> = emptySet(),
     private val isSelectionMode: () -> Boolean = { false },
     private val canSelectApp: (AppInfo) -> Boolean = { true },
-    private val onEmptySlotClick: (() -> Unit)? = null
+    private val onEmptySlotClick: (() -> Unit)? = null,
+    private val selectionBarHeight: Int = 0
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
     private val iconMaxSize = (58 * context.resources.displayMetrics.density).toInt()
@@ -58,7 +59,9 @@ class AppAdapter(
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
         val itemView = convertView ?: inflater.inflate(R.layout.item_app, parent, false)
-        val rowHeight = parent.height.takeIf { it > 0 }?.div(gridRows)
+        val rowHeight = parent.height.takeIf { it > 0 }
+            ?.plus(if (isSelectionMode()) selectionBarHeight else 0)
+            ?.div(gridRows)
         if (rowHeight != null) {
             itemView.layoutParams = (itemView.layoutParams
                 ?: ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowHeight)).apply {

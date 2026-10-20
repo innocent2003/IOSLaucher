@@ -597,6 +597,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
                 fun buildHomeApps(apps: List<AppInfo>) {
                     if (isAppSelectionMode) stopDragWiggle()
+                    (pages.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
+                        params.topMargin = dp(if (isAppSelectionMode) 8 else 22)
+                        pages.layoutParams = params
+                    }
                     val folderPackages = appFolders.flatMapTo(mutableSetOf()) { it.packageNames }
                     val visibleApps = apps.filterNot {
                         it.packageName in hiddenAppPackages || it.packageName in folderPackages
@@ -702,7 +706,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                                 { !it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) },
                                 onEmptySlotClick = {
                                     if (isAppSelectionMode) exitAppSelectionMode()
-                                }
+                                },
+                                selectionBarHeight = selectionBar.layoutParams.height
                             ).apply {
                                 setGridApps(
                                     pageApps + List(appPageSize - pageApps.size) { null }
