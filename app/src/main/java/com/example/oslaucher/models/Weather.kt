@@ -1,4 +1,4 @@
-package com.example.oslaucher.ui.fragments
+package com.example.oslaucher.models
 
 internal data class Weather(
     val temperature: Double,

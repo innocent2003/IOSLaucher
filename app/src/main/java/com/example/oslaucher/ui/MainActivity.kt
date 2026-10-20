@@ -1,5 +1,6 @@
 package com.example.oslaucher.ui
 
+import android.animation.ObjectAnimator
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -11,7 +12,11 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -21,13 +26,16 @@ import android.view.ViewGroup
 import android.view.VelocityTracker
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.LinearInterpolator
 import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import android.widget.GridView
 import android.widget.ImageView
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ListView
 import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
@@ -39,9 +47,16 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.content.getSystemService
 import com.example.oslaucher.R
 import com.example.oslaucher.adapters.AppAdapter
+import com.example.oslaucher.adapters.AlphabeticalAppAdapter
+import com.example.oslaucher.models.AppDragCandidate
+import com.example.oslaucher.models.AppFolder
 import com.example.oslaucher.models.AppInfo
+import com.example.oslaucher.models.AppPageSwipeTransition
+import com.example.oslaucher.models.FolderDragState
+import com.example.oslaucher.models.HomeSwipeTransition
 import com.example.oslaucher.repositories.InstalledAppRepository
 import com.example.oslaucher.ui.fragments.HomeFragment
 import com.example.oslaucher.ui.fragments.HomeScreenActions
@@ -67,11 +82,38 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appsIndicator: LinearLayout? = null
     private var appPageIndex = 0
     private var appPageCount = 1
+    private var appGridPageSize = 1
+    private var appGridPackages: List<String?> = emptyList()
+    private val appGridOrderPackages = mutableListOf<String?>()
     private var appPageSwipeTransition: AppPageSwipeTransition? = null
     private var isLoadingApps = false
     private var isAppSelectionMode = false
     private val selectedAppPackages = mutableSetOf<String>()
     private val appFolders = mutableListOf<AppFolder>()
+    private val dockFolderSlots = mutableMapOf<String, Int>()
+    private val dockAppSlots = mutableMapOf<String, Int>()
+    private val dockEmptySlots = mutableSetOf<Int>()
+    private val dockRemovedAppPackages = mutableSetOf<String>()
+    private var appsDock: LinearLayout? = null
+    private var draggedApp: AppInfo? = null
+    private var dragSource: View? = null
+    private var dragSourceVisibility = View.VISIBLE
+    private var appDragCandidate: AppDragCandidate? = null
+    private var appOptionsPopup: PopupWindow? = null
+    private var folderDragState: FolderDragState? = null
+    private var dragShadow: ImageView? = null
+    private var dragCheckBadge: TextView? = null
+    private val dragWiggleAnimators = mutableListOf<ObjectAnimator>()
+    private var dragTargetLabel: TextView? = null
+    private var dragEdge = 0
+    private var dragPageChangeRunnable: Runnable? = null
+    private val dragPageHandler = Handler(Looper.getMainLooper())
+    private var dragMoved = false
+    private var dragStartedInAppGrid = false
+    private var dragStartedInDock = false
+    private var draggedDockSlot: Int? = null
+    private var dragLastRawX = 0f
+    private var dragLastRawY = 0f
     private var downX = 0f
     private var downY = 0f
     private var homeSwipeTransition: HomeSwipeTransition? = null
@@ -90,6 +132,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private var currentScreen = Screen.SETTINGS
     private var lastHomeScreen = Screen.HOME
+    private var isAlphabeticalLibrary = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +147,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
         setContentView(screenContainer)
         appFolders.addAll(loadAppFolders())
+        dockFolderSlots.putAll(loadDockFolderSlots())
+        dockAppSlots.putAll(loadDockAppSlots())
+        dockEmptySlots.addAll(loadDockEmptySlots())
+        dockRemovedAppPackages.addAll(loadDockRemovedAppPackages())
+        appGridOrderPackages.addAll(loadAppGridOrder())
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -112,10 +160,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     return
                 }
                 when (currentScreen) {
-                    Screen.APPS -> showScreen(
-                        lastHomeScreen,
-                        if (lastHomeScreen == Screen.HOME) 1 else -1
-                    )
+                    Screen.APPS -> {
+                        isAlphabeticalLibrary = false
+                        showScreen(
+                            lastHomeScreen,
+                            if (lastHomeScreen == Screen.HOME) 1 else -1
+                        )
+                    }
                     Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
                     Screen.HOME -> showScreen(Screen.SETTINGS, -1)
                     Screen.SETTINGS -> finish()
@@ -124,6 +175,60 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         })
 
         showScreen(Screen.SETTINGS, 0)
+    }
+
+    private fun bindAlphabeticalAppLibrary(view: View) {
+        val appList = view.findViewById<ListView>(R.id.app_library_list)
+        val search = view.findViewById<EditText>(R.id.app_library_search)
+        val adapter = AlphabeticalAppAdapter(
+            this,
+            { app -> launchHomeScreenApp(app.packageName) },
+            { app, anchor -> showAppOptions(app, anchor) }
+        )
+        appList.adapter = adapter
+
+        val alphabet = view.findViewById<LinearLayout>(R.id.app_library_alphabet)
+        ('A'..'Z').forEach { letter ->
+            alphabet.addView(TextView(this).apply {
+                text = letter.toString()
+                gravity = Gravity.CENTER
+                setTextColor(0xFFFFFFFF.toInt())
+                textSize = 11f
+                contentDescription = "Chữ $letter"
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f
+                )
+                setOnClickListener {
+                    adapter.positionFor(letter).takeIf { it >= 0 }?.let(appList::smoothScrollToPosition)
+                }
+            })
+        }
+
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(text: Editable?) {
+                adapter.filter(text?.toString().orEmpty())
+            }
+        })
+
+        view.findViewById<View>(R.id.app_library_cancel).setOnClickListener {
+            isAlphabeticalLibrary = false
+            getSystemService<InputMethodManager>()
+                ?.hideSoftInputFromWindow(search.windowToken, 0)
+            showScreen(
+                lastHomeScreen,
+                if (lastHomeScreen == Screen.HOME) 1 else -1
+            )
+        }
+
+        requestInstalledApps { apps ->
+            if (currentScreen == Screen.APPS && isAlphabeticalLibrary) {
+                adapter.setApps(apps)
+            }
+        }
     }
 
     override fun onResume() {
@@ -142,11 +247,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             showHomeFragment(screen, animationDirection)
             return
         }
-
         val previousFragment = supportFragmentManager.findFragmentById(R.id.screen_container)
         val previousView = previousFragment?.view
             ?: screenContainer.childCount.takeIf { it > 0 }?.let(screenContainer::getChildAt)
-        val newView = LayoutInflater.from(this).inflate(screenLayouts.getValue(screen), screenContainer, false)
+        val layoutResId = if (screen == Screen.APPS && isAlphabeticalLibrary) {
+            R.layout.screen_app_library
+        } else {
+            screenLayouts.getValue(screen)
+        }
+        val newView = LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
         bindScreen(newView, screen)
 
         if (previousView != null && animationDirection != 0) {
@@ -288,6 +397,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             fromScreen == Screen.HOME_SECOND && direction > 0 -> Screen.APPS
             else -> return null
         }
+        isAlphabeticalLibrary = false
         val fragmentManager = supportFragmentManager
         val outgoingFragment = fragmentManager.findFragmentById(R.id.screen_container)
         val outgoingView = outgoingFragment?.view
@@ -308,12 +418,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 return null
             }
         } else {
-            LayoutInflater.from(this)
+            val view = LayoutInflater.from(this)
                 .inflate(screenLayouts.getValue(toScreen), screenContainer, false)
-                .also { view ->
-                    bindScreen(view, toScreen)
-                    screenContainer.addView(view)
-                }
+                .also { bindScreen(it, toScreen) }
+            screenContainer.addView(view)
+            view
         }
         val width = screenContainer.width.takeIf { it > 0 }?.toFloat()
             ?: resources.displayMetrics.widthPixels.toFloat()
@@ -449,6 +558,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
             Screen.HOME, Screen.HOME_SECOND -> Unit
             Screen.APPS -> {
+                if (isAlphabeticalLibrary) {
+                    bindAlphabeticalAppLibrary(view)
+                    return
+                }
                 val pages = view.findViewById<ViewFlipper>(R.id.apps_pages)
                 val pageIndicator = view.findViewById<LinearLayout>(R.id.apps_page_indicator)
                 val selectionBar = view.findViewById<LinearLayout>(R.id.apps_selection_bar)
@@ -457,6 +570,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 appsIndicator = pageIndicator
                 appPageIndex = 0
                 val dock = view.findViewById<LinearLayout>(R.id.apps_dock)
+                appsDock = dock
                 val appLauncher: (AppInfo) -> Unit = { app ->
                     if (app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
                         val folderId = app.packageName.removePrefix(FOLDER_PACKAGE_PREFIX)
@@ -473,17 +587,24 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                 }
                 val appLongPress: (AppInfo, View) -> Unit = { app, anchor ->
-                    if (!app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                    if (isAppSelectionMode || app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                        startAppDrag(app, anchor)
+                    } else {
+                        appDragCandidate = AppDragCandidate(app, anchor)
                         showAppOptions(app, anchor)
                     }
                 }
 
                 fun buildHomeApps(apps: List<AppInfo>) {
+                    if (isAppSelectionMode) stopDragWiggle()
+                    (pages.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
+                        params.topMargin = dp(if (isAppSelectionMode) 8 else 22)
+                        pages.layoutParams = params
+                    }
                     val folderPackages = appFolders.flatMapTo(mutableSetOf()) { it.packageNames }
                     val visibleApps = apps.filterNot {
                         it.packageName in hiddenAppPackages || it.packageName in folderPackages
                     }
-                    val dockApps = visibleApps.take(4)
                     val folderTiles = appFolders.map { folder ->
                         val folderApps = apps.filter { it.packageName in folder.packageNames }
                         AppInfo(
@@ -492,7 +613,62 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             icon = createFolderIcon(folderApps)
                         )
                     }
-                    val gridApps = visibleApps.drop(dockApps.size) + folderTiles
+                    val dockFolderTiles = folderTiles.filter {
+                        it.packageName.removePrefix(FOLDER_PACKAGE_PREFIX) in dockFolderSlots
+                    }.take(4)
+                    val dockFolderPackages = dockFolderTiles.mapTo(mutableSetOf()) {
+                        it.packageName
+                    }
+                    val gridFolderTiles = folderTiles.filterNot {
+                        it.packageName in dockFolderPackages
+                    }
+                    val dockSlots = MutableList<AppInfo?>(4) { null }
+                    dockFolderTiles.forEach { folder ->
+                        val folderId = folder.packageName.removePrefix(FOLDER_PACKAGE_PREFIX)
+                        val requestedSlot = dockFolderSlots[folderId]?.coerceIn(0, 3) ?: 3
+                        val slot = if (dockSlots[requestedSlot] == null) {
+                            requestedSlot
+                        } else {
+                            dockSlots.indexOfFirst { it == null }
+                        }
+                        if (slot >= 0) dockSlots[slot] = folder
+                    }
+                    if (dockAppSlots.isEmpty() && dockEmptySlots.isEmpty()) {
+                        visibleApps.forEachIndexed { appIndex, app ->
+                            if (app.packageName in dockRemovedAppPackages && appIndex < 4) {
+                                dockEmptySlots += appIndex
+                            }
+                        }
+                    }
+                    dockAppSlots.toMap().forEach { (packageName, slot) ->
+                        val app = visibleApps.firstOrNull { it.packageName == packageName }
+                        if (app != null && slot in dockSlots.indices &&
+                            dockSlots[slot] == null && slot !in dockEmptySlots
+                        ) {
+                            dockSlots[slot] = app
+                        }
+                    }
+                    val placedDockPackages = dockSlots.filterNotNull()
+                        .mapTo(mutableSetOf()) { it.packageName }
+                    visibleApps.filterNot {
+                        it.packageName in dockRemovedAppPackages ||
+                            it.packageName in placedDockPackages ||
+                            it.packageName in dockAppSlots
+                    }.forEach { app ->
+                        val slot = dockSlots.indices.firstOrNull {
+                            dockSlots[it] == null && it !in dockEmptySlots
+                        } ?: return@forEach
+                        dockSlots[slot] = app
+                        dockAppSlots[app.packageName] = slot
+                    }
+                    val dockPackages = dockSlots.filterNotNull()
+                        .mapTo(mutableSetOf()) { it.packageName }
+                    saveDockAppSlots()
+                    saveDockEmptySlots()
+                    val gridApps = orderAppGridApps(
+                        visibleApps.filterNot { it.packageName in dockPackages } + gridFolderTiles
+                    )
+                    appGridPackages = gridApps.map { it?.packageName }
                     val gridRows = getSharedPreferences(
                         ScreenGridActivity.PREFERENCES_NAME,
                         MODE_PRIVATE
@@ -504,6 +680,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         ScreenGridActivity.MAX_GRID_ROWS
                     )
                     val appPageSize = 4 * gridRows
+                    appGridPageSize = appPageSize
                     val appChunks = gridApps.chunked(appPageSize).ifEmpty { listOf(emptyList()) }
                     appPageCount = appChunks.size
                     appPageIndex = appPageIndex.coerceIn(0, appPageCount - 1)
@@ -518,6 +695,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             stretchMode = GridView.STRETCH_COLUMN_WIDTH
                             isVerticalScrollBarEnabled = false
                             clipToPadding = false
+                            tag = "$APP_GRID_TAG:$pageIndex"
                             adapter = AppAdapter(
                                 this@MainActivity,
                                 appLauncher,
@@ -525,10 +703,19 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                                 gridRows,
                                 selectedAppPackages,
                                 { isAppSelectionMode },
-                                { !it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) }
+                                { !it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) },
+                                onEmptySlotClick = {
+                                    if (isAppSelectionMode) exitAppSelectionMode()
+                                },
+                                selectionBarHeight = selectionBar.layoutParams.height
                             ).apply {
-                                setApps(pageApps)
+                                setGridApps(
+                                    pageApps + List(appPageSize - pageApps.size) { null }
+                                )
                             }
+                        }
+                        gridView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                            if (isAppSelectionMode) refreshSelectionWiggle()
                         }
                         pages.addView(gridView)
 
@@ -546,7 +733,23 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     selectionCount.text = "${selectedAppPackages.size} đã chọn"
 
                     dock.removeAllViews()
-                    dockApps.forEach { app ->
+                    dockSlots.forEach { app ->
+                        if (app == null) {
+                            dock.addView(
+                                FrameLayout(this).apply {
+                                    isClickable = isAppSelectionMode
+                                    setOnClickListener {
+                                        if (isAppSelectionMode) exitAppSelectionMode()
+                                    }
+                                },
+                                LinearLayout.LayoutParams(
+                                    0,
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    1f
+                                )
+                            )
+                            return@forEach
+                        }
                         val icon = ImageView(this).apply {
                             setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
                             contentDescription = app.name
@@ -554,6 +757,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             setPadding(dp(6), dp(4), dp(6), dp(4))
                         }
                         val iconContainer = FrameLayout(this).apply {
+                            tag = app.packageName
                             addView(
                                 icon,
                                 FrameLayout.LayoutParams(
@@ -564,7 +768,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             addView(
                                 TextView(this@MainActivity).apply {
                                     val selected = app.packageName in selectedAppPackages
-                                    visibility = if (isAppSelectionMode) View.VISIBLE else View.GONE
+                                    visibility = if (
+                                        isAppSelectionMode &&
+                                        !app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)
+                                    ) View.VISIBLE else View.GONE
                                     text = if (selected) "✓" else ""
                                     gravity = Gravity.CENTER
                                     textSize = 13f
@@ -580,12 +787,23 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                                 FrameLayout.LayoutParams(dp(20), dp(20), Gravity.TOP or Gravity.START)
                             )
                             setOnClickListener { appLauncher(app) }
+                            setOnLongClickListener {
+                                if (isAppSelectionMode ||
+                                    app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)
+                                ) {
+                                    startAppDrag(app, this)
+                                } else {
+                                    appDragCandidate = AppDragCandidate(app, this)
+                                }
+                                true
+                            }
                         }
                         dock.addView(
                             iconContainer,
                             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
                         )
                     }
+                    refreshSelectionWiggle()
                 }
 
                 view.findViewById<View>(R.id.apps_selection_cancel).setOnClickListener {
@@ -650,7 +868,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
     }
 
+    override fun openHomeScreenFolder(name: String, apps: List<AppInfo>) {
+        showFolderContents(
+            AppFolder("home:$name", name, apps.map { it.packageName }),
+            apps
+        )
+    }
+
     override fun openApps() {
+        if (currentScreen != Screen.APPS && currentScreen != Screen.SETTINGS) {
+            lastHomeScreen = currentScreen
+        }
+        isAlphabeticalLibrary = true
         showScreen(Screen.APPS, if (lastHomeScreen == Screen.HOME) -1 else 1)
     }
 
@@ -667,6 +896,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val incomingView = pages.getChildAt(targetPage) ?: return
         val direction = if (targetPage > appPageIndex) -1 else 1
         pages.displayedChild = targetPage
+        appPageIndex = targetPage
+        refreshSelectionWiggle()
         outgoingView.visibility = View.VISIBLE
         incomingView.visibility = View.VISIBLE
         homeSwipeSettling = true
@@ -775,6 +1006,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             updateAppPageIndicator()
             appPageSwipeTransition = null
             homeSwipeSettling = false
+            refreshSelectionWiggle()
         }
     }
 
@@ -813,6 +1045,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             appPageIndex = targetPage
             updateAppPageIndicator()
             homeSwipeSettling = false
+            refreshSelectionWiggle()
         }
     }
 
@@ -838,6 +1071,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         popupWindow.isOutsideTouchable = true
         popupWindow.isFocusable = true
         popupWindow.elevation = 18f
+        appOptionsPopup = popupWindow
+        popupWindow.setOnDismissListener {
+            if (appOptionsPopup === popupWindow) {
+                appOptionsPopup = null
+            }
+            appDragCandidate = null
+        }
 
         popupView.findViewById<View>(R.id.app_action_info).setOnClickListener {
             try {
@@ -901,6 +1141,612 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         installedApps?.let { renderApps?.invoke(it) }
     }
 
+    private fun startAppDrag(app: AppInfo, source: View) {
+        dragStartedInAppGrid = true
+        draggedDockSlot = appsDock?.indexOfChild(source)?.takeIf { it >= 0 }
+        dragStartedInDock = draggedDockSlot != null
+        draggedApp = app
+        dragSource = source
+        dragSourceVisibility = source.visibility
+        source.visibility = View.INVISIBLE
+        val iconsToWiggle = mutableListOf<View>()
+        appsPages?.let { pages ->
+            val grid = pages.getChildAt(appPageIndex) as? GridView
+            if (grid != null) {
+                for (childIndex in 0 until grid.childCount) {
+                    val adapterPosition = grid.firstVisiblePosition + childIndex
+                    if (grid.adapter?.getItem(adapterPosition) != null) {
+                        grid.getChildAt(childIndex)
+                            .findViewById<ImageView>(R.id.app_icon)
+                            ?.let(iconsToWiggle::add)
+                    }
+                }
+            }
+        }
+        appsDock?.let { dock ->
+            for (index in 0 until dock.childCount) {
+                val icon = dock.getChildAt(index)
+                if (icon.tag is String) {
+                    icon.findViewById<ImageView>(R.id.app_icon)?.let(iconsToWiggle::add)
+                }
+            }
+        }
+        dragEdge = 0
+        dragMoved = false
+        dragShadow = ImageView(this).apply {
+            setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            alpha = 0.9f
+            elevation = dp(12).toFloat()
+        }
+        screenContainer.addView(
+            dragShadow,
+            FrameLayout.LayoutParams(dp(64), dp(64))
+        )
+        dragCheckBadge = createDragCheckBadge().also { badge ->
+            screenContainer.addView(
+                badge,
+                FrameLayout.LayoutParams(dp(20), dp(20))
+            )
+        }
+        startDragWiggle(iconsToWiggle + dragShadow!!)
+        dragTargetLabel = TextView(this).apply {
+            textSize = 14f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(10), dp(18), dp(10))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(24).toFloat()
+                setColor(0xE6212733.toInt())
+                setStroke(dp(1), 0xFF7DB8FF.toInt())
+            }
+            elevation = dp(16).toFloat()
+            visibility = View.GONE
+        }.also { label ->
+            screenContainer.addView(
+                label,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                ).apply {
+                    topMargin = dp(56)
+                }
+            )
+        }
+        source.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        updateDragTargetLabel()
+        updateDragShadow(downX, downY)
+        val screenLocation = IntArray(2)
+        screenContainer.getLocationOnScreen(screenLocation)
+        dragLastRawX = screenLocation[0] + downX
+        dragLastRawY = screenLocation[1] + downY
+    }
+
+    private fun updateDragShadow(x: Float, y: Float) {
+        val shadow = dragShadow ?: return
+        val layoutParams = shadow.layoutParams as? FrameLayout.LayoutParams ?: return
+        layoutParams.leftMargin = (x - dp(32)).toInt().coerceAtLeast(0)
+        layoutParams.topMargin = (y - dp(32)).toInt().coerceAtLeast(0)
+        shadow.layoutParams = layoutParams
+        dragCheckBadge?.let { badge ->
+            val badgeParams = badge.layoutParams as? FrameLayout.LayoutParams ?: return@let
+            badgeParams.leftMargin = (layoutParams.leftMargin + dp(42))
+                .coerceAtMost((screenContainer.width - dp(20)).coerceAtLeast(0))
+            badgeParams.topMargin = (layoutParams.topMargin - dp(4)).coerceAtLeast(0)
+            badge.layoutParams = badgeParams
+        }
+    }
+
+    private fun createDragCheckBadge() = TextView(this).apply {
+        text = "✓"
+        gravity = Gravity.CENTER
+        textSize = 13f
+        setTextColor(0xFFFFFFFF.toInt())
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(0xFF1685E8.toInt())
+            setStroke(dp(1), 0xFFFFFFFF.toInt())
+        }
+        elevation = dp(14).toFloat()
+    }
+
+    private fun startDragWiggle(icons: List<View>) {
+        stopDragWiggle()
+        icons.forEachIndexed { index, icon ->
+            ObjectAnimator.ofFloat(icon, View.ROTATION, -5f, 5f, -5f).apply {
+                duration = 180L
+                startDelay = (index % 4) * 30L
+                repeatCount = ObjectAnimator.INFINITE
+                interpolator = LinearInterpolator()
+                start()
+                dragWiggleAnimators += this
+            }
+        }
+    }
+
+    private fun refreshSelectionWiggle() {
+        if (!isAppSelectionMode) {
+            stopDragWiggle()
+            return
+        }
+        if (draggedApp != null || folderDragState != null) return
+
+        val pages = appsPages
+        if (pages != null) {
+            for (pageIndex in 0 until pages.childCount) {
+                val grid = pages.getChildAt(pageIndex) as? GridView ?: continue
+                for (childIndex in 0 until grid.childCount) {
+                    val adapterPosition = grid.firstVisiblePosition + childIndex
+                    if (grid.adapter?.getItem(adapterPosition) != null) {
+                        grid.getChildAt(childIndex)
+                            .findViewById<ImageView>(R.id.app_icon)
+                            ?.let(::startSelectionWiggle)
+                    }
+                }
+            }
+        }
+        appsDock?.let { dock ->
+            for (index in 0 until dock.childCount) {
+                val child = dock.getChildAt(index)
+                if (child.tag is String) {
+                    child.findViewById<ImageView>(R.id.app_icon)?.let(::startSelectionWiggle)
+                }
+            }
+        }
+    }
+
+    private fun startSelectionWiggle(icon: View) {
+        if (dragWiggleAnimators.any { it.target === icon }) return
+        ObjectAnimator.ofFloat(icon, View.ROTATION, -5f, 5f, -5f).apply {
+            duration = 180L
+            startDelay = (dragWiggleAnimators.size % 4) * 30L
+            repeatCount = ObjectAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            start()
+            dragWiggleAnimators += this
+        }
+    }
+
+    private fun stopDragWiggle() {
+        dragWiggleAnimators.forEach { animator ->
+            animator.cancel()
+            animator.target?.let { target ->
+                (target as? View)?.rotation = 0f
+            }
+        }
+        dragWiggleAnimators.clear()
+    }
+
+    private fun updateDragShadowFromScreen(x: Float, y: Float) {
+        val location = IntArray(2)
+        screenContainer.getLocationOnScreen(location)
+        dragLastRawX = x
+        dragLastRawY = y
+        updateDragShadow(x - location[0], y - location[1])
+    }
+
+    private fun navigateAppGridDuringDrag(x: Float) {
+        if (!dragStartedInAppGrid || currentScreen != Screen.APPS || isAlphabeticalLibrary) return
+        val location = IntArray(2)
+        screenContainer.getLocationOnScreen(location)
+        val left = location[0].toFloat()
+        val right = left + screenContainer.width
+        if (screenContainer.width <= 0) return
+        val edgeWidth = dp(48).toFloat()
+        val edge = when {
+            x < left + edgeWidth -> -1
+            x > right - edgeWidth -> 1
+            else -> 0
+        }
+        if (edge == 0) {
+            cancelDragPageChange()
+            dragEdge = 0
+            return
+        }
+        if (edge != dragEdge) {
+            cancelDragPageChange()
+            dragEdge = edge
+        }
+        if (dragPageChangeRunnable == null) {
+            scheduleDragPageChange(edge)
+        }
+    }
+
+    private fun scheduleDragPageChange(edge: Int) {
+        val changePage = Runnable {
+            dragPageChangeRunnable = null
+            if (draggedApp == null || dragEdge != edge ||
+                currentScreen != Screen.APPS || isAlphabeticalLibrary
+            ) {
+                return@Runnable
+            }
+            val targetPage = appPageIndex + if (edge > 0) 1 else -1
+            if (targetPage !in 0 until appPageCount) return@Runnable
+
+            showAppPage(targetPage)
+            updateAppPageIndicator()
+            updateDragTargetLabel()
+            updateDragShadowFromScreen(dragLastRawX, dragLastRawY)
+            dragShadow?.let(screenContainer::bringChildToFront)
+            dragTargetLabel?.let(screenContainer::bringChildToFront)
+            scheduleDragPageChange(edge)
+        }
+        dragPageChangeRunnable = changePage
+        dragPageHandler.postDelayed(changePage, DRAG_PAGE_CHANGE_DELAY_MS)
+    }
+
+    private fun cancelDragPageChange() {
+        dragPageChangeRunnable?.let(dragPageHandler::removeCallbacks)
+        dragPageChangeRunnable = null
+    }
+
+    private fun updateDragTargetLabel() {
+        val label = dragTargetLabel ?: return
+        if (dragStartedInAppGrid && currentScreen == Screen.APPS && !isAlphabeticalLibrary) {
+            label.text = "Thả vào lưới ứng dụng ${appPageIndex + 1}"
+            label.visibility = View.VISIBLE
+        } else {
+            label.visibility = View.GONE
+        }
+    }
+
+    private fun dropDraggedApp(x: Float, y: Float) {
+        val app = draggedApp ?: return
+        if (currentScreen != Screen.APPS || isAlphabeticalLibrary) {
+            Toast.makeText(this, "Chỉ có thể thả ứng dụng trong lưới ứng dụng.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val grid = appsPages
+            ?.getChildAt(appPageIndex)
+            ?.findViewWithTag<View>("$APP_GRID_TAG:$appPageIndex") as? GridView
+        val gridLocation = IntArray(2)
+        grid?.getLocationOnScreen(gridLocation)
+        val insideGrid = grid != null &&
+            x >= gridLocation[0] && x <= gridLocation[0] + grid.width &&
+            y >= gridLocation[1] && y <= gridLocation[1] + grid.height
+        val gridPosition = if (insideGrid) {
+            grid?.pointToPosition(
+                (x - gridLocation[0]).toInt(),
+                (y - gridLocation[1]).toInt()
+            ) ?: GridView.INVALID_POSITION
+        } else {
+            GridView.INVALID_POSITION
+        }
+        val dockTarget = appsDock?.let { dock ->
+            (0 until dock.childCount)
+                .mapNotNull(dock::getChildAt)
+                .firstOrNull { target ->
+                    val targetLocation = IntArray(2)
+                    target.getLocationOnScreen(targetLocation)
+                    x >= targetLocation[0] && x <= targetLocation[0] + target.width &&
+                        y >= targetLocation[1] && y <= targetLocation[1] + target.height
+                }
+        }
+        val dockPackage = dockTarget?.tag as? String
+        val dockTargetIndex = dockTarget?.let { target ->
+            appsDock?.indexOfChild(target)
+        }?.takeIf { it >= 0 }
+        val gridPackage = if (gridPosition != GridView.INVALID_POSITION) {
+            appGridPackages.getOrNull(appPageIndex * appGridPageSize + gridPosition)
+        } else {
+            null
+        }
+        val targetPackage = dockPackage ?: gridPackage
+        if (dockTargetIndex != null && dockPackage == null) {
+            moveGridIconToDock(app, dockTargetIndex)
+            return
+        }
+        if (targetPackage != null && targetPackage != app.packageName) {
+            val targetFolderId = targetPackage
+                .takeIf { it.startsWith(FOLDER_PACKAGE_PREFIX) }
+                ?.removePrefix(FOLDER_PACKAGE_PREFIX)
+            val targetFolderIndex = targetFolderId?.let { id ->
+                appFolders.indexOfFirst { it.id == id }
+            } ?: -1
+            if (targetFolderIndex >= 0 && !app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                addAppToFolder(app, targetFolderIndex)
+                return
+            }
+            if (!app.packageName.startsWith(FOLDER_PACKAGE_PREFIX) &&
+                !targetPackage.startsWith(FOLDER_PACKAGE_PREFIX)
+            ) {
+                createFolderFromDrop(
+                    app,
+                    targetPackage,
+                    targetDockIndex = dockTargetIndex,
+                    targetGridIndex = if (dockPackage == null) {
+                        appPageIndex * appGridPageSize + gridPosition
+                    } else {
+                        -1
+                    }
+                )
+                return
+            }
+            if (app.packageName.startsWith(FOLDER_PACKAGE_PREFIX) &&
+                !targetPackage.startsWith(FOLDER_PACKAGE_PREFIX)
+            ) {
+                val folderId = app.packageName.removePrefix(FOLDER_PACKAGE_PREFIX)
+                val folderIndex = appFolders.indexOfFirst { it.id == folderId }
+                val targetApp = installedApps.orEmpty().firstOrNull {
+                    it.packageName == targetPackage
+                }
+                if (folderIndex >= 0 && targetApp != null) {
+                    addAppToFolder(targetApp, folderIndex)
+                    return
+                }
+            }
+        }
+        if (grid == null || gridPosition == GridView.INVALID_POSITION) {
+            if (grid != null && insideGrid && dragStartedInDock && targetPackage == null) {
+                moveDockIconToGrid(
+                    app,
+                    appPageIndex * appGridPageSize + appGridPageSize - 1
+                )
+                return
+            }
+            Toast.makeText(this, "Thả ứng dụng lên một biểu tượng trong lưới hoặc dock.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (dragStartedInDock && targetPackage == null) {
+            moveDockIconToGrid(
+                app,
+                appPageIndex * appGridPageSize + gridPosition
+            )
+            return
+        }
+        val dropAfterTarget = if (gridPosition == GridView.INVALID_POSITION) {
+            false
+        } else {
+            val targetView = grid.getChildAt(gridPosition - grid.firstVisiblePosition)
+            if (targetView == null) {
+                false
+            } else {
+                val targetLocation = IntArray(2)
+                targetView.getLocationOnScreen(targetLocation)
+                x >= targetLocation[0] + targetView.width / 2f
+            }
+        }
+        reorderAppGridItem(app, appPageIndex, gridPosition, dropAfterTarget)
+    }
+
+    private fun moveGridIconToDock(app: AppInfo, targetSlot: Int) {
+        val packageName = app.packageName
+        val sourceIndex = appGridPackages.indexOf(packageName)
+        if (dragStartedInDock) {
+            draggedDockSlot?.takeIf { it != targetSlot }?.let { dockEmptySlots += it }
+        }
+        val folderId = packageName
+            .takeIf { it.startsWith(FOLDER_PACKAGE_PREFIX) }
+            ?.removePrefix(FOLDER_PACKAGE_PREFIX)
+
+        dockEmptySlots.remove(targetSlot)
+        if (folderId != null) {
+            dockFolderSlots[folderId] = targetSlot
+            saveDockFolderSlots()
+        } else {
+            dockRemovedAppPackages.remove(packageName)
+            dockAppSlots[packageName] = targetSlot
+            saveDockRemovedAppPackages()
+            saveDockAppSlots()
+        }
+        saveDockEmptySlots()
+
+        if (sourceIndex >= 0) {
+            val orderedPackages = appGridPackages.toMutableList().apply {
+                this[sourceIndex] = null
+            }
+            appGridPackages = orderedPackages
+            appGridOrderPackages.clear()
+            appGridOrderPackages.addAll(orderedPackages)
+            saveAppGridOrder()
+        }
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun moveDockIconToGrid(app: AppInfo, targetIndex: Int) {
+        val packageName = app.packageName
+        draggedDockSlot?.let { dockEmptySlots += it }
+        if (packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+            val folderId = packageName.removePrefix(FOLDER_PACKAGE_PREFIX)
+            dockFolderSlots.remove(folderId)
+            saveDockFolderSlots()
+        } else {
+            dockAppSlots.remove(packageName)
+            dockRemovedAppPackages.add(packageName)
+            saveDockRemovedAppPackages()
+        }
+        saveDockAppSlots()
+        saveDockEmptySlots()
+
+        val orderedPackages = appGridPackages.toMutableList()
+        while (orderedPackages.size <= targetIndex) orderedPackages.add(null)
+        orderedPackages[targetIndex] = packageName
+        appGridPackages = orderedPackages
+        appGridOrderPackages.clear()
+        appGridOrderPackages.addAll(orderedPackages)
+        saveAppGridOrder()
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun createFolderFromDrop(
+        draggedApp: AppInfo,
+        targetPackage: String,
+        targetDockIndex: Int?,
+        targetGridIndex: Int
+    ) {
+        val sourceIndex = appGridPackages.indexOf(draggedApp.packageName)
+        if (targetPackage == draggedApp.packageName) return
+
+        val folderId = UUID.randomUUID().toString()
+        val folderPackage = FOLDER_PACKAGE_PREFIX + folderId
+        appFolders += AppFolder(folderId, "Thư mục", listOf(targetPackage, draggedApp.packageName))
+        draggedDockSlot?.takeIf { it != targetDockIndex }?.let { dockEmptySlots += it }
+        dockAppSlots.remove(draggedApp.packageName)
+        dockAppSlots.remove(targetPackage)
+        dockRemovedAppPackages.remove(draggedApp.packageName)
+        dockRemovedAppPackages.remove(targetPackage)
+        if (targetDockIndex != null) {
+            dockEmptySlots.remove(targetDockIndex)
+            dockFolderSlots[folderId] = targetDockIndex
+        }
+        saveDockAppSlots()
+        saveDockEmptySlots()
+        saveDockRemovedAppPackages()
+        saveDockFolderSlots()
+        saveAppFolders()
+
+        val orderedPackages = appGridPackages.toMutableList()
+        if (sourceIndex >= 0) orderedPackages[sourceIndex] = null
+        if (targetDockIndex == null && targetGridIndex in orderedPackages.indices) {
+            orderedPackages[targetGridIndex] = folderPackage
+        }
+        appGridPackages = orderedPackages
+        appGridOrderPackages.clear()
+        appGridOrderPackages.addAll(orderedPackages)
+        saveAppGridOrder()
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun addAppToFolder(app: AppInfo, folderIndex: Int) {
+        val folder = appFolders[folderIndex]
+        if (app.packageName in folder.packageNames) return
+
+        if (dragStartedInDock && draggedApp?.packageName == app.packageName) {
+            draggedDockSlot?.let { dockEmptySlots += it }
+            dockAppSlots.remove(app.packageName)
+            dockRemovedAppPackages.add(app.packageName)
+            saveDockAppSlots()
+            saveDockEmptySlots()
+            saveDockRemovedAppPackages()
+        }
+
+        appFolders[folderIndex] = folder.copy(
+            packageNames = folder.packageNames + app.packageName
+        )
+        saveAppFolders()
+
+        val sourceIndex = appGridPackages.indexOf(app.packageName)
+        if (sourceIndex >= 0) {
+            val orderedPackages = appGridPackages.toMutableList().apply {
+                this[sourceIndex] = null
+            }
+            appGridPackages = orderedPackages
+            appGridOrderPackages.clear()
+            appGridOrderPackages.addAll(orderedPackages)
+            saveAppGridOrder()
+        }
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun finishAppDrag() {
+        stopDragWiggle()
+        dragShadow?.let(screenContainer::removeView)
+        dragCheckBadge?.let(screenContainer::removeView)
+        dragTargetLabel?.let(screenContainer::removeView)
+        dragSource?.visibility = dragSourceVisibility
+        dragShadow = null
+        dragCheckBadge = null
+        dragTargetLabel = null
+        draggedApp = null
+        dragSource = null
+        dragStartedInAppGrid = false
+        dragStartedInDock = false
+        draggedDockSlot = null
+        cancelDragPageChange()
+        dragEdge = 0
+        dragMoved = false
+        refreshSelectionWiggle()
+    }
+
+    private fun orderAppGridApps(apps: List<AppInfo>): List<AppInfo?> {
+        if (appGridOrderPackages.isEmpty()) return apps
+
+        val appsByPackage = apps.associateBy { it.packageName }
+        val orderedPackages = mutableSetOf<String>()
+        val orderedApps = mutableListOf<AppInfo?>()
+        appGridOrderPackages.forEach { packageName ->
+            when {
+                packageName.isNullOrBlank() -> orderedApps.add(null)
+                !orderedPackages.add(packageName) -> orderedApps.add(null)
+                else -> orderedApps.add(appsByPackage[packageName])
+            }
+        }
+        orderedApps.addAll(apps.filterNot { it.packageName in orderedPackages })
+        return orderedApps
+    }
+
+    private fun reorderAppGridItem(
+        app: AppInfo,
+        pageIndex: Int,
+        pagePosition: Int,
+        dropAfterTarget: Boolean
+    ) {
+        val sourceIndex = appGridPackages.indexOf(app.packageName)
+        if (sourceIndex < 0) return
+
+        val pageStart = pageIndex * appGridPageSize
+        val pageEnd = minOf(pageStart + appGridPageSize, appGridPackages.size)
+        val directTargetIndex = if (pagePosition == GridView.INVALID_POSITION) {
+            -1
+        } else {
+            pageStart + pagePosition
+        }
+        val targetIsEmpty = directTargetIndex >= 0 &&
+            appGridPackages.getOrNull(directTargetIndex) == null
+        val targetIndex = if (pagePosition == GridView.INVALID_POSITION) {
+            pageEnd.coerceAtMost(pageStart + appGridPageSize - 1)
+        } else if (targetIsEmpty) {
+            directTargetIndex
+        } else {
+            (pageStart + pagePosition + if (dropAfterTarget) 1 else 0)
+                .coerceIn(pageStart, pageStart + appGridPageSize - 1)
+        }
+        val reorderedPackages = appGridPackages.toMutableList().apply {
+            while (size <= maxOf(sourceIndex, targetIndex)) add(null)
+        }
+        if (targetIndex == sourceIndex) return
+
+        val targetPackage = reorderedPackages[targetIndex]
+        if (targetPackage == null) {
+            reorderedPackages[sourceIndex] = null
+            reorderedPackages[targetIndex] = app.packageName
+        } else {
+            reorderedPackages[sourceIndex] = null
+            reorderedPackages.add(targetIndex, app.packageName)
+        }
+
+        appGridPackages = reorderedPackages
+        appGridOrderPackages.clear()
+        appGridOrderPackages.addAll(reorderedPackages)
+        saveAppGridOrder()
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun loadAppGridOrder(): List<String?> {
+        val stored = getSharedPreferences(APP_GRID_ORDER_PREFERENCES, MODE_PRIVATE)
+            .getString(APP_GRID_ORDER_KEY, null) ?: return emptyList()
+        return try {
+            val packages = JSONArray(stored)
+            buildList<String?> {
+                for (index in 0 until packages.length()) {
+                    add(if (packages.isNull(index)) null else packages.optString(index))
+                }
+            }
+        } catch (exception: org.json.JSONException) {
+            Log.w(TAG, "Could not read saved app grid order", exception)
+            emptyList()
+        }
+    }
+
+    private fun saveAppGridOrder() {
+        getSharedPreferences(APP_GRID_ORDER_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .putString(APP_GRID_ORDER_KEY, JSONArray(appGridOrderPackages).toString())
+            .apply()
+    }
+
     private fun promptCreateAppFolder() {
         if (selectedAppPackages.size < 2) {
             Toast.makeText(this, "Chọn ít nhất hai ứng dụng để tạo thư mục.", Toast.LENGTH_SHORT).show()
@@ -943,9 +1789,22 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun showFolderContents(folder: AppFolder, apps: List<AppInfo>) {
-        val folderApps = apps.filter { it.packageName in folder.packageNames }
+        val folderApps = orderFolderApps(folder, apps)
         lateinit var popupWindow: PopupWindow
-        val overlay = FrameLayout(this).apply {
+        var touchDownX = 0f
+        var touchDownY = 0f
+        val overlay = object : FrameLayout(this) {
+            override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+                if (folderDragState != null) {
+                    return handleFolderDragTouch(event)
+                }
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    touchDownX = event.rawX
+                    touchDownY = event.rawY
+                }
+                return super.dispatchTouchEvent(event)
+            }
+        }.apply {
             setBackgroundColor(0xAA111018.toInt())
             setOnClickListener { popupWindow.dismiss() }
         }
@@ -958,6 +1817,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             isClickable = true
             isFocusable = true
         }
+        lateinit var folderAdapter: AppAdapter
         val grid = GridView(this).apply {
             numColumns = 4
             horizontalSpacing = dp(6)
@@ -972,10 +1832,27 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity)
                     popupWindow.dismiss()
                 },
+                { app, anchor ->
+                    val currentFolder = appFolders.firstOrNull { it.id == folder.id } ?: folder
+                    val currentApps = (0 until folderAdapter.count)
+                        .mapNotNull(folderAdapter::getItem)
+                    startFolderAppDrag(
+                        currentFolder,
+                        app,
+                        currentApps,
+                        this,
+                        folderAdapter,
+                        overlay,
+                        popupWindow,
+                        anchor,
+                        touchDownX,
+                        touchDownY
+                    )
+                },
                 gridRows = 3
             ).apply {
                 setApps(folderApps)
-            }
+            }.also { folderAdapter = it }
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -1017,6 +1894,318 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             elevation = dp(16).toFloat()
         }
         popupWindow.showAtLocation(screenContainer, Gravity.CENTER, 0, 0)
+    }
+
+    private fun orderFolderApps(folder: AppFolder, apps: List<AppInfo>): List<AppInfo> {
+        val appsByPackage = apps.associateBy { it.packageName }
+        return folder.packageNames.mapNotNull(appsByPackage::get)
+    }
+
+    private fun startFolderAppDrag(
+        folder: AppFolder,
+        app: AppInfo,
+        apps: List<AppInfo>,
+        grid: GridView,
+        adapter: AppAdapter,
+        root: FrameLayout,
+        popupWindow: PopupWindow,
+        source: View,
+        downX: Float,
+        downY: Float
+    ) {
+        val shadow = ImageView(this).apply {
+            setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            alpha = 0.9f
+            elevation = dp(12).toFloat()
+            isClickable = false
+        }
+        val label = TextView(this).apply {
+            text = "Thả để sắp xếp ứng dụng"
+            textSize = 14f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(10), dp(18), dp(10))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(24).toFloat()
+                setColor(0xE6212733.toInt())
+                setStroke(dp(1), 0xFF7DB8FF.toInt())
+            }
+            elevation = dp(16).toFloat()
+            isClickable = false
+        }
+        val checkBadge = createDragCheckBadge()
+        root.addView(shadow, FrameLayout.LayoutParams(dp(64), dp(64)))
+        root.addView(checkBadge, FrameLayout.LayoutParams(dp(20), dp(20)))
+        root.addView(
+            label,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            ).apply {
+                topMargin = dp(56)
+            }
+        )
+        folderDragState = FolderDragState(
+            folder = folder,
+            draggedApp = app,
+            apps = apps,
+            grid = grid,
+            adapter = adapter,
+            root = root,
+            popupWindow = popupWindow,
+            source = source,
+            sourceVisibility = source.visibility,
+            shadow = shadow,
+            checkBadge = checkBadge,
+            label = label,
+            downX = downX,
+            downY = downY
+        )
+        startDragWiggle(
+            (0 until grid.childCount).mapNotNull { childIndex ->
+                val adapterPosition = grid.firstVisiblePosition + childIndex
+                grid.getChildAt(childIndex).takeIf {
+                    adapter.getItem(adapterPosition) != null
+                }?.findViewById<ImageView>(R.id.app_icon)
+            } + shadow
+        )
+        source.visibility = View.INVISIBLE
+        source.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        updateFolderDragShadow(downX, downY)
+        shadow.bringToFront()
+        label.bringToFront()
+    }
+
+    private fun handleFolderDragTouch(event: MotionEvent): Boolean {
+        val state = folderDragState ?: return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_MOVE -> {
+                if (abs(event.rawX - state.downX) > swipeTouchSlop ||
+                    abs(event.rawY - state.downY) > swipeTouchSlop
+                ) {
+                    state.moved = true
+                }
+                updateFolderDragShadow(event.rawX, event.rawY)
+            }
+            MotionEvent.ACTION_UP -> {
+                if (state.moved) {
+                    dropFolderApp(state, event.rawX, event.rawY)
+                }
+                finishFolderAppDrag()
+            }
+            MotionEvent.ACTION_CANCEL -> finishFolderAppDrag()
+        }
+        return true
+    }
+
+    private fun updateFolderDragShadow(x: Float, y: Float) {
+        val state = folderDragState ?: return
+        val rootLocation = IntArray(2)
+        state.root.getLocationOnScreen(rootLocation)
+        val layoutParams = state.shadow.layoutParams as? FrameLayout.LayoutParams ?: return
+        layoutParams.leftMargin = (x - rootLocation[0] - dp(32)).toInt().coerceAtLeast(0)
+        layoutParams.topMargin = (y - rootLocation[1] - dp(32)).toInt().coerceAtLeast(0)
+        state.shadow.layoutParams = layoutParams
+        val badgeParams = state.checkBadge.layoutParams as? FrameLayout.LayoutParams ?: return
+        badgeParams.leftMargin = (layoutParams.leftMargin + dp(42))
+            .coerceAtMost((state.root.width - dp(20)).coerceAtLeast(0))
+        badgeParams.topMargin = (layoutParams.topMargin - dp(4)).coerceAtLeast(0)
+        state.checkBadge.layoutParams = badgeParams
+    }
+
+    private fun dropFolderApp(state: FolderDragState, x: Float, y: Float) {
+        val gridLocation = IntArray(2)
+        state.grid.getLocationOnScreen(gridLocation)
+        val insideGrid = x >= gridLocation[0] &&
+            x <= gridLocation[0] + state.grid.width &&
+            y >= gridLocation[1] &&
+            y <= gridLocation[1] + state.grid.height
+        if (!insideGrid) {
+            extractFolderApp(state, x, y)
+            return
+        }
+
+        val position = state.grid.pointToPosition(
+            (x - gridLocation[0]).toInt(),
+            (y - gridLocation[1]).toInt()
+        )
+        val targetView = if (position == GridView.INVALID_POSITION) {
+            null
+        } else {
+            state.grid.getChildAt(position - state.grid.firstVisiblePosition)
+        }
+        val dropAfterTarget = targetView?.let {
+            val targetLocation = IntArray(2)
+            it.getLocationOnScreen(targetLocation)
+            x >= targetLocation[0] + it.width / 2f
+        } ?: false
+
+        val sourceIndex = state.apps.indexOfFirst {
+            it.packageName == state.draggedApp.packageName
+        }
+        if (sourceIndex < 0) return
+
+        val targetIndex = if (position == GridView.INVALID_POSITION) {
+            state.apps.size
+        } else {
+            (position + if (dropAfterTarget) 1 else 0).coerceIn(0, state.apps.size)
+        }
+        val reorderedApps = state.apps.toMutableList().apply {
+            removeAt(sourceIndex)
+        }
+        var insertionIndex = targetIndex
+        if (sourceIndex < insertionIndex) insertionIndex--
+        reorderedApps.add(insertionIndex.coerceIn(0, reorderedApps.size), state.draggedApp)
+
+        val visiblePackages = state.apps.mapTo(mutableSetOf()) { it.packageName }
+        val unavailablePackages = state.folder.packageNames.filterNot { it in visiblePackages }
+        val updatedFolder = state.folder.copy(
+            packageNames = reorderedApps.map { it.packageName } + unavailablePackages
+        )
+        val folderIndex = appFolders.indexOfFirst { it.id == updatedFolder.id }
+        if (folderIndex >= 0) {
+            appFolders[folderIndex] = updatedFolder
+            saveAppFolders()
+        }
+        state.apps = reorderedApps
+        state.adapter.setApps(reorderedApps)
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun extractFolderApp(state: FolderDragState, x: Float, y: Float) {
+        if (currentScreen != Screen.APPS || isAlphabeticalLibrary) return
+        val grid = appsPages
+            ?.getChildAt(appPageIndex)
+            ?.findViewWithTag<View>("$APP_GRID_TAG:$appPageIndex") as? GridView
+        val gridLocation = IntArray(2)
+        grid?.getLocationOnScreen(gridLocation)
+        val insideGrid = grid != null &&
+            x >= gridLocation[0] && x <= gridLocation[0] + grid.width &&
+            y >= gridLocation[1] && y <= gridLocation[1] + grid.height
+        val gridPosition = if (insideGrid) {
+            grid?.pointToPosition(
+                (x - gridLocation[0]).toInt(),
+                (y - gridLocation[1]).toInt()
+            ) ?: GridView.INVALID_POSITION
+        } else {
+            GridView.INVALID_POSITION
+        }
+        val gridIndex = if (gridPosition != GridView.INVALID_POSITION) {
+            appPageIndex * appGridPageSize + gridPosition
+        } else {
+            -1
+        }
+        val gridSlotIsEmpty = gridIndex >= 0 && appGridPackages.getOrNull(gridIndex) == null
+
+        val dock = appsDock
+        val dockSlot = dock?.let { dockView ->
+            (0 until dockView.childCount)
+                .mapNotNull(dockView::getChildAt)
+                .firstOrNull { target ->
+                    val targetLocation = IntArray(2)
+                    target.getLocationOnScreen(targetLocation)
+                    x >= targetLocation[0] && x <= targetLocation[0] + target.width &&
+                        y >= targetLocation[1] && y <= targetLocation[1] + target.height
+                }
+        }?.let { target ->
+            dock.indexOfChild(target).takeIf { target.tag == null }
+        }?.takeIf { it >= 0 }
+
+        if (!gridSlotIsEmpty && dockSlot == null) return
+        val sourceIndex = appGridPackages.indexOf(state.draggedApp.packageName)
+        val folderIndex = appFolders.indexOfFirst { it.id == state.folder.id }
+        if (folderIndex < 0) return
+
+        val remainingPackages = appFolders[folderIndex].packageNames
+            .filterNot { it == state.draggedApp.packageName }
+        val dissolvesFolder = remainingPackages.size < 2
+        val folderGridIndex = if (dissolvesFolder) {
+            appGridPackages.indexOf("$FOLDER_PACKAGE_PREFIX${state.folder.id}")
+        } else {
+            -1
+        }
+        val folderDockSlot = if (dissolvesFolder) {
+            dockFolderSlots.remove(state.folder.id)
+        } else {
+            null
+        }
+        if (remainingPackages.size >= 2) {
+            appFolders[folderIndex] = appFolders[folderIndex].copy(
+                packageNames = remainingPackages
+            )
+        } else {
+            appFolders.removeAt(folderIndex)
+            saveDockFolderSlots()
+        }
+        saveAppFolders()
+
+        val orderedPackages = appGridPackages.toMutableList()
+        if (gridSlotIsEmpty) {
+            while (orderedPackages.size <= gridIndex) orderedPackages.add(null)
+        }
+        when {
+            dockSlot != null -> {
+                dockEmptySlots.remove(dockSlot)
+                dockRemovedAppPackages.remove(state.draggedApp.packageName)
+                dockAppSlots[state.draggedApp.packageName] = dockSlot
+                saveDockRemovedAppPackages()
+                saveDockAppSlots()
+                saveDockEmptySlots()
+            }
+            gridSlotIsEmpty -> {
+                orderedPackages[gridIndex] = state.draggedApp.packageName
+            }
+        }
+        if (dissolvesFolder && remainingPackages.size == 1) {
+            val remainingPackage = remainingPackages.single()
+            when {
+                folderGridIndex >= 0 -> {
+                    while (orderedPackages.size <= folderGridIndex) orderedPackages.add(null)
+                    orderedPackages[folderGridIndex] = remainingPackage
+                }
+                folderDockSlot != null -> {
+                    dockEmptySlots.remove(folderDockSlot)
+                    dockRemovedAppPackages.remove(remainingPackage)
+                    dockAppSlots[remainingPackage] = folderDockSlot
+                    saveDockRemovedAppPackages()
+                    saveDockAppSlots()
+                    saveDockEmptySlots()
+                }
+            }
+        }
+        if (sourceIndex >= 0 && sourceIndex != gridIndex) {
+            orderedPackages[sourceIndex] = null
+            if (gridSlotIsEmpty && gridIndex >= 0) {
+                orderedPackages[gridIndex] = state.draggedApp.packageName
+            }
+        }
+        if (gridSlotIsEmpty || folderGridIndex >= 0 ||
+            (sourceIndex >= 0 && sourceIndex != gridIndex)
+        ) {
+            saveAppGridOrderAfterUpdate(orderedPackages)
+        }
+        state.popupWindow.dismiss()
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun saveAppGridOrderAfterUpdate(orderedPackages: MutableList<String?>) {
+        appGridPackages = orderedPackages
+        appGridOrderPackages.clear()
+        appGridOrderPackages.addAll(orderedPackages)
+        saveAppGridOrder()
+    }
+
+    private fun finishFolderAppDrag() {
+        val state = folderDragState ?: return
+        folderDragState = null
+        stopDragWiggle()
+        state.source.visibility = state.sourceVisibility
+        state.root.removeView(state.shadow)
+        state.root.removeView(state.checkBadge)
+        state.root.removeView(state.label)
     }
 
     private fun createFolderIcon(apps: List<AppInfo>): Drawable {
@@ -1093,10 +2282,136 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             .apply()
     }
 
+    private fun loadDockFolderSlots(): Map<String, Int> {
+        val stored = getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .getString(DOCK_FOLDER_SLOTS_KEY, null) ?: return emptyMap()
+        return try {
+            val jsonSlots = JSONObject(stored)
+            buildMap {
+                val folderIds = appFolders.mapTo(mutableSetOf()) { it.id }
+                val ids = jsonSlots.keys()
+                while (ids.hasNext()) {
+                    val id = ids.next()
+                    if (id in folderIds) put(id, jsonSlots.getInt(id).coerceIn(0, 3))
+                }
+            }
+        } catch (exception: org.json.JSONException) {
+            Log.w(TAG, "Could not read dock folder positions", exception)
+            emptyMap()
+        }
+    }
+
+    private fun saveDockFolderSlots() {
+        val jsonSlots = JSONObject()
+        dockFolderSlots.forEach { (id, slot) -> jsonSlots.put(id, slot) }
+        getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .putString(DOCK_FOLDER_SLOTS_KEY, jsonSlots.toString())
+            .apply()
+    }
+
+    private fun loadDockAppSlots(): Map<String, Int> {
+        val stored = getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .getString(DOCK_APP_SLOTS_KEY, null) ?: return emptyMap()
+        return try {
+            val jsonSlots = JSONObject(stored)
+            buildMap {
+                val packages = jsonSlots.keys()
+                while (packages.hasNext()) {
+                    val packageName = packages.next()
+                    put(packageName, jsonSlots.getInt(packageName).coerceIn(0, 3))
+                }
+            }
+        } catch (exception: org.json.JSONException) {
+            Log.w(TAG, "Could not read dock app positions", exception)
+            emptyMap()
+        }
+    }
+
+    private fun saveDockAppSlots() {
+        val jsonSlots = JSONObject()
+        dockAppSlots.forEach { (packageName, slot) -> jsonSlots.put(packageName, slot) }
+        getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .putString(DOCK_APP_SLOTS_KEY, jsonSlots.toString())
+            .apply()
+    }
+
+    private fun loadDockEmptySlots(): Set<Int> =
+        getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .getStringSet(DOCK_EMPTY_SLOTS_KEY, emptySet())
+            .orEmpty()
+            .mapNotNull(String::toIntOrNull)
+            .filterTo(mutableSetOf()) { it in 0..3 }
+
+    private fun saveDockEmptySlots() {
+        getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .putStringSet(DOCK_EMPTY_SLOTS_KEY, dockEmptySlots.map(Int::toString).toSet())
+            .apply()
+    }
+
+    private fun loadDockRemovedAppPackages(): Set<String> =
+        getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .getStringSet(DOCK_REMOVED_APP_PACKAGES_KEY, emptySet())
+            .orEmpty()
+
+    private fun saveDockRemovedAppPackages() {
+        getSharedPreferences(APP_FOLDER_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .putStringSet(DOCK_REMOVED_APP_PACKAGES_KEY, dockRemovedAppPackages.toSet())
+            .apply()
+    }
+
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        val dragCandidate = appDragCandidate
+        if (dragCandidate != null) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> {
+                    if (abs(event.x - downX) > swipeTouchSlop ||
+                        abs(event.y - downY) > swipeTouchSlop
+                    ) {
+                        appDragCandidate = null
+                        appOptionsPopup?.dismiss()
+                        appOptionsPopup = null
+                        startAppDrag(dragCandidate.app, dragCandidate.source)
+                        dragMoved = true
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    appDragCandidate = null
+                }
+            }
+        }
+        if (draggedApp != null) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> {
+                    updateDragShadowFromScreen(event.rawX, event.rawY)
+                    updateDragTargetLabel()
+                    if (abs(event.x - downX) > swipeTouchSlop ||
+                        abs(event.y - downY) > swipeTouchSlop
+                    ) {
+                        dragMoved = true
+                    }
+                    navigateAppGridDuringDrag(event.rawX)
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (dragMoved) {
+                        dropDraggedApp(event.rawX, event.rawY)
+                    }
+                    finishAppDrag()
+                    recycleVelocityTracker()
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    finishAppDrag()
+                    recycleVelocityTracker()
+                }
+            }
+            return true
+        }
         if (ignoreTouchSequence) {
             if (event.actionMasked == MotionEvent.ACTION_UP ||
                 event.actionMasked == MotionEvent.ACTION_CANCEL
@@ -1216,7 +2531,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
 
                 if (transition == null &&
-                    (currentScreen == Screen.HOME || currentScreen == Screen.HOME_SECOND)
+                    (currentScreen == Screen.HOME ||
+                        currentScreen == Screen.HOME_SECOND)
                 ) {
                     val width = screenContainer.width.takeIf { it > 0 }
                         ?.toFloat() ?: resources.displayMetrics.widthPixels.toFloat()
@@ -1282,6 +2598,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     override fun onDestroy() {
+        cancelDragPageChange()
         appLoadExecutor.shutdownNow()
         super.onDestroy()
     }
@@ -1289,6 +2606,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private companion object {
         const val APP_FOLDER_PREFERENCES = "launcher_app_folders"
         const val APP_FOLDERS_KEY = "folders"
+        const val DOCK_FOLDER_SLOTS_KEY = "dock_folder_slots"
+        const val DOCK_APP_SLOTS_KEY = "dock_app_slots"
+        const val DOCK_EMPTY_SLOTS_KEY = "dock_empty_slots"
+        const val DOCK_REMOVED_APP_PACKAGES_KEY = "dock_removed_app_packages"
+        const val APP_GRID_ORDER_PREFERENCES = "launcher_app_grid_order"
+        const val APP_GRID_ORDER_KEY = "packages"
+        const val APP_GRID_TAG = "app_grid_page"
+        const val DRAG_PAGE_CHANGE_DELAY_MS = 500L
         const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
         const val TAG = "MainActivity"
     }

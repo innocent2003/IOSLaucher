@@ -1,6 +1,8 @@
 package com.example.oslaucher.ui.fragments
 
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -8,7 +10,6 @@ import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.lifecycle.Lifecycle
 import com.example.oslaucher.R
 import com.example.oslaucher.models.AppInfo
 import com.example.oslaucher.utils.AppIconUtils
@@ -46,48 +47,88 @@ class HomeSecondFragment : HomeScreenFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        view.findViewById<View>(R.id.home_app_library).setOnClickListener {
+            (activity as? HomeScreenActions)?.openApps()
+        }
+
         val folders = view.findViewById<GridLayout>(R.id.home_app_folders)
-        folders.removeAllViews()
-        val viewLifecycle = viewLifecycleOwner.lifecycle
+        folders.visibility = View.VISIBLE
         (activity as? HomeScreenActions)?.loadHomeScreenApps { apps ->
-            if (viewLifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) {
+            if (isAdded && this.view?.findViewById<GridLayout>(R.id.home_app_folders) === folders) {
                 renderFolders(folders, apps)
             }
         }
     }
 
     private fun renderFolders(folders: GridLayout, apps: List<AppInfo>) {
+        folders.removeAllViews()
+        if (apps.isEmpty()) {
+            folders.rowCount = 1
+            folders.addView(TextView(requireContext()).apply {
+                text = "Không có ứng dụng"
+                gravity = Gravity.CENTER
+                setTextColor(0xFFF3F7FB.toInt())
+                textSize = 14f
+            }, GridLayout.LayoutParams(
+                GridLayout.spec(0),
+                GridLayout.spec(0, 1f)
+            ).apply {
+                width = 0
+                height = dp(72)
+                columnSpec = GridLayout.spec(0, 2, 1f)
+            })
+            folders.visibility = View.VISIBLE
+            return
+        }
         val assignedApps = apps.groupBy(::categoryFor)
-        val visibleCategories = folderCategories.map { it.first }
+        val socialApps = assignedApps["Xã hội và truyền thông"].orEmpty()
+        val suggestedApps = socialApps.take(4).ifEmpty { apps.take(4) }
+        val packageManager = requireContext().packageManager
+        val recentApps = apps.map { app ->
+            val installTime = try {
+                packageManager.getPackageInfo(app.packageName, 0).firstInstallTime
+            } catch (exception: PackageManager.NameNotFoundException) {
+                Log.w(TAG, "Could not read install time for ${app.packageName}", exception)
+                0L
+            }
+            app to installTime
+        }.sortedByDescending { it.second }
+            .take(8)
+            .map { it.first }
+        val visibleCategories = listOf(
+            "Gợi ý" to suggestedApps,
+            "Đã thêm gần đây" to recentApps
+        ) + folderCategories.map { it.first }
             .mapNotNull { category ->
                 assignedApps[category].orEmpty().takeIf { it.isNotEmpty() }
                     ?.let { category to it }
             }
-        folders.rowCount = (visibleCategories.size + 1) / 2
+        val visibleFolders = visibleCategories.filter { it.second.isNotEmpty() }
+        folders.rowCount = (visibleFolders.size + 1) / 2
         folders.visibility = View.VISIBLE
-        visibleCategories.forEachIndexed { index, (category, categoryApps) ->
+        visibleFolders.forEachIndexed { index, (category, categoryApps) ->
 
             val card = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.VERTICAL
+                isClickable = true
+                isFocusable = true
+                contentDescription = "$category, ${categoryApps.size} ứng dụng"
+                setOnClickListener {
+                    (activity as? HomeScreenActions)
+                        ?.openHomeScreenFolder(category, categoryApps)
+                }
             }
             val iconGrid = GridLayout(requireContext()).apply {
                 columnCount = 2
                 rowCount = 2
                 background = requireContext().getDrawable(R.drawable.bg_glass)
                 setPadding(dp(8), dp(8), dp(8), dp(8))
+                setOnClickListener {
+                    (activity as? HomeScreenActions)
+                        ?.openHomeScreenFolder(category, categoryApps)
+                }
             }
-            val displayedApps = categoryApps.take(8)
-            val previewApps = if (displayedApps.size > 4) {
-                displayedApps.drop(3)
-            } else {
-                emptyList()
-            }
-            val primaryApps = if (previewApps.isEmpty()) {
-                displayedApps
-            } else {
-                displayedApps.take(3)
-            }
-            primaryApps.forEachIndexed { appIndex, app ->
+            categoryApps.take(4).forEachIndexed { appIndex, app ->
                 iconGrid.addView(
                     createAppIcon(app),
                     GridLayout.LayoutParams(
@@ -100,43 +141,11 @@ class HomeSecondFragment : HomeScreenFragment() {
                     }
                 )
             }
-            if (previewApps.isNotEmpty()) {
-                val previewGrid = GridLayout(requireContext()).apply {
-                    columnCount = 3
-                    rowCount = 2
-                    alignmentMode = GridLayout.ALIGN_BOUNDS
-                    useDefaultMargins = false
-                }
-                previewApps.forEachIndexed { appIndex, app ->
-                    previewGrid.addView(
-                        createAppIcon(app),
-                        GridLayout.LayoutParams(
-                            GridLayout.spec(appIndex / 3, 1f),
-                            GridLayout.spec(appIndex % 3, 1f)
-                        ).apply {
-                            width = 0
-                            height = dp(28)
-                            setMargins(dp(1), dp(1), dp(1), dp(1))
-                        }
-                    )
-                }
-                iconGrid.addView(
-                    previewGrid,
-                    GridLayout.LayoutParams(
-                        GridLayout.spec(1, 1f),
-                        GridLayout.spec(1, 1f)
-                    ).apply {
-                        width = 0
-                        height = dp(62)
-                        setMargins(dp(2), dp(2), dp(2), dp(2))
-                    }
-                )
-            }
             card.addView(
                 iconGrid,
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                    dp(148)
                 )
             )
             card.addView(TextView(requireContext()).apply {
@@ -146,6 +155,10 @@ class HomeSecondFragment : HomeScreenFragment() {
                 textSize = 14f
                 maxLines = 1
                 setPadding(0, dp(6), 0, 0)
+                setOnClickListener {
+                    (activity as? HomeScreenActions)
+                        ?.openHomeScreenFolder(category, categoryApps)
+                }
             })
 
             val row = index / 2
@@ -188,4 +201,8 @@ class HomeSecondFragment : HomeScreenFragment() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private const val TAG = "HomeSecondFragment"
+    }
 }

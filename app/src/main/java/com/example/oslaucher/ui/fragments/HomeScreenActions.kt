@@ -7,4 +7,5 @@ interface HomeScreenActions {
     fun openSettings()
     fun loadHomeScreenApps(onLoaded: (List<AppInfo>) -> Unit)
     fun launchHomeScreenApp(packageName: String)
+    fun openHomeScreenFolder(name: String, apps: List<AppInfo>)
 }

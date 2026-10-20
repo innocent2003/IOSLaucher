@@ -27,6 +27,7 @@ import androidx.fragment.app.Fragment
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import com.example.oslaucher.R
+import com.example.oslaucher.models.Weather
 import com.example.oslaucher.utils.LauncherWallpaper
 import com.example.oslaucher.ui.widgets.BatteryRingView
 import org.json.JSONException
@@ -267,7 +268,7 @@ abstract class HomeScreenFragment : Fragment() {
         }
         try {
             if (connection.responseCode !in 200..299) {
-                error("Weather service returned HTTP ${connection.responseCode}")
+                throw IOException("Weather service returned HTTP ${connection.responseCode}")
             }
             val response = connection.inputStream.bufferedReader().use { it.readText() }
             val json = JSONObject(response)

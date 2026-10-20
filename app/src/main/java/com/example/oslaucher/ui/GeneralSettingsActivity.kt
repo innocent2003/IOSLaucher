@@ -12,6 +12,7 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
+import com.example.oslaucher.models.SwitchOption
 
 class GeneralSettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
