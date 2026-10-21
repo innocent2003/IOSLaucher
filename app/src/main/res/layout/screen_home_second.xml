@@ -62,7 +62,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
-            android:text="THỨ NĂM, 12 THÁNG 10"
+            android:text="@string/home_date_placeholder"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textStyle="bold" />
@@ -85,7 +85,7 @@
                 android:layout_height="wrap_content"
                 android:drawableStart="@android:drawable/ic_menu_search"
                 android:drawablePadding="10dp"
-                android:text="Thư viện ứng dụng"
+                android:text="@string/app_library"
                 android:textColor="#F2F5F8"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -131,7 +131,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:text="Khác"
+                    android:text="@string/category_other"
                     android:textColor="#F3F7FB"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -166,7 +166,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:text="Xã hội và truyền thông"
+                    android:text="@string/category_social"
                     android:textColor="#F3F7FB"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -201,7 +201,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:text="Sản xuất"
+                    android:text="@string/category_productivity"
                     android:textColor="#F3F7FB"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -236,7 +236,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:text="Ảnh và hình ảnh"
+                    android:text="@string/category_photos"
                     android:textColor="#F3F7FB"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -270,7 +270,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:text="Phim và video"
+                    android:text="@string/category_video"
                     android:textColor="#F3F7FB"
                     android:textSize="16sp" />
             </LinearLayout>
@@ -304,7 +304,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:text="Tin tức và tạp chí"
+                    android:text="@string/category_news"
                     android:textColor="#F3F7FB"
                     android:textSize="16sp" />
             </LinearLayout>

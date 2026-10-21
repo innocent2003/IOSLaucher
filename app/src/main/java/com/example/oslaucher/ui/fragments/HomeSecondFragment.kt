@@ -18,30 +18,30 @@ class HomeSecondFragment : HomeScreenFragment() {
     override val layoutResId = R.layout.screen_home_second
 
     private val folderCategories = listOf(
-        "Khác" to emptyList(),
-        "Xã hội và truyền thông" to listOf(
+        FolderCategory(R.string.category_other, emptyList()),
+        FolderCategory(R.string.category_social, listOf(
             "facebook", "instagram", "messenger", "zalo", "telegram", "whatsapp",
             "discord", "wechat", "line", "snapchat", "tiktok", "social"
-        ),
-        "Sản xuất" to listOf(
+        )),
+        FolderCategory(R.string.category_productivity, listOf(
             "office", "word", "excel", "powerpoint", "drive", "docs", "sheets",
             "calendar", "todo", "task", "authenticator", "scanner", "productivity"
-        ),
-        "Ảnh và hình ảnh" to listOf(
+        )),
+        FolderCategory(R.string.category_photos, listOf(
             "photo", "gallery", "camera", "image", "picsart", "lightroom", "snapseed"
-        ),
-        "Phim và video" to listOf(
+        )),
+        FolderCategory(R.string.category_video, listOf(
             "youtube", "netflix", "video", "player", "capcut", "vlc", "movie", "stream"
-        ),
-        "Tin tức và tạp chí" to listOf(
+        )),
+        FolderCategory(R.string.category_news, listOf(
             "news", "newspaper", "magazine", "vnexpress", "dantri", "bbc", "cnn"
-        ),
-        "Nhạc và âm thanh" to listOf(
+        )),
+        FolderCategory(R.string.category_music, listOf(
             "music", "spotify", "soundcloud", "audio", "podcast", "mp3", "youtube music"
-        ),
-        "Trò chơi" to listOf(
+        )),
+        FolderCategory(R.string.category_games, listOf(
             "game", "play games", "pubg", "mobile legends", "roblox", "minecraft"
-        )
+        ))
     )
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -65,7 +65,7 @@ class HomeSecondFragment : HomeScreenFragment() {
         if (apps.isEmpty()) {
             folders.rowCount = 1
             folders.addView(TextView(requireContext()).apply {
-                text = "Không có ứng dụng"
+                text = getString(R.string.no_apps)
                 gravity = Gravity.CENTER
                 setTextColor(0xFFF3F7FB.toInt())
                 textSize = 14f
@@ -81,7 +81,7 @@ class HomeSecondFragment : HomeScreenFragment() {
             return
         }
         val assignedApps = apps.groupBy(::categoryFor)
-        val socialApps = assignedApps["Xã hội và truyền thông"].orEmpty()
+        val socialApps = assignedApps[getString(R.string.category_social)].orEmpty()
         val suggestedApps = socialApps.take(4).ifEmpty { apps.take(4) }
         val packageManager = requireContext().packageManager
         val recentApps = apps.map { app ->
@@ -96,9 +96,9 @@ class HomeSecondFragment : HomeScreenFragment() {
             .take(8)
             .map { it.first }
         val visibleCategories = listOf(
-            "Gợi ý" to suggestedApps,
-            "Đã thêm gần đây" to recentApps
-        ) + folderCategories.map { it.first }
+            getString(R.string.category_suggested) to suggestedApps,
+            getString(R.string.category_recent) to recentApps
+        ) + folderCategories.map { getString(it.titleResId) }
             .mapNotNull { category ->
                 assignedApps[category].orEmpty().takeIf { it.isNotEmpty() }
                     ?.let { category to it }
@@ -112,7 +112,11 @@ class HomeSecondFragment : HomeScreenFragment() {
                 orientation = LinearLayout.VERTICAL
                 isClickable = true
                 isFocusable = true
-                contentDescription = "$category, ${categoryApps.size} ứng dụng"
+                contentDescription = getString(
+                    R.string.folder_accessibility,
+                    category,
+                    categoryApps.size
+                )
                 setOnClickListener {
                     (activity as? HomeScreenActions)
                         ?.openHomeScreenFolder(category, categoryApps)
@@ -194,9 +198,9 @@ class HomeSecondFragment : HomeScreenFragment() {
 
     private fun categoryFor(app: AppInfo): String {
         val searchable = "${app.name} ${app.packageName}".lowercase()
-        return folderCategories.drop(1).firstOrNull { (_, keywords) ->
-            keywords.any(searchable::contains)
-        }?.first ?: folderCategories.first().first
+        return folderCategories.drop(1).firstOrNull { category ->
+            category.keywords.any(searchable::contains)
+        }?.let { getString(it.titleResId) } ?: getString(folderCategories.first().titleResId)
     }
 
     private fun dp(value: Int): Int =
@@ -205,4 +209,9 @@ class HomeSecondFragment : HomeScreenFragment() {
     companion object {
         private const val TAG = "HomeSecondFragment"
     }
+
+    private data class FolderCategory(
+        val titleResId: Int,
+        val keywords: List<String>
+    )
 }

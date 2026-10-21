@@ -130,8 +130,8 @@ abstract class HomeScreenFragment : Fragment() {
 
     private fun updateWidgets(root: View) {
         val now = Date()
-        val locale = Locale.forLanguageTag("vi")
-        val localizedDate = SimpleDateFormat("EEEE, d 'THÁNG' M", locale)
+        val locale = resources.configuration.locales[0]
+        val localizedDate = SimpleDateFormat("EEEE, d MMMM", locale)
             .format(now)
             .uppercase(locale)
         val batteryPercent = requireContext()
@@ -157,13 +157,23 @@ abstract class HomeScreenFragment : Fragment() {
         val monthView = root.findViewById<TextView?>(R.id.home_calendar_month) ?: return
         val grid = root.findViewById<GridLayout?>(R.id.home_calendar_widget_grid) ?: return
         val calendar = Calendar.getInstance().apply { time = now }
-        monthView.text = SimpleDateFormat("'THÁNG' M yyyy", locale).format(now)
+        monthView.text = SimpleDateFormat("MMMM yyyy", locale).format(now)
             .uppercase(locale)
 
         grid.removeAllViews()
-        val labels = listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN")
-        labels.forEachIndexed { column, label ->
-            addCalendarCell(grid, label, 0, column, false)
+        val weekdayFormatter = SimpleDateFormat("EE", locale)
+        val weekday = Calendar.getInstance().apply {
+            set(1970, Calendar.JANUARY, 5)
+        }
+        repeat(7) { column ->
+            addCalendarCell(
+                grid,
+                weekdayFormatter.format(weekday.time).uppercase(locale),
+                0,
+                column,
+                false
+            )
+            weekday.add(Calendar.DAY_OF_MONTH, 1)
         }
 
         val firstDay = calendar.clone() as Calendar
@@ -219,7 +229,7 @@ abstract class HomeScreenFragment : Fragment() {
         val root = view ?: return
         val condition = root.findViewById<TextView?>(R.id.home_weather_condition) ?: return
         weatherRequestInProgress = true
-        condition.text = "Đang cập nhật..."
+        condition.text = getString(R.string.weather_updating)
 
         Thread {
             val result = try {
@@ -240,11 +250,15 @@ abstract class HomeScreenFragment : Fragment() {
                     temperature?.text = "${weather.temperature.toInt()}°C"
                     icon?.text = weather.icon
                     currentCondition?.text = weather.description
-                    range?.text = "Cao: ${weather.high.toInt()}°  Thấp: ${weather.low.toInt()}°"
+                    range?.text = getString(
+                        R.string.weather_range,
+                        weather.high.toInt(),
+                        weather.low.toInt()
+                    )
                 }.onFailure { error ->
                     Log.w(TAG, "Unable to load weather", error)
-                    currentCondition?.text = "Không tải được thời tiết"
-                    range?.text = "Nhấn để thử lại"
+                    currentCondition?.text = getString(R.string.weather_unavailable)
+                    range?.text = getString(R.string.weather_retry)
                 }
             }
         }.apply {
@@ -288,15 +302,15 @@ abstract class HomeScreenFragment : Fragment() {
     }
 
     private fun weatherDescription(code: Int): String = when (code) {
-        0 -> "Trời quang"
-        1, 2 -> "Ít mây"
-        3 -> "Nhiều mây"
-        45, 48 -> "Sương mù"
-        in 51..57 -> "Mưa phùn"
-        in 61..67, in 80..82 -> "Có mưa"
-        in 71..77, 85, 86 -> "Có tuyết"
-        in 95..99 -> "Dông"
-        else -> "Thời tiết hiện tại"
+        0 -> getString(R.string.weather_clear)
+        1, 2 -> getString(R.string.weather_partly_cloudy)
+        3 -> getString(R.string.weather_cloudy)
+        45, 48 -> getString(R.string.weather_fog)
+        in 51..57 -> getString(R.string.weather_drizzle)
+        in 61..67, in 80..82 -> getString(R.string.weather_rain)
+        in 71..77, 85, 86 -> getString(R.string.weather_snow)
+        in 95..99 -> getString(R.string.weather_thunderstorm)
+        else -> getString(R.string.weather_current)
     }
 
     private fun weatherIcon(code: Int): String = when (code) {
@@ -315,7 +329,11 @@ abstract class HomeScreenFragment : Fragment() {
         if (intent.resolveActivity(requireContext().packageManager) != null) {
             startActivity(intent)
         } else {
-            Toast.makeText(requireContext(), "Không tìm thấy ứng dụng Lịch", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                requireContext(),
+                R.string.calendar_not_found,
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -335,11 +353,11 @@ abstract class HomeScreenFragment : Fragment() {
         }
 
         AlertDialog.Builder(requireContext())
-            .setMessage("Cho phép truy cập ảnh để màn hình chính hiển thị cùng hình nền của thiết bị.")
-            .setPositiveButton("Tiếp tục") { _, _ ->
+            .setMessage(R.string.wallpaper_permission)
+            .setPositiveButton(R.string.continue_action) { _, _ ->
                 wallpaperPermissionRequest.launch(permission)
             }
-            .setNegativeButton("Để sau", null)
+            .setNegativeButton(R.string.later, null)
             .show()
     }
 

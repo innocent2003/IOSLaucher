@@ -26,7 +26,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Cài đặt  ✓"
+                android:text="@string/settings_title"
                 android:textColor="#FFFFFF"
                 android:textSize="24sp"
                 android:textStyle="bold" />
@@ -41,7 +41,7 @@
                 android:gravity="center"
                 android:paddingStart="18dp"
                 android:paddingEnd="18dp"
-                android:text="Màn hình chính  ›"
+                android:text="@string/home_title"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -52,7 +52,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
             android:layout_marginBottom="20dp"
-            android:text="Chào mừng bạn đến với trung tâm chỉ huy cá nhân, hãy điều chỉnh từng chi tiết để phù hợp với phong cách của bạn."
+            android:text="@string/settings_welcome"
             android:textColor="#E5E5E5"
             android:textSize="14sp" />
 
@@ -83,7 +83,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Get premium   ·   Upgrade now  →"
+                android:text="@string/premium_offer"
                 android:textColor="#354438"
                 android:textSize="17sp" />
         </LinearLayout>
@@ -101,7 +101,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_round_button"
                 android:gravity="center"
-                android:text="Cao cấp   ♛"
+                android:text="@string/premium"
                 android:textColor="#318CF5"
                 android:textSize="15sp" />
 
@@ -112,7 +112,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_round_button"
                 android:gravity="center"
-                android:text="Đánh giá ứng dụng   ♥"
+                android:text="@string/rate_app"
                 android:textColor="#318CF5"
                 android:textSize="14sp" />
 
@@ -159,7 +159,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Launcher Phone: Custom OS\nAD  Transform your smartphone"
+                    android:text="@string/ad_launcher"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
 
@@ -169,7 +169,7 @@
                     android:background="@drawable/bg_blue_button"
                     android:gravity="center"
                     android:paddingHorizontal="18dp"
-                    android:text="Cài đặt"
+                    android:text="@string/install"
                     android:textColor="#FFFFFF"
                     android:textSize="15sp" />
             </LinearLayout>
@@ -180,7 +180,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
             android:layout_marginBottom="8dp"
-            android:text="Cài Đặt Chung"
+            android:text="@string/general_settings"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -213,7 +213,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Chọn màn hình chính mặc định"
+                    android:text="@string/default_home_screen"
                     android:textColor="#318CF5"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -257,7 +257,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Cài Đặt Chung"
+                    android:text="@string/general_settings"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -301,7 +301,7 @@
                     android:layout_weight="1"
                     android:clickable="true"
                     android:focusable="true"
-                    android:text="Hình nền"
+                    android:text="@string/wallpaper"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -342,7 +342,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Thời tiết"
+                    android:text="@string/weather"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -386,7 +386,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Giao diện"
+                    android:text="@string/appearance"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -406,7 +406,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="26dp"
             android:layout_marginBottom="8dp"
-            android:text="Màn hình chính &amp; Hiệu ứng chuyển cảnh"
+            android:text="@string/home_and_transitions"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -442,7 +442,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Lưới màn hình"
+                    android:text="@string/screen_grid"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -486,7 +486,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Chuyển trang"
+                    android:text="@string/page_transition"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -527,7 +527,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Thư viện ứng dụng"
+                    android:text="@string/app_library"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -571,7 +571,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Hiệu ứng ứng dụng"
+                    android:text="@string/app_effects"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -612,7 +612,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Huy hiệu thông báo"
+                    android:text="@string/notification_badges"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -632,7 +632,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="26dp"
             android:layout_marginBottom="8dp"
-            android:text="Tùy chỉnh biểu tượng"
+            android:text="@string/customize_icons"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -665,7 +665,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Ứng dụng ẩn"
+                    android:text="@string/hidden_apps"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -709,7 +709,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Thay đổi biểu tượng ứng dụng"
+                    android:text="@string/change_app_icon"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -750,7 +750,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Icon Packs"
+                    android:text="@string/icon_packs"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -791,7 +791,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Thay đổi tên ứng dụng"
+                    android:text="@string/change_app_name"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -812,8 +812,11 @@
                 android:background="#555555" />
 
             <LinearLayout
+                android:id="@+id/language_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -832,7 +835,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Ngôn ngữ"
+                    android:text="@string/language"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -852,7 +855,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="26dp"
             android:layout_marginBottom="8dp"
-            android:text="Liên hệ với chúng tôi"
+            android:text="@string/contact_us"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -885,7 +888,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Tải xuống ứng dụng khác"
+                    android:text="@string/download_more_apps"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
@@ -926,7 +929,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
-                    android:text="Chính sách riêng tư"
+                    android:text="@string/privacy_policy"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
                     android:textStyle="bold" />
