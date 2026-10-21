@@ -21,7 +21,7 @@
             android:layout_width="46dp"
             android:layout_height="46dp"
             android:background="@drawable/bg_round_button"
-            android:contentDescription="Quay lại"
+            android:contentDescription="@string/back"
             android:gravity="center"
             android:text="←"
             android:textColor="#FFFFFF"
@@ -31,7 +31,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:text="Cài Đặt Chung"
+            android:text="@string/general_settings"
             android:textColor="#FFFFFF"
             android:textSize="23sp"
             android:textStyle="bold" />
@@ -63,7 +63,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Ẩn điều hướng"
+                android:text="@string/general_hide_navigation"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
@@ -71,7 +71,7 @@
                 android:id="@+id/general_hide_navigation"
                 android:layout_width="58dp"
                 android:layout_height="34dp"
-                android:contentDescription="Ẩn điều hướng" />
+                android:contentDescription="@string/general_hide_navigation" />
         </LinearLayout>
 
         <LinearLayout
@@ -87,7 +87,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Sắp xếp tự động màn hình chính"
+                android:text="@string/general_auto_arrange"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
@@ -95,7 +95,7 @@
                 android:id="@+id/general_auto_arrange"
                 android:layout_width="58dp"
                 android:layout_height="34dp"
-                android:contentDescription="Sắp xếp tự động màn hình chính" />
+                android:contentDescription="@string/general_auto_arrange" />
         </LinearLayout>
 
         <LinearLayout
@@ -111,7 +111,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Hiệu ứng làm mờ"
+                android:text="@string/general_blur"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
@@ -119,7 +119,7 @@
                 android:id="@+id/general_blur"
                 android:layout_width="58dp"
                 android:layout_height="34dp"
-                android:contentDescription="Hiệu ứng làm mờ" />
+                android:contentDescription="@string/general_blur" />
         </LinearLayout>
 
         <View
@@ -140,7 +140,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Kích thước văn bản linh hoạt"
+                android:text="@string/general_flexible_text"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
@@ -148,7 +148,7 @@
                 android:id="@+id/general_flexible_text"
                 android:layout_width="58dp"
                 android:layout_height="34dp"
-                android:contentDescription="Kích thước văn bản linh hoạt" />
+                android:contentDescription="@string/general_flexible_text" />
         </LinearLayout>
 
         <View
@@ -167,7 +167,7 @@
                 android:layout_width="64dp"
                 android:layout_height="64dp"
                 android:background="@drawable/bg_blue_button"
-                android:contentDescription="Biểu tượng thời tiết xem trước"
+                android:contentDescription="@string/weather_preview_accessibility"
                 android:gravity="center"
                 android:text="🌤"
                 android:textSize="38sp" />
@@ -176,7 +176,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="Message"
+                android:text="@string/message_preview"
                 android:textColor="#FFFFFF"
                 android:textSize="12sp" />
         </LinearLayout>

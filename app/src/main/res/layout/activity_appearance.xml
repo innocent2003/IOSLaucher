@@ -21,7 +21,7 @@
             android:layout_width="46dp"
             android:layout_height="46dp"
             android:background="@drawable/bg_round_button"
-            android:contentDescription="Quay lại"
+            android:contentDescription="@string/back"
             android:gravity="center"
             android:text="←"
             android:textColor="#FFFFFF"
@@ -31,7 +31,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:text="Giao diện"
+            android:text="@string/appearance_title"
             android:textColor="#FFFFFF"
             android:textSize="23sp"
             android:textStyle="bold" />
@@ -75,7 +75,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Sáng"
+                    android:text="@string/appearance_light"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
 
@@ -112,7 +112,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Tối"
+                    android:text="@string/appearance_dark"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
 
@@ -148,7 +148,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Auto"
+                android:text="@string/appearance_auto"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
@@ -157,7 +157,7 @@
                 android:layout_width="50dp"
                 android:layout_height="32dp"
                 android:background="@drawable/bg_round_button"
-                android:contentDescription="Tự động"
+                android:contentDescription="@string/appearance_auto"
                 android:padding="3dp">
 
                 <View
@@ -182,7 +182,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="System"
+                android:text="@string/appearance_system"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
@@ -191,7 +191,7 @@
                 android:layout_width="50dp"
                 android:layout_height="32dp"
                 android:background="@drawable/bg_round_button"
-                android:contentDescription="Theo hệ thống"
+                android:contentDescription="@string/appearance_system"
                 android:padding="3dp">
 
                 <View

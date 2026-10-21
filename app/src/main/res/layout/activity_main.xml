@@ -123,7 +123,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_round_button"
                 android:gravity="center"
-                android:text="Ver 1.2.2   ⓘ"
+                android:text="@string/version_info"
                 android:textColor="#D0D0D0"
                 android:textSize="14sp" />
         </LinearLayout>

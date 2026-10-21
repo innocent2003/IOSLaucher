@@ -21,7 +21,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="@drawable/bg_round_button"
-            android:contentDescription="Quay lại"
+            android:contentDescription="@string/back"
             android:gravity="center"
             android:text="←"
             android:textColor="#FFFFFF"
@@ -32,7 +32,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:layout_weight="1"
-            android:text="Lưới màn hình"
+            android:text="@string/screen_grid_title"
             android:textColor="#FFFFFF"
             android:textSize="23sp"
             android:textStyle="bold" />
@@ -42,7 +42,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:background="@drawable/bg_blue_button"
-            android:contentDescription="Áp dụng"
+            android:contentDescription="@string/apply"
             android:gravity="center"
             android:text="✓"
             android:textColor="#FFFFFF"
@@ -55,7 +55,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:contentDescription="Bản xem trước lưới ứng dụng" />
+        android:contentDescription="@string/screen_grid_preview" />
 
     <LinearLayout
         android:id="@+id/screen_grid_options"

@@ -21,7 +21,7 @@
             android:layout_width="46dp"
             android:layout_height="46dp"
             android:background="@drawable/bg_round_button"
-            android:contentDescription="Quay lại"
+            android:contentDescription="@string/back"
             android:gravity="center"
             android:text="←"
             android:textColor="#FFFFFF"
@@ -34,7 +34,7 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:text="Hiệu ứng ứng dụng"
+            android:text="@string/app_effects_title"
             android:textColor="#FFFFFF"
             android:textSize="23sp"
             android:textStyle="bold" />
@@ -66,7 +66,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Tiếp tục hiệu ứng"
+                android:text="@string/app_effects_continue"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
@@ -74,7 +74,7 @@
                 android:id="@+id/app_effects_continue"
                 android:layout_width="60dp"
                 android:layout_height="36dp"
-                android:contentDescription="Tiếp tục hiệu ứng" />
+                android:contentDescription="@string/app_effects_continue" />
         </LinearLayout>
 
         <View
@@ -95,7 +95,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Hiệu ứng mở/đóng ứng dụng"
+                android:text="@string/app_effects_open_close"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
@@ -103,7 +103,7 @@
                 android:id="@+id/app_effects_open_close"
                 android:layout_width="60dp"
                 android:layout_height="36dp"
-                android:contentDescription="Hiệu ứng mở/đóng ứng dụng" />
+                android:contentDescription="@string/app_effects_open_close" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>
