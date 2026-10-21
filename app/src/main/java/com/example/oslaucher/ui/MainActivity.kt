@@ -135,6 +135,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var currentScreen = Screen.LOADING
     private var lastHomeScreen = Screen.HOME
     private var isAlphabeticalLibrary = false
+    private var preloadedSettingsView: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -177,9 +178,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         })
 
         showScreen(Screen.LOADING, 0)
+        screenContainer.post {
+            if (!isFinishing && !isDestroyed && currentScreen == Screen.LOADING) {
+                preloadedSettingsView = LayoutInflater.from(this)
+                    .inflate(screenLayouts.getValue(Screen.SETTINGS), screenContainer, false)
+            }
+        }
         requestInstalledApps {
             if (!isFinishing && !isDestroyed && currentScreen == Screen.LOADING) {
-                showScreen(Screen.SETTINGS, 0)
+                showScreen(Screen.SETTINGS, 1)
             }
         }
     }
@@ -262,7 +269,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         } else {
             screenLayouts.getValue(screen)
         }
-        val newView = LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
+        val newView = if (screen == Screen.SETTINGS) {
+            preloadedSettingsView.also { preloadedSettingsView = null }
+                ?: LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
+        } else {
+            LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
+        }
         bindScreen(newView, screen)
 
         if (previousView != null && animationDirection != 0) {
