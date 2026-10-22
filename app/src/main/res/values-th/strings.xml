@@ -12,6 +12,7 @@
     <string name="install">ติดตั้ง</string>
     <string name="general_settings">การตั้งค่าทั่วไป</string>
     <string name="default_home_screen">เลือกหน้าจอหลักเริ่มต้น</string>
+    <string name="home_settings_unavailable">เปิดการตั้งค่าหน้าจอหลักเริ่มต้นไม่ได้</string>
     <string name="wallpaper">วอลเปเปอร์</string>
     <string name="weather">สภาพอากาศ</string>
     <string name="appearance">รูปลักษณ์</string>

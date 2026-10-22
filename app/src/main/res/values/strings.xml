@@ -12,6 +12,7 @@
     <string name="install">Cài đặt</string>
     <string name="general_settings">Cài Đặt Chung</string>
     <string name="default_home_screen">Chọn màn hình chính mặc định</string>
+    <string name="home_settings_unavailable">Không thể mở cài đặt ứng dụng màn hình chính.</string>
     <string name="wallpaper">Hình nền</string>
     <string name="weather">Thời tiết</string>
     <string name="appearance">Giao diện</string>

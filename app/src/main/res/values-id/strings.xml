@@ -12,6 +12,7 @@
     <string name="install">Instal</string>
     <string name="general_settings">Pengaturan umum</string>
     <string name="default_home_screen">Pilih layar utama default</string>
+    <string name="home_settings_unavailable">Tidak dapat membuka pengaturan layar utama default.</string>
     <string name="wallpaper">Wallpaper</string>
     <string name="weather">Cuaca</string>
     <string name="appearance">Tampilan</string>

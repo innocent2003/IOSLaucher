@@ -12,6 +12,7 @@
     <string name="install">Installer</string>
     <string name="general_settings">Paramètres généraux</string>
     <string name="default_home_screen">Choisir l’écran principal par défaut</string>
+    <string name="home_settings_unavailable">Impossible d’ouvrir les paramètres de l’écran principal.</string>
     <string name="wallpaper">Fond de l’écran</string>
     <string name="weather">Météo</string>
     <string name="appearance">Apparence</string>

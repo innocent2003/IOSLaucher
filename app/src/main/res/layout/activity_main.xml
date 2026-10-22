@@ -193,8 +193,11 @@
             android:paddingHorizontal="14dp">
 
             <LinearLayout
+                android:id="@+id/default_home_screen_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -209,6 +212,7 @@
                     android:textSize="28sp" />
 
                 <TextView
+                    android:id="@+id/default_home_screen_label"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="22dp"

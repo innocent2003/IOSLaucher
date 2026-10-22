@@ -12,6 +12,7 @@
     <string name="install">インストール</string>
     <string name="general_settings">一般設定</string>
     <string name="default_home_screen">既定のホーム画面を選択</string>
+    <string name="home_settings_unavailable">ホーム画面の設定を開けませんでした。</string>
     <string name="wallpaper">壁紙</string>
     <string name="weather">天気</string>
     <string name="appearance">外観</string>

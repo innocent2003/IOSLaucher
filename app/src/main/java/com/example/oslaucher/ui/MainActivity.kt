@@ -1,6 +1,7 @@
 package com.example.oslaucher.ui
 
 import android.animation.ObjectAnimator
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -136,10 +137,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var lastHomeScreen = Screen.HOME
     private var isAlphabeticalLibrary = false
     private var preloadedSettingsView: View? = null
+    private var launchedAsHome = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        launchedAsHome = intent?.categories?.contains(Intent.CATEGORY_HOME) == true
 
         screenContainer = FrameLayout(this).apply {
             id = R.id.screen_container
@@ -171,7 +174,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         )
                     }
                     Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
-                    Screen.HOME -> showScreen(Screen.SETTINGS, -1)
+                    Screen.HOME -> {
+                        if (launchedAsHome) finish() else showScreen(Screen.SETTINGS, -1)
+                    }
                     Screen.LOADING, Screen.SETTINGS -> finish()
                 }
             }
@@ -179,14 +184,37 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         showScreen(Screen.LOADING, 0)
         screenContainer.post {
-            if (!isFinishing && !isDestroyed && currentScreen == Screen.LOADING) {
+            if (!launchedAsHome && !isFinishing && !isDestroyed &&
+                currentScreen == Screen.LOADING
+            ) {
                 preloadedSettingsView = LayoutInflater.from(this)
                     .inflate(screenLayouts.getValue(Screen.SETTINGS), screenContainer, false)
             }
         }
         requestInstalledApps {
             if (!isFinishing && !isDestroyed && currentScreen == Screen.LOADING) {
-                showScreen(Screen.SETTINGS, 1)
+                showScreen(if (launchedAsHome) Screen.HOME else Screen.SETTINGS, 1)
+            }
+        }
+    }
+
+    private fun requestDefaultHomeRole() {
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_HOME)
+                .addCategory(Intent.CATEGORY_DEFAULT)
+            startActivity(Intent.createChooser(homeIntent, null))
+        } catch (exception: ActivityNotFoundException) {
+            Log.w(TAG, "Unable to show home app chooser", exception)
+            try {
+                startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+            } catch (fallbackException: ActivityNotFoundException) {
+                Log.e(TAG, "Unable to open default home settings", fallbackException)
+                Toast.makeText(
+                    this,
+                    R.string.home_settings_unavailable,
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -553,6 +581,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             Screen.SETTINGS -> {
                 view.findViewById<View>(R.id.open_home).setOnClickListener {
                     showScreen(Screen.HOME, 1)
+                }
+                view.findViewById<View>(R.id.default_home_screen_setting).setOnClickListener {
+                    requestDefaultHomeRole()
+                }
+                view.findViewById<View>(R.id.default_home_screen_label).setOnClickListener {
+                    requestDefaultHomeRole()
                 }
                 view.findViewById<View>(R.id.appearance_setting).setOnClickListener {
                     startActivity(Intent(this, AppearanceActivity::class.java))

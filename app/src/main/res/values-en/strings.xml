@@ -12,6 +12,7 @@
     <string name="install">Install</string>
     <string name="general_settings">General settings</string>
     <string name="default_home_screen">Choose default home screen</string>
+    <string name="home_settings_unavailable">Could not open default home settings.</string>
     <string name="wallpaper">Wallpaper</string>
     <string name="weather">Weather</string>
     <string name="appearance">Appearance</string>

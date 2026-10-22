@@ -11,6 +11,8 @@ import android.graphics.drawable.GradientDrawable
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.format.DateFormat
 import android.util.Log
 import android.view.Gravity
@@ -229,7 +231,7 @@ abstract class HomeScreenFragment : Fragment() {
         val root = view ?: return
         val condition = root.findViewById<TextView?>(R.id.home_weather_condition) ?: return
         weatherRequestInProgress = true
-        condition.text = getString(R.string.weather_updating)
+        condition.text = condition.context.getString(R.string.weather_updating)
 
         Thread {
             val result = try {
@@ -239,9 +241,9 @@ abstract class HomeScreenFragment : Fragment() {
             } catch (error: JSONException) {
                 Result.failure(error)
             }
-            activity?.runOnUiThread {
+            Handler(Looper.getMainLooper()).post {
                 weatherRequestInProgress = false
-                val currentView = view ?: return@runOnUiThread
+                val currentView = view ?: return@post
                 val temperature = currentView.findViewById<TextView?>(R.id.home_weather_temperature)
                 val icon = currentView.findViewById<TextView?>(R.id.home_weather_icon)
                 val currentCondition = currentView.findViewById<TextView?>(R.id.home_weather_condition)
@@ -249,16 +251,18 @@ abstract class HomeScreenFragment : Fragment() {
                 result.onSuccess { weather ->
                     temperature?.text = "${weather.temperature.toInt()}°C"
                     icon?.text = weather.icon
-                    currentCondition?.text = weather.description
-                    range?.text = getString(
+                    currentCondition?.text =
+                        currentView.context.getString(weather.descriptionResId)
+                    range?.text = currentView.context.getString(
                         R.string.weather_range,
                         weather.high.toInt(),
                         weather.low.toInt()
                     )
                 }.onFailure { error ->
                     Log.w(TAG, "Unable to load weather", error)
-                    currentCondition?.text = getString(R.string.weather_unavailable)
-                    range?.text = getString(R.string.weather_retry)
+                    currentCondition?.text =
+                        currentView.context.getString(R.string.weather_unavailable)
+                    range?.text = currentView.context.getString(R.string.weather_retry)
                 }
             }
         }.apply {
@@ -293,7 +297,7 @@ abstract class HomeScreenFragment : Fragment() {
                 temperature = current.getDouble("temperature_2m"),
                 high = daily.getJSONArray("temperature_2m_max").getDouble(0),
                 low = daily.getJSONArray("temperature_2m_min").getDouble(0),
-                description = weatherDescription(weatherCode),
+                descriptionResId = weatherDescription(weatherCode),
                 icon = weatherIcon(weatherCode)
             )
         } finally {
@@ -301,16 +305,16 @@ abstract class HomeScreenFragment : Fragment() {
         }
     }
 
-    private fun weatherDescription(code: Int): String = when (code) {
-        0 -> getString(R.string.weather_clear)
-        1, 2 -> getString(R.string.weather_partly_cloudy)
-        3 -> getString(R.string.weather_cloudy)
-        45, 48 -> getString(R.string.weather_fog)
-        in 51..57 -> getString(R.string.weather_drizzle)
-        in 61..67, in 80..82 -> getString(R.string.weather_rain)
-        in 71..77, 85, 86 -> getString(R.string.weather_snow)
-        in 95..99 -> getString(R.string.weather_thunderstorm)
-        else -> getString(R.string.weather_current)
+    private fun weatherDescription(code: Int): Int = when (code) {
+        0 -> R.string.weather_clear
+        1, 2 -> R.string.weather_partly_cloudy
+        3 -> R.string.weather_cloudy
+        45, 48 -> R.string.weather_fog
+        in 51..57 -> R.string.weather_drizzle
+        in 61..67, in 80..82 -> R.string.weather_rain
+        in 71..77, 85, 86 -> R.string.weather_snow
+        in 95..99 -> R.string.weather_thunderstorm
+        else -> R.string.weather_current
     }
 
     private fun weatherIcon(code: Int): String = when (code) {
