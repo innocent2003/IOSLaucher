@@ -1,6 +1,7 @@
 package com.example.oslaucher.ui
 
 import android.animation.ObjectAnimator
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -136,10 +137,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var lastHomeScreen = Screen.HOME
     private var isAlphabeticalLibrary = false
     private var preloadedSettingsView: View? = null
+    private var launchedAsHome = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        launchedAsHome = intent?.categories?.contains(Intent.CATEGORY_HOME) == true
 
         screenContainer = FrameLayout(this).apply {
             id = R.id.screen_container
@@ -171,7 +174,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         )
                     }
                     Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
-                    Screen.HOME -> showScreen(Screen.SETTINGS, -1)
+                    Screen.HOME -> {
+                        if (launchedAsHome) finish() else showScreen(Screen.SETTINGS, -1)
+                    }
                     Screen.LOADING, Screen.SETTINGS -> finish()
                 }
             }
@@ -179,14 +184,37 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         showScreen(Screen.LOADING, 0)
         screenContainer.post {
-            if (!isFinishing && !isDestroyed && currentScreen == Screen.LOADING) {
+            if (!launchedAsHome && !isFinishing && !isDestroyed &&
+                currentScreen == Screen.LOADING
+            ) {
                 preloadedSettingsView = LayoutInflater.from(this)
                     .inflate(screenLayouts.getValue(Screen.SETTINGS), screenContainer, false)
             }
         }
         requestInstalledApps {
             if (!isFinishing && !isDestroyed && currentScreen == Screen.LOADING) {
-                showScreen(Screen.SETTINGS, 1)
+                showScreen(if (launchedAsHome) Screen.HOME else Screen.SETTINGS, 1)
+            }
+        }
+    }
+
+    private fun requestDefaultHomeRole() {
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_HOME)
+                .addCategory(Intent.CATEGORY_DEFAULT)
+            startActivity(Intent.createChooser(homeIntent, null))
+        } catch (exception: ActivityNotFoundException) {
+            Log.w(TAG, "Unable to show home app chooser", exception)
+            try {
+                startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+            } catch (fallbackException: ActivityNotFoundException) {
+                Log.e(TAG, "Unable to open default home settings", fallbackException)
+                Toast.makeText(
+                    this,
+                    R.string.home_settings_unavailable,
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -208,7 +236,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 gravity = Gravity.CENTER
                 setTextColor(0xFFFFFFFF.toInt())
                 textSize = 11f
-                contentDescription = "Chữ $letter"
+                contentDescription = getString(R.string.letter_accessibility, letter)
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     0,
@@ -554,11 +582,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 view.findViewById<View>(R.id.open_home).setOnClickListener {
                     showScreen(Screen.HOME, 1)
                 }
+                view.findViewById<View>(R.id.default_home_screen_setting).setOnClickListener {
+                    requestDefaultHomeRole()
+                }
+                view.findViewById<View>(R.id.default_home_screen_label).setOnClickListener {
+                    requestDefaultHomeRole()
+                }
                 view.findViewById<View>(R.id.appearance_setting).setOnClickListener {
                     startActivity(Intent(this, AppearanceActivity::class.java))
                 }
                 view.findViewById<View>(R.id.general_setting).setOnClickListener {
                     startActivity(Intent(this, GeneralSettingsActivity::class.java))
+                }
+                view.findViewById<View>(R.id.language_setting).setOnClickListener {
+                    startActivity(Intent(this, LanguageActivity::class.java))
                 }
                 view.findViewById<View>(R.id.screen_grid_setting).setOnClickListener {
                     startActivity(Intent(this, ScreenGridActivity::class.java))
@@ -763,7 +800,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     pages.displayedChild = appPageIndex
                     updateAppPageIndicator()
                     selectionBar.visibility = if (isAppSelectionMode) View.VISIBLE else View.GONE
-                    selectionCount.text = "${selectedAppPackages.size} đã chọn"
+                    selectionCount.text = getString(
+                        R.string.selected_apps,
+                        selectedAppPackages.size
+                    )
 
                     dock.removeAllViews()
                     dockSlots.forEach { app ->
@@ -890,14 +930,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     override fun launchHomeScreenApp(packageName: String) {
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
         if (launchIntent == null) {
-            Toast.makeText(this, "Không thể mở ứng dụng", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.cant_open_app, Toast.LENGTH_SHORT).show()
             return
         }
         try {
             startActivity(launchIntent)
         } catch (exception: SecurityException) {
             Log.e(TAG, "Unable to launch app $packageName", exception)
-            Toast.makeText(this, "Không thể mở ứng dụng", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.cant_open_app, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1121,7 +1161,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
                 startActivity(intent)
             } catch (_: Exception) {
-                Toast.makeText(this, "Không thể mở thông tin ứng dụng", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.cant_open_app_info, Toast.LENGTH_SHORT).show()
             }
             popupWindow.dismiss()
         }
@@ -1143,7 +1183,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
 
         popupView.findViewById<View>(R.id.app_action_edit).setOnClickListener {
-            Toast.makeText(this, "Tính năng chỉnh sửa sẽ có trong phiên bản sau", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.edit_not_available, Toast.LENGTH_SHORT).show()
             popupWindow.dismiss()
         }
 
@@ -1155,7 +1195,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
                 startActivity(intent)
             } catch (_: Exception) {
-                Toast.makeText(this, "Không thể xóa ứng dụng", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.cant_remove_app, Toast.LENGTH_SHORT).show()
             }
             popupWindow.dismiss()
         }
@@ -1441,7 +1481,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun updateDragTargetLabel() {
         val label = dragTargetLabel ?: return
         if (dragStartedInAppGrid && currentScreen == Screen.APPS && !isAlphabeticalLibrary) {
-            label.text = "Thả vào lưới ứng dụng ${appPageIndex + 1}"
+            label.text = getString(R.string.drop_on_app_grid, appPageIndex + 1)
             label.visibility = View.VISIBLE
         } else {
             label.visibility = View.GONE
@@ -1451,7 +1491,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun dropDraggedApp(x: Float, y: Float): Boolean {
         val app = draggedApp ?: return false
         if (currentScreen != Screen.APPS || isAlphabeticalLibrary) {
-            Toast.makeText(this, "Chỉ có thể thả ứng dụng trong lưới ứng dụng.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.drop_apps_in_grid_only, Toast.LENGTH_SHORT).show()
             return false
         }
         val grid = appsPages
@@ -1541,7 +1581,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 )
                 return true
             }
-            Toast.makeText(this, "Thả ứng dụng lên một biểu tượng trong lưới hoặc dock.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.drop_app_on_icon_or_dock, Toast.LENGTH_SHORT).show()
             return false
         }
         if (dragStartedInDock && targetPackage == null) {
@@ -1642,7 +1682,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         val folderId = UUID.randomUUID().toString()
         val folderPackage = FOLDER_PACKAGE_PREFIX + folderId
-        appFolders += AppFolder(folderId, "Thư mục", listOf(targetPackage, draggedApp.packageName))
+        appFolders += AppFolder(
+            folderId,
+            getString(R.string.folder),
+            listOf(targetPackage, draggedApp.packageName)
+        )
         draggedDockSlot?.takeIf { it != targetDockIndex }?.let { dockEmptySlots += it }
         dockAppSlots.remove(draggedApp.packageName)
         dockAppSlots.remove(targetPackage)
@@ -1816,23 +1860,23 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun promptCreateAppFolder() {
         if (selectedAppPackages.size < 2) {
-            Toast.makeText(this, "Chọn ít nhất hai ứng dụng để tạo thư mục.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.select_two_apps, Toast.LENGTH_SHORT).show()
             return
         }
 
         val nameInput = EditText(this).apply {
-            setText("Thư mục")
+            setText(R.string.folder)
             setSelection(text.length)
             setPadding(dp(20), dp(12), dp(20), dp(12))
         }
         AlertDialog.Builder(this)
-            .setTitle("Tạo thư mục")
+            .setTitle(R.string.create_folder)
             .setView(nameInput)
-            .setNegativeButton("Hủy", null)
-            .setPositiveButton("Tạo") { _, _ ->
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.create) { _, _ ->
                 val name = nameInput.text.toString().trim()
                 if (name.isEmpty()) {
-                    Toast.makeText(this, "Nhập tên thư mục.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, R.string.enter_folder_name, Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
                 createAppFolder(name)
@@ -1845,14 +1889,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             .mapTo(mutableSetOf()) { it.packageName }
         val members = selectedAppPackages.filter { it in availablePackages }
         if (members.size < 2) {
-            Toast.makeText(this, "Không đủ ứng dụng để tạo thư mục.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.not_enough_apps, Toast.LENGTH_SHORT).show()
             return
         }
 
         appFolders += AppFolder(UUID.randomUUID().toString(), name, members)
         saveAppFolders()
         exitAppSelectionMode()
-        Toast.makeText(this, "Đã tạo thư mục $name.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            this,
+            getString(R.string.folder_created, name),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun showFolderContents(folder: AppFolder, apps: List<AppInfo>) {
@@ -1988,7 +2036,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             isClickable = false
         }
         val label = TextView(this).apply {
-            text = "Thả để sắp xếp ứng dụng"
+            text = getString(R.string.drop_to_reorder)
             textSize = 14f
             setTextColor(0xFFFFFFFF.toInt())
             gravity = Gravity.CENTER

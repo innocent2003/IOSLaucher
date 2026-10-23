@@ -23,6 +23,8 @@ import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
 import com.example.oslaucher.utils.LauncherWallpaper
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -55,7 +57,10 @@ class WallpaperActivity : AppCompatActivity() {
             val bitmap = try {
                 decodePreview(uri)
             } catch (exception: IOException) {
-                errorMessage = "Không thể mở ảnh: ${exception.localizedMessage}"
+                errorMessage = getString(
+                    R.string.wallpaper_cannot_open_image_detail,
+                    exception.localizedMessage ?: exception.javaClass.simpleName
+                )
                 null
             }
             if (bitmap != null) {
@@ -68,7 +73,7 @@ class WallpaperActivity : AppCompatActivity() {
                     bitmap.recycle()
                     Toast.makeText(
                         this,
-                        "Không thể lưu quyền truy cập ảnh đã chọn.",
+                        getString(R.string.wallpaper_cannot_save_permission),
                         Toast.LENGTH_LONG
                     ).show()
                     return@registerForActivityResult
@@ -82,7 +87,7 @@ class WallpaperActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(
                     this,
-                    errorMessage ?: "Không thể mở ảnh đã chọn.",
+                    errorMessage ?: getString(R.string.wallpaper_cannot_open_image),
                     if (errorMessage == null) Toast.LENGTH_SHORT else Toast.LENGTH_LONG
                 ).show()
             }
@@ -102,6 +107,9 @@ class WallpaperActivity : AppCompatActivity() {
         }
 
         lockPreview = findViewById(R.id.wallpaper_lock_preview)
+        findViewById<TextView>(R.id.wallpaper_lock_date).text =
+            SimpleDateFormat("EEEE, d MMMM\nHH:mm", resources.configuration.locales[0])
+                .format(Date())
         homePreview = findViewById(R.id.wallpaper_home_preview)
         previews = findViewById(R.id.wallpaper_previews)
         dots = listOf(
@@ -128,18 +136,29 @@ class WallpaperActivity : AppCompatActivity() {
                     selectedImageUri = savedUri
                     selectedBitmap = bitmap
                 } else {
-                    Toast.makeText(this, "Không thể tải hình nền đã lưu.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        R.string.wallpaper_cannot_load_saved,
+                        Toast.LENGTH_LONG
+                    ).show()
                     LauncherWallpaper.saveResource(this, wallpaperResources.first())
                 }
             } catch (exception: IOException) {
                 Toast.makeText(
                     this,
-                    "Không thể tải hình nền đã lưu: ${exception.localizedMessage}",
+                    getString(
+                        R.string.wallpaper_cannot_load_saved_detail,
+                        exception.localizedMessage ?: exception.javaClass.simpleName
+                    ),
                     Toast.LENGTH_LONG
                 ).show()
                 LauncherWallpaper.saveResource(this, wallpaperResources.first())
             } catch (exception: SecurityException) {
-                Toast.makeText(this, "Không còn quyền truy cập hình nền đã lưu.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    R.string.wallpaper_saved_permission_lost,
+                    Toast.LENGTH_LONG
+                ).show()
                 LauncherWallpaper.saveResource(this, wallpaperResources.first())
             }
         } else {
@@ -350,12 +369,16 @@ class WallpaperActivity : AppCompatActivity() {
                         WallpaperManager.FLAG_SYSTEM
                     )
                 } ?: run {
-                    Toast.makeText(this, "Không thể mở ảnh đã chọn.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        R.string.wallpaper_cannot_open_image,
+                        Toast.LENGTH_SHORT
+                    ).show()
                     return
                 }
             } else {
                 val drawable = getDrawable(wallpaperResources[selectedIndex]) ?: run {
-                    Toast.makeText(this, "Không thể tải hình nền.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, R.string.wallpaper_cannot_load, Toast.LENGTH_SHORT).show()
                     return
                 }
                 val width = resources.displayMetrics.widthPixels.coerceAtLeast(1)
@@ -372,11 +395,18 @@ class WallpaperActivity : AppCompatActivity() {
                     bitmap.recycle()
                 }
             }
-            Toast.makeText(this, "Đã đặt hình nền màn hình chính.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.wallpaper_applied, Toast.LENGTH_SHORT).show()
         } catch (exception: IOException) {
-            Toast.makeText(this, "Không thể đặt hình nền: ${exception.localizedMessage}", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                this,
+                getString(
+                    R.string.wallpaper_cannot_apply_detail,
+                    exception.localizedMessage ?: exception.javaClass.simpleName
+                ),
+                Toast.LENGTH_LONG
+            ).show()
         } catch (exception: SecurityException) {
-            Toast.makeText(this, "Không có quyền đặt hình nền trên thiết bị này.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.wallpaper_no_permission, Toast.LENGTH_LONG).show()
         }
     }
 

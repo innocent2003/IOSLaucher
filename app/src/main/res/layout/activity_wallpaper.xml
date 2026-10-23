@@ -29,6 +29,7 @@
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center"
+                android:contentDescription="@string/back"
                 android:text="‹"
                 android:textColor="#FFFFFF"
                 android:textSize="42sp" />
@@ -37,7 +38,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="14dp"
-                android:text="Hình nền"
+                android:text="@string/wallpaper_title"
                 android:textColor="#FFFFFF"
                 android:textSize="28sp"
                 android:textStyle="bold" />
@@ -74,16 +75,17 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/wallpaper_preview_1"
-                        android:contentDescription="Xem trước màn hình khóa"
+                        android:contentDescription="@string/wallpaper_lock_preview"
                         android:scaleType="centerCrop" />
 
                     <TextView
+                        android:id="@+id/wallpaper_lock_date"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_gravity="top"
                         android:gravity="center"
                         android:paddingTop="22dp"
-                        android:text="Monday, 20 November\n09:41"
+                        android:text="@string/wallpaper_date_preview"
                         android:textColor="#FFFFFF"
                         android:textSize="17sp"
                         android:textStyle="bold" />
@@ -97,7 +99,7 @@
                         android:backgroundTint="#55FFFFFF"
                         android:paddingHorizontal="16dp"
                         android:paddingVertical="6dp"
-                        android:text="Tùy chỉnh"
+                        android:text="@string/wallpaper_customize"
                         android:textColor="#FFFFFF"
                         android:textSize="12sp" />
                 </FrameLayout>
@@ -115,7 +117,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:background="@drawable/wallpaper_preview_1"
-                        android:contentDescription="Xem trước màn hình chính"
+                        android:contentDescription="@string/wallpaper_home_preview"
                         android:scaleType="centerCrop" />
 
                     <TextView
@@ -138,7 +140,7 @@
                         android:backgroundTint="#55FFFFFF"
                         android:paddingHorizontal="16dp"
                         android:paddingVertical="6dp"
-                        android:text="Tùy chỉnh"
+                        android:text="@string/wallpaper_customize"
                         android:textColor="#FFFFFF"
                         android:textSize="12sp" />
                 </FrameLayout>
@@ -197,7 +199,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:text="Đặt làm hiện tại"
+                    android:text="@string/wallpaper_set_current"
                     android:textColor="#1685E8"
                     android:textSize="14sp"
                     android:textStyle="bold" />
@@ -211,7 +213,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:text="+ Thêm"
+                    android:text="@string/wallpaper_add"
                     android:textColor="#FFFFFF"
                     android:textSize="15sp"
                     android:textStyle="bold" />
