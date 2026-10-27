@@ -111,6 +111,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var dragCheckBadge: TextView? = null
     private val dragWiggleAnimators = mutableListOf<ObjectAnimator>()
     private var dragTargetLabel: TextView? = null
+    private val dragPreviewViews = mutableListOf<View>()
+    private var dragPreviewPosition: Int? = null
+    private var dragPreviewDropAfter = false
     private var dragEdge = 0
     private var dragPageChangeRunnable: Runnable? = null
     private val dragPageHandler = Handler(Looper.getMainLooper())
@@ -1262,6 +1265,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         dragStartedInDock = draggedDockSlot != null
         draggedApp = app
         dragSource = source
+        clearDragHoverPreview()
         dragSourceVisibility = source.visibility
         source.visibility = View.INVISIBLE
         dragEdge = 0
@@ -1463,6 +1467,99 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         updateDragShadow(x - location[0], y - location[1])
     }
 
+    private fun updateDragHoverPreview(x: Float, y: Float) {
+        val grid = appsPages?.getChildAt(appPageIndex) as? GridView
+        val app = draggedApp
+        if (grid == null || app == null || !dragStartedInAppGrid) {
+            clearDragHoverPreview()
+            return
+        }
+
+        var nearestTarget: View? = null
+        var nearestDistanceSquared = Float.MAX_VALUE
+        for (childIndex in 0 until grid.childCount) {
+            val position = grid.firstVisiblePosition + childIndex
+            val item = grid.adapter?.getItem(position) as? AppInfo ?: continue
+            if (item.packageName == app.packageName) continue
+
+            val child = grid.getChildAt(childIndex)
+            val location = IntArray(2)
+            child.getLocationOnScreen(location)
+            val dx = x - (location[0] + child.width / 2f)
+            val dy = y - (location[1] + child.height / 2f)
+            val distanceSquared = dx * dx + dy * dy
+            if (distanceSquared < nearestDistanceSquared) {
+                nearestDistanceSquared = distanceSquared
+                nearestTarget = child
+            }
+        }
+
+        val target = nearestTarget
+        val threshold = max(dp(72), target?.let { max(it.width, it.height) } ?: 0) * 0.8f
+        if (target == null || nearestDistanceSquared > threshold * threshold) {
+            clearDragHoverPreview()
+            return
+        }
+
+        val location = IntArray(2)
+        target.getLocationOnScreen(location)
+        val dropAfterTarget = x >= location[0] + target.width / 2f
+        val position = grid.firstVisiblePosition +
+            (0 until grid.childCount).first { grid.getChildAt(it) === target }
+        if (position == dragPreviewPosition && dropAfterTarget == dragPreviewDropAfter) return
+
+        val reorderedPackages = AppGridOrder.moveApp(
+            packages = appGridPackages,
+            packageName = app.packageName,
+            pageIndex = appPageIndex,
+            pagePosition = position,
+            pageSize = appGridPageSize,
+            dropAfterTarget = dropAfterTarget
+        )
+        if (reorderedPackages == null) {
+            clearDragHoverPreview()
+            return
+        }
+
+        clearDragHoverPreview()
+        dragPreviewPosition = position
+        dragPreviewDropAfter = dropAfterTarget
+        for (childIndex in 0 until grid.childCount) {
+            val child = grid.getChildAt(childIndex)
+            val childPosition = grid.firstVisiblePosition + childIndex
+            val item = grid.adapter?.getItem(childPosition) as? AppInfo ?: continue
+            if (item.packageName == app.packageName) continue
+
+            val destination = reorderedPackages.indexOf(item.packageName) -
+                appPageIndex * appGridPageSize
+            val destinationChild = grid.getChildAt(destination - grid.firstVisiblePosition)
+                ?: continue
+            val offsetX = destinationChild.left - child.left
+            val offsetY = destinationChild.top - child.top
+            if (offsetX == 0 && offsetY == 0) continue
+            child.animate().cancel()
+            child.animate()
+                .translationX(offsetX.toFloat())
+                .translationY(offsetY.toFloat())
+                .setDuration(160L)
+                .start()
+            dragPreviewViews += child
+        }
+    }
+
+    private fun clearDragHoverPreview() {
+        dragPreviewViews.forEach { view ->
+            view.animate().cancel()
+            view.animate()
+                .translationX(0f)
+                .translationY(0f)
+                .setDuration(120L)
+                .start()
+        }
+        dragPreviewViews.clear()
+        dragPreviewPosition = null
+    }
+
     private fun navigateAppGridDuringDrag(x: Float) {
         if (!dragStartedInAppGrid || currentScreen != Screen.APPS || isAlphabeticalLibrary) return
         val location = IntArray(2)
@@ -1564,7 +1661,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val insideGrid = grid != null &&
             x >= gridLocation[0] && x <= gridLocation[0] + grid.width &&
             y >= gridLocation[1] && y <= gridLocation[1] + grid.height
-        val gridPosition = if (insideGrid) {
+        val geometricGridPosition = if (insideGrid) {
             grid?.pointToPosition(
                 (x - gridLocation[0]).toInt(),
                 (y - gridLocation[1]).toInt()
@@ -1572,6 +1669,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         } else {
             GridView.INVALID_POSITION
         }
+        val previewHitPosition = if (dragPreviewPosition != null && grid != null) {
+            (0 until grid.childCount).firstNotNullOfOrNull { childIndex ->
+                val child = grid.getChildAt(childIndex)
+                if (child.visibility != View.VISIBLE) return@firstNotNullOfOrNull null
+                val childLocation = IntArray(2)
+                child.getLocationOnScreen(childLocation)
+                val hit = x >= childLocation[0] && x <= childLocation[0] + child.width &&
+                    y >= childLocation[1] && y <= childLocation[1] + child.height
+                if (hit) grid.firstVisiblePosition + childIndex else null
+            }
+        } else {
+            null
+        }
+        val gridPosition = previewHitPosition ?: geometricGridPosition
         val dockTarget = appsDock?.let { dock ->
             (0 until dock.childCount)
                 .mapNotNull(dock::getChildAt)
@@ -1586,7 +1697,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val dockTargetIndex = dockTarget?.let { target ->
             appsDock?.indexOfChild(target)
         }?.takeIf { it >= 0 }
-        val gridPackage = if (gridPosition != GridView.INVALID_POSITION) {
+        val gridPackage = if (dragPreviewPosition != null) {
+            previewHitPosition?.let { position ->
+                appGridPackages.getOrNull(appPageIndex * appGridPageSize + position)
+            }
+        } else if (gridPosition != GridView.INVALID_POSITION) {
             appGridPackages.getOrNull(appPageIndex * appGridPageSize + gridPosition)
         } else {
             null
@@ -1810,6 +1925,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun finishAppDrag() {
         val shouldRefreshGrid = dragCreatedEmptyAppPage
         dragCreatedEmptyAppPage = false
+        clearDragHoverPreview()
         stopDragWiggle()
         dragShadow?.let(screenContainer::removeView)
         dragCheckBadge?.let(screenContainer::removeView)
@@ -2107,6 +2223,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     state.moved = true
                 }
                 updateFolderDragShadow(event.rawX, event.rawY)
+                updateFolderDragPreview(state, event.rawX, event.rawY)
             }
             MotionEvent.ACTION_UP -> {
                 if (state.moved) {
@@ -2134,6 +2251,111 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         state.checkBadge.layoutParams = badgeParams
     }
 
+    private fun updateFolderDragPreview(state: FolderDragState, x: Float, y: Float) {
+        val grid = state.grid
+        var targetPosition = -1
+        var nearestDistanceSquared = Float.MAX_VALUE
+        var targetView: View? = null
+
+        for (childIndex in 0 until grid.childCount) {
+            val position = grid.firstVisiblePosition + childIndex
+            val app = state.adapter.getItem(position) ?: continue
+            if (app.packageName == state.draggedApp.packageName) continue
+
+            val child = grid.getChildAt(childIndex)
+            val location = IntArray(2)
+            child.getLocationOnScreen(location)
+            val dx = x - (location[0] + child.width / 2f)
+            val dy = y - (location[1] + child.height / 2f)
+            val distanceSquared = dx * dx + dy * dy
+            if (distanceSquared < nearestDistanceSquared) {
+                nearestDistanceSquared = distanceSquared
+                targetPosition = position
+                targetView = child
+            }
+        }
+
+        val threshold = max(
+            dp(72),
+            targetView?.let { max(it.width, it.height) } ?: 0
+        ) * 0.8f
+        if (targetView == null || nearestDistanceSquared > threshold * threshold) {
+            clearFolderDragPreview(state)
+            return
+        }
+
+        val location = IntArray(2)
+        targetView.getLocationOnScreen(location)
+        val dropAfterTarget = x >= location[0] + targetView.width / 2f
+        if (targetPosition == state.previewPosition &&
+            dropAfterTarget == state.previewDropAfter
+        ) return
+
+        val reorderedApps = reorderedFolderApps(state, targetPosition, dropAfterTarget)
+            ?: return
+        clearFolderDragPreview(state)
+        state.previewPosition = targetPosition
+        state.previewDropAfter = dropAfterTarget
+
+        for (childIndex in 0 until grid.childCount) {
+            val child = grid.getChildAt(childIndex)
+            val position = grid.firstVisiblePosition + childIndex
+            val app = state.adapter.getItem(position) ?: continue
+            if (app.packageName == state.draggedApp.packageName) continue
+
+            val destination = reorderedApps.indexOfFirst {
+                it.packageName == app.packageName
+            }
+            val destinationChild = grid.getChildAt(
+                destination - grid.firstVisiblePosition
+            ) ?: continue
+            val offsetX = destinationChild.left - child.left
+            val offsetY = destinationChild.top - child.top
+            if (offsetX == 0 && offsetY == 0) continue
+            child.animate().cancel()
+            child.animate()
+                .translationX(offsetX.toFloat())
+                .translationY(offsetY.toFloat())
+                .setDuration(160L)
+                .start()
+            state.previewViews += child
+        }
+    }
+
+    private fun clearFolderDragPreview(state: FolderDragState) {
+        state.previewViews.forEach { view ->
+            view.animate().cancel()
+            view.animate()
+                .translationX(0f)
+                .translationY(0f)
+                .setDuration(120L)
+                .start()
+        }
+        state.previewViews.clear()
+        state.previewPosition = null
+    }
+
+    private fun reorderedFolderApps(
+        state: FolderDragState,
+        targetPosition: Int,
+        dropAfterTarget: Boolean
+    ): List<AppInfo>? {
+        val sourceIndex = state.apps.indexOfFirst {
+            it.packageName == state.draggedApp.packageName
+        }
+        if (sourceIndex < 0) return null
+
+        val targetIndex = (targetPosition + if (dropAfterTarget) 1 else 0)
+            .coerceIn(0, state.apps.size)
+        val reorderedApps = state.apps.toMutableList().apply {
+            removeAt(sourceIndex)
+        }
+        var insertionIndex = targetIndex
+        if (sourceIndex < insertionIndex) insertionIndex--
+        reorderedApps.add(insertionIndex.coerceIn(0, reorderedApps.size), state.draggedApp)
+        return reorderedApps
+    }
+
     private fun dropFolderApp(state: FolderDragState, x: Float, y: Float) {
         val gridLocation = IntArray(2)
         state.grid.getLocationOnScreen(gridLocation)
@@ -2146,7 +2368,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             return
         }
 
-        val position = state.grid.pointToPosition(
+        val previewHitPosition = if (state.previewPosition != null) {
+            (0 until state.grid.childCount).firstNotNullOfOrNull { childIndex ->
+                val child = state.grid.getChildAt(childIndex)
+                if (child.visibility != View.VISIBLE) return@firstNotNullOfOrNull null
+                val location = IntArray(2)
+                child.getLocationOnScreen(location)
+                val hit = x >= location[0] && x <= location[0] + child.width &&
+                    y >= location[1] && y <= location[1] + child.height
+                if (hit) state.grid.firstVisiblePosition + childIndex else null
+            }
+        } else {
+            null
+        }
+        val position = previewHitPosition ?: state.grid.pointToPosition(
             (x - gridLocation[0]).toInt(),
             (y - gridLocation[1]).toInt()
         )
@@ -2165,18 +2400,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             it.packageName == state.draggedApp.packageName
         }
         if (sourceIndex < 0) return
-
-        val targetIndex = if (position == GridView.INVALID_POSITION) {
-            state.apps.size
-        } else {
-            (position + if (dropAfterTarget) 1 else 0).coerceIn(0, state.apps.size)
-        }
-        val reorderedApps = state.apps.toMutableList().apply {
-            removeAt(sourceIndex)
-        }
-        var insertionIndex = targetIndex
-        if (sourceIndex < insertionIndex) insertionIndex--
-        reorderedApps.add(insertionIndex.coerceIn(0, reorderedApps.size), state.draggedApp)
+        val reorderedApps = reorderedFolderApps(
+            state,
+            if (position == GridView.INVALID_POSITION) state.apps.size else position,
+            dropAfterTarget
+        ) ?: return
 
         val visiblePackages = state.apps.mapTo(mutableSetOf()) { it.packageName }
         val unavailablePackages = state.folder.packageNames.filterNot { it in visiblePackages }
@@ -2319,6 +2547,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun finishFolderAppDrag() {
         val state = folderDragState ?: return
         folderDragState = null
+        clearFolderDragPreview(state)
         stopDragWiggle()
         state.source.visibility = state.sourceVisibility
         state.root.removeView(state.shadow)
@@ -2403,6 +2632,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             when (event.actionMasked) {
                 MotionEvent.ACTION_MOVE -> {
                     updateDragShadowFromScreen(event.rawX, event.rawY)
+                    updateDragHoverPreview(event.rawX, event.rawY)
                     updateDragTargetLabel()
                     if (abs(event.x - downX) > swipeTouchSlop ||
                         abs(event.y - downY) > swipeTouchSlop
