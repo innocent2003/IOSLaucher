@@ -450,8 +450,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val fromScreen = currentScreen
         val toScreen = when {
             fromScreen == Screen.HOME && direction < 0 -> Screen.APPS
+            // HOME_SECOND là trang ngoài cùng bên phải:
+            // vuốt phải (direction > 0) = quay lại APPS trang cuối
+            // vuốt trái (direction < 0) = dead-end, không làm gì
             fromScreen == Screen.HOME_SECOND && direction > 0 -> Screen.APPS
-            fromScreen == Screen.HOME_SECOND && direction < 0 -> Screen.APPS
             fromScreen == Screen.APPS && !isAlphabeticalLibrary &&
                 direction < 0 && appPageIndex == appPageCount - 1 -> Screen.HOME_SECOND
             fromScreen == Screen.APPS && !isAlphabeticalLibrary &&
@@ -480,7 +482,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
         } else {
             openAppsAtLastPage =
-                fromScreen == Screen.HOME_SECOND && direction < 0
+                fromScreen == Screen.HOME_SECOND
             val view = LayoutInflater.from(this)
                 .inflate(screenLayouts.getValue(toScreen), screenContainer, false)
                 .also { bindScreen(it, toScreen) }
@@ -3004,10 +3006,26 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         }
                         super.dispatchTouchEvent(cancel)
                         cancel.recycle()
+                    } else if (homeSwipeTransition == null && !isAlphabeticalLibrary) {
+                        // Boundary: ở trang đầu/cuối → thử bắt đầu HomeSwipeTransition mượt
+                        val homeTransition = startHomeSwipe(direction)
+                        if (homeTransition != null) {
+                            homeSwipeTransition = homeTransition
+                            val cancel = MotionEvent.obtain(event).apply {
+                                action = MotionEvent.ACTION_CANCEL
+                            }
+                            super.dispatchTouchEvent(cancel)
+                            cancel.recycle()
+                        }
                     }
                 }
                 if (appPageTransition != null) {
                     updateAppPageSwipe(appPageTransition, deltaX)
+                    return true
+                }
+                val boundaryHomeTransition = homeSwipeTransition
+                if (boundaryHomeTransition != null && currentScreen == Screen.APPS) {
+                    updateHomeSwipe(boundaryHomeTransition, deltaX)
                     return true
                 }
             }
@@ -3052,7 +3070,43 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         }
                         super.dispatchTouchEvent(cancel)
                         cancel.recycle()
-                        moveAppPageWithSwipe(direction)
+
+                        // Ưu tiên settle HomeSwipeTransition đang chạy từ boundary drag
+                        val boundaryTransition = homeSwipeTransition
+                        if (boundaryTransition != null) {
+                            val movedEnough =
+                                distance * boundaryTransition.direction / boundaryTransition.width >= 0.5f
+                            val flungFarEnough = abs(velocityX) >= swipeMinVelocity &&
+                                velocityX * boundaryTransition.direction > 0f
+                            updateHomeSwipe(boundaryTransition, distance)
+                            settleHomeSwipe(boundaryTransition, movedEnough || flungFarEnough, velocityX)
+                            recycleVelocityTracker()
+                            return true
+                        }
+
+                        val targetPage = appPageIndex + if (direction < 0) 1 else -1
+                        if (targetPage in 0 until appPageCount) {
+                            // Trang nội bộ: dùng moveAppPageWithSwipe bình thường
+                            moveAppPageWithSwipe(direction)
+                        } else if (!isAlphabeticalLibrary) {
+                            // Boundary: tạo HomeSwipeTransition với animation mượt
+                            transition = startHomeSwipe(direction)
+                            if (transition != null) {
+                                homeSwipeTransition = transition
+                            } else {
+                                // Fallback không có outgoing view
+                                moveAppPageWithSwipe(direction)
+                            }
+                        }
+                        if (transition != null) {
+                            val movedEnough =
+                                distance * transition.direction / transition.width >= 0.5f
+                            val flungFarEnough = abs(velocityX) >= swipeMinVelocity &&
+                                velocityX * transition.direction > 0f
+                            updateHomeSwipe(transition, distance)
+                            settleHomeSwipe(transition, movedEnough || flungFarEnough, velocityX)
+                            homeSwipeTransition = null
+                        }
                         recycleVelocityTracker()
                         return true
                     }
