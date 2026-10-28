@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="screen_container" type="id" />
+    <item name="app_icon_frame" type="id" />
+    <item name="app_hover_glow" type="id" />
 </resources>

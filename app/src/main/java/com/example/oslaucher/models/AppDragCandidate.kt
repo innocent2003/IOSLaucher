@@ -28,5 +28,8 @@ internal data class FolderDragState(
     val label: TextView,
     val downX: Float,
     val downY: Float,
+    val previewViews: MutableList<View> = mutableListOf(),
+    var previewPosition: Int? = null,
+    var previewDropAfter: Boolean = false,
     var moved: Boolean = false
 )
