@@ -73,10 +73,20 @@ class AppAdapter(
                 width = iconSize
                 height = iconSize
             }
+            val iconFrame = itemView.findViewById<View>(R.id.app_icon_frame)
+            iconFrame.layoutParams = iconFrame.layoutParams?.apply {
+                width = iconSize
+                height = iconSize
+            }
         }
         val app = getItem(position)
         val icon = itemView.findViewById<ImageView>(R.id.app_icon)
         val name = itemView.findViewById<TextView>(R.id.app_name)
+        val hoverGlow = itemView.findViewById<View>(R.id.app_hover_glow)
+        val iconFrame = itemView.findViewById<View>(R.id.app_icon_frame)
+        hoverGlow.visibility = View.GONE
+        iconFrame.scaleX = 1f
+        iconFrame.scaleY = 1f
         if (app == null) {
             icon.setImageDrawable(null)
             name.text = ""

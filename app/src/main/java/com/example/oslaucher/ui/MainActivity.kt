@@ -11,6 +11,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -114,6 +115,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private val dragPreviewViews = mutableListOf<View>()
     private var dragPreviewPosition: Int? = null
     private var dragPreviewDropAfter = false
+    private var dragPreviewReorderedPackages: List<String?>? = null
     private var dragEdge = 0
     private var dragPageChangeRunnable: Runnable? = null
     private val dragPageHandler = Handler(Looper.getMainLooper())
@@ -834,6 +836,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     )
 
                     dock.removeAllViews()
+                    dock.clipChildren = false
+                    dock.clipToPadding = false
                     dockSlots.forEach { app ->
                         if (app == null) {
                             dock.addView(
@@ -852,19 +856,36 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             return@forEach
                         }
                         val icon = ImageView(this).apply {
+                            id = R.id.app_icon
                             setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
                             contentDescription = app.name
                             scaleType = ImageView.ScaleType.FIT_CENTER
                             setPadding(dp(6), dp(4), dp(6), dp(4))
                         }
+                        val hoverGlow = View(this@MainActivity).apply {
+                            id = R.id.app_hover_glow
+                            visibility = View.GONE
+                            background = createHoverGlowDrawable()
+                        }
                         val iconContainer = FrameLayout(this).apply {
                             tag = app.packageName
+                            clipChildren = false
+                            clipToPadding = false
                             addView(
                                 icon,
                                 FrameLayout.LayoutParams(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
                                     ViewGroup.LayoutParams.MATCH_PARENT
                                 )
+                            )
+                            addView(
+                                hoverGlow,
+                                FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                ).apply {
+                                    setMargins(dp(4), dp(2), dp(4), dp(2))
+                                }
                             )
                             addView(
                                 TextView(this@MainActivity).apply {
@@ -1260,6 +1281,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun startAppDrag(app: AppInfo, source: View) {
+        setHoverTarget(null)
         dragStartedInAppGrid = true
         draggedDockSlot = appsDock?.indexOfChild(source)?.takeIf { it >= 0 }
         dragStartedInDock = draggedDockSlot != null
@@ -1467,7 +1489,199 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         updateDragShadow(x - location[0], y - location[1])
     }
 
+    private var currentHoveredView: View? = null
+
+    private fun createHoverGlowDrawable(): Drawable {
+        val radius = dp(15).toFloat()
+        val outerGlow = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = radius
+            setStroke(dp(5), 0x9940C4FF.toInt())
+            setColor(0x3500E5FF)
+        }
+        val innerBorder = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = radius
+            setStroke(dp(2), 0xFFFFFFFF.toInt())
+            setColor(0x00000000)
+        }
+        return LayerDrawable(arrayOf(outerGlow, innerBorder))
+    }
+
+    private fun findHoverTarget(x: Float, y: Float): View? {
+        val dragged = draggedApp ?: folderDragState?.draggedApp ?: return null
+
+        val dock = appsDock
+        if (dock != null && currentScreen == Screen.APPS && !isAlphabeticalLibrary && folderDragState == null) {
+            for (index in 0 until dock.childCount) {
+                val child = dock.getChildAt(index) ?: continue
+                val pkg = child.tag as? String ?: continue
+                if (pkg == dragged.packageName) continue
+
+                val loc = IntArray(2)
+                child.getLocationOnScreen(loc)
+                val width = child.width.takeIf { it > 0 } ?: dp(58)
+                val height = child.height.takeIf { it > 0 } ?: dp(58)
+                val centerX = loc[0] + width / 2f
+                val centerY = loc[1] + height / 2f
+                val dx = x - centerX
+                val dy = y - centerY
+                val radius = max(dp(28), (width * 0.55f).toInt()).toFloat()
+
+                val insideBox = x >= loc[0] && x <= loc[0] + width &&
+                    y >= loc[1] && y <= loc[1] + height
+                if (insideBox || (dx * dx + dy * dy <= radius * radius)) {
+                    return child
+                }
+            }
+        }
+
+        val grid = appsPages?.getChildAt(appPageIndex) as? GridView
+        if (grid != null && currentScreen == Screen.APPS && !isAlphabeticalLibrary && folderDragState == null) {
+            for (childIndex in 0 until grid.childCount) {
+                val child = grid.getChildAt(childIndex) ?: continue
+                if (child.visibility != View.VISIBLE) continue
+                val position = grid.firstVisiblePosition + childIndex
+                val app = grid.adapter?.getItem(position) as? AppInfo ?: continue
+                if (app.packageName == dragged.packageName) continue
+
+                val iconFrame = child.findViewById<View>(R.id.app_icon_frame)
+                    ?: child.findViewById<View>(R.id.app_icon)
+                    ?: child
+                val loc = IntArray(2)
+                iconFrame.getLocationOnScreen(loc)
+                val width = iconFrame.width.takeIf { it > 0 } ?: dp(58)
+                val height = iconFrame.height.takeIf { it > 0 } ?: dp(58)
+                val centerX = loc[0] + width / 2f
+                val centerY = loc[1] + height / 2f
+                val dx = x - centerX
+                val dy = y - centerY
+                val radius = max(dp(28), (width * 0.55f).toInt()).toFloat()
+
+                val insideBox = x >= loc[0] && x <= loc[0] + width &&
+                    y >= loc[1] && y <= loc[1] + height
+                if (insideBox || (dx * dx + dy * dy <= radius * radius)) {
+                    return child
+                }
+            }
+        }
+
+        val folderGrid = folderDragState?.grid
+        if (folderGrid != null) {
+            for (childIndex in 0 until folderGrid.childCount) {
+                val child = folderGrid.getChildAt(childIndex) ?: continue
+                if (child.visibility != View.VISIBLE) continue
+                val position = folderGrid.firstVisiblePosition + childIndex
+                val app = folderDragState?.adapter?.getItem(position) ?: continue
+                if (app.packageName == dragged.packageName) continue
+
+                val iconFrame = child.findViewById<View>(R.id.app_icon_frame)
+                    ?: child.findViewById<View>(R.id.app_icon)
+                    ?: child
+                val loc = IntArray(2)
+                iconFrame.getLocationOnScreen(loc)
+                val width = iconFrame.width.takeIf { it > 0 } ?: dp(58)
+                val height = iconFrame.height.takeIf { it > 0 } ?: dp(58)
+                val centerX = loc[0] + width / 2f
+                val centerY = loc[1] + height / 2f
+                val dx = x - centerX
+                val dy = y - centerY
+                val radius = max(dp(28), (width * 0.55f).toInt()).toFloat()
+
+                val insideBox = x >= loc[0] && x <= loc[0] + width &&
+                    y >= loc[1] && y <= loc[1] + height
+                if (insideBox || (dx * dx + dy * dy <= radius * radius)) {
+                    return child
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun setHoverTarget(target: View?) {
+        if (currentHoveredView === target) return
+        currentHoveredView?.let { setIconHoverGlow(it, false) }
+        currentHoveredView = target
+        currentHoveredView?.let { setIconHoverGlow(it, true) }
+    }
+
+    private fun setIconHoverGlow(targetView: View, isHovered: Boolean) {
+        val iconFrame = targetView.findViewById<View>(R.id.app_icon_frame)
+            ?: (targetView as? FrameLayout)
+            ?: (targetView.findViewById<View>(R.id.app_icon)?.parent as? View)
+            ?: targetView
+
+        var glowView = targetView.findViewById<View>(R.id.app_hover_glow)
+        if (glowView == null && isHovered) {
+            (iconFrame as? ViewGroup)?.let { container ->
+                glowView = View(this).apply {
+                    id = R.id.app_hover_glow
+                    background = createHoverGlowDrawable()
+                    visibility = View.GONE
+                    container.addView(
+                        this,
+                        FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    )
+                }
+            }
+        }
+
+        if (isHovered) {
+            glowView?.let { g ->
+                if (g.background == null) {
+                    g.background = createHoverGlowDrawable()
+                }
+                g.animate().cancel()
+                g.visibility = View.VISIBLE
+                g.alpha = 0f
+                g.scaleX = 0.94f
+                g.scaleY = 0.94f
+                g.animate()
+                    .alpha(1f)
+                    .scaleX(1.02f)
+                    .scaleY(1.02f)
+                    .setDuration(150L)
+                    .start()
+            }
+            iconFrame.animate().cancel()
+            iconFrame.animate()
+                .scaleX(1.08f)
+                .scaleY(1.08f)
+                .setDuration(150L)
+                .start()
+        } else {
+            glowView?.let { g ->
+                g.animate().cancel()
+                g.animate()
+                    .alpha(0f)
+                    .scaleX(0.94f)
+                    .scaleY(0.94f)
+                    .setDuration(120L)
+                    .withEndAction { g.visibility = View.GONE }
+                    .start()
+            }
+            iconFrame.animate().cancel()
+            iconFrame.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(120L)
+                .start()
+        }
+    }
+
     private fun updateDragHoverPreview(x: Float, y: Float) {
+        val hoverTarget = findHoverTarget(x, y)
+        if (hoverTarget != null) {
+            setHoverTarget(hoverTarget)
+            clearDragHoverPreview()
+            return
+        }
+        setHoverTarget(null)
+
         val grid = appsPages?.getChildAt(appPageIndex) as? GridView
         val app = draggedApp
         if (grid == null || app == null || !dragStartedInAppGrid) {
@@ -1524,6 +1738,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         clearDragHoverPreview()
         dragPreviewPosition = position
         dragPreviewDropAfter = dropAfterTarget
+        dragPreviewReorderedPackages = reorderedPackages
         for (childIndex in 0 until grid.childCount) {
             val child = grid.getChildAt(childIndex)
             val childPosition = grid.firstVisiblePosition + childIndex
@@ -1558,6 +1773,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
         dragPreviewViews.clear()
         dragPreviewPosition = null
+        dragPreviewDropAfter = false
+        dragPreviewReorderedPackages = null
     }
 
     private fun navigateAppGridDuringDrag(x: Float) {
@@ -1602,6 +1819,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 return@Runnable
             }
 
+            setHoverTarget(null)
             showAppPage(targetPage)
             startAppPageDragWiggleWhenReady(targetPage)
             updateAppPageIndicator()
@@ -1706,9 +1924,62 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         } else {
             null
         }
-        val targetPackage = dockPackage ?: gridPackage
-        if (dockTargetIndex != null && dockPackage == null) {
-            return moveGridIconToDock(app, dockTargetIndex)
+
+        val previewReordered = dragPreviewReorderedPackages
+        if (currentHoveredView == null && insideGrid && previewReordered != null) {
+            dragPreviewViews.forEach { view ->
+                view.animate().cancel()
+                view.translationX = 0f
+                view.translationY = 0f
+            }
+            dragPreviewViews.clear()
+            dragPreviewPosition = null
+            dragPreviewDropAfter = false
+            dragPreviewReorderedPackages = null
+
+            if (dragStartedInDock) {
+                val packageName = app.packageName
+                draggedDockSlot?.let { dockEmptySlots += it }
+                if (packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                    val folderId = packageName.removePrefix(FOLDER_PACKAGE_PREFIX)
+                    dockFolderSlots.remove(folderId)
+                    saveDockFolderSlots()
+                } else {
+                    dockAppSlots.remove(packageName)
+                    dockRemovedAppPackages.add(packageName)
+                    saveDockRemovedAppPackages()
+                }
+                saveDockAppSlots()
+                saveDockEmptySlots()
+            }
+            appGridPackages = previewReordered
+            appGridOrderPackages.clear()
+            appGridOrderPackages.addAll(previewReordered)
+            saveAppGridOrder()
+            installedApps?.let { renderApps?.invoke(it) }
+            return true
+        }
+
+        val hoveredView = currentHoveredView
+        val hoveredDockIndex = hoveredView?.let { appsDock?.indexOfChild(it) }?.takeIf { it >= 0 }
+        val hoveredDockPackage = hoveredView?.tag as? String
+        val hoveredGridPosition = if (hoveredDockIndex == null && hoveredView != null && grid != null) {
+            (0 until grid.childCount).firstOrNull { grid.getChildAt(it) === hoveredView }?.let {
+                grid.firstVisiblePosition + it
+            }
+        } else {
+            null
+        }
+        val hoveredGridPackage = hoveredGridPosition?.let { pos ->
+            appGridPackages.getOrNull(appPageIndex * appGridPageSize + pos)
+        }
+        val hoveredPackage = hoveredDockPackage ?: hoveredGridPackage
+        val effectiveDockTargetIndex = hoveredDockIndex ?: dockTargetIndex
+        val targetPackage = hoveredPackage ?: dockPackage
+        val effectiveGridPosition = hoveredGridPosition ?: gridPosition
+
+        if (effectiveDockTargetIndex != null && targetPackage == null) {
+            return moveGridIconToDock(app, effectiveDockTargetIndex)
         }
         if (targetPackage != null && targetPackage != app.packageName) {
             val targetFolderId = targetPackage
@@ -1727,9 +1998,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 createFolderFromDrop(
                     app,
                     targetPackage,
-                    targetDockIndex = dockTargetIndex,
-                    targetGridIndex = if (dockPackage == null) {
-                        appPageIndex * appGridPageSize + gridPosition
+                    targetDockIndex = effectiveDockTargetIndex,
+                    targetGridIndex = if (dockPackage == null && hoveredDockPackage == null) {
+                        appPageIndex * appGridPageSize + effectiveGridPosition
                     } else {
                         -1
                     }
@@ -1925,6 +2196,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun finishAppDrag() {
         val shouldRefreshGrid = dragCreatedEmptyAppPage
         dragCreatedEmptyAppPage = false
+        setHoverTarget(null)
         clearDragHoverPreview()
         stopDragWiggle()
         dragShadow?.let(screenContainer::removeView)
@@ -2223,6 +2495,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     state.moved = true
                 }
                 updateFolderDragShadow(event.rawX, event.rawY)
+                val folderHover = findHoverTarget(event.rawX, event.rawY)
+                setHoverTarget(folderHover)
                 updateFolderDragPreview(state, event.rawX, event.rawY)
             }
             MotionEvent.ACTION_UP -> {
@@ -2545,6 +2819,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun finishFolderAppDrag() {
+        setHoverTarget(null)
         val state = folderDragState ?: return
         folderDragState = null
         clearFolderDragPreview(state)
