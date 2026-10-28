@@ -559,11 +559,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     lastHomeScreen = transition.toScreen
                 }
                 removeTransitionScreen(transition.outgoingFragment, transition.outgoingView)
-                if (transition.toScreen == Screen.APPS &&
-                    transition.fromScreen == Screen.HOME_SECOND
-                ) {
-                    animateAppPageEntrance(appPageIndex, transition.direction)
-                }
             } else {
                 openAppsAtLastPage = false
                 removeTransitionScreen(transition.incomingFragment, transition.incomingView)
