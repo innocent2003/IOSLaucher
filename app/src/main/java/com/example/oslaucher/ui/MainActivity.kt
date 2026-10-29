@@ -147,6 +147,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var isAlphabeticalLibrary = false
     private var preloadedSettingsView: View? = null
     private var launchedAsHome = false
+    private var returningFromOwnScreen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -184,9 +185,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
                     Screen.HOME -> {
-                        if (launchedAsHome) finish() else showScreen(Screen.SETTINGS, -1)
+                        if (!launchedAsHome) showScreen(Screen.SETTINGS, -1)
                     }
-                    Screen.LOADING, Screen.SETTINGS -> finish()
+                    Screen.LOADING -> finish()
+                    Screen.SETTINGS -> {
+                        if (launchedAsHome) showScreen(Screen.HOME, 1) else finish()
+                    }
                 }
             }
         })
@@ -207,7 +211,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        launchedAsHome = intent.categories?.contains(Intent.CATEGORY_HOME) == true
+        if (launchedAsHome && currentScreen == Screen.SETTINGS) {
+            showScreen(Screen.HOME, 0)
+        }
+    }
+
+    private fun startOwnScreen(target: Class<*>) {
+        returningFromOwnScreen = true
+        startActivity(Intent(this, target))
+    }
+
     private fun requestDefaultHomeRole() {
+        returningFromOwnScreen = true
         try {
             val homeIntent = Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_HOME)
@@ -284,6 +302,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     override fun onResume() {
         super.onResume()
+        if (returningFromOwnScreen) {
+            returningFromOwnScreen = false
+        } else if (launchedAsHome && currentScreen == Screen.SETTINGS) {
+            showScreen(Screen.HOME, 0)
+            return
+        }
         if (currentScreen == Screen.APPS) {
             screenContainer.getChildAt(0)
                 ?.findViewById<View>(R.id.main)
@@ -611,28 +635,28 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     requestDefaultHomeRole()
                 }
                 view.findViewById<View>(R.id.appearance_setting).setOnClickListener {
-                    startActivity(Intent(this, AppearanceActivity::class.java))
+                    startOwnScreen(AppearanceActivity::class.java)
                 }
                 view.findViewById<View>(R.id.general_setting).setOnClickListener {
-                    startActivity(Intent(this, GeneralSettingsActivity::class.java))
+                    startOwnScreen(GeneralSettingsActivity::class.java)
                 }
                 view.findViewById<View>(R.id.language_setting).setOnClickListener {
-                    startActivity(Intent(this, LanguageActivity::class.java))
+                    startOwnScreen(LanguageActivity::class.java)
                 }
                 view.findViewById<View>(R.id.screen_grid_setting).setOnClickListener {
-                    startActivity(Intent(this, ScreenGridActivity::class.java))
+                    startOwnScreen(ScreenGridActivity::class.java)
                 }
                 view.findViewById<View>(R.id.page_transition_setting).setOnClickListener {
-                    startActivity(Intent(this, PageTransitionActivity::class.java))
+                    startOwnScreen(PageTransitionActivity::class.java)
                 }
                 view.findViewById<View>(R.id.wallpaper_setting).setOnClickListener {
-                    startActivity(Intent(this, WallpaperActivity::class.java))
+                    startOwnScreen(WallpaperActivity::class.java)
                 }
                 view.findViewById<View>(R.id.app_effects_setting).setOnClickListener {
-                    startActivity(Intent(this, AppEffectsActivity::class.java))
+                    startOwnScreen(AppEffectsActivity::class.java)
                 }
                 view.findViewById<View>(R.id.change_app_icon_setting).setOnClickListener {
-                    startActivity(Intent(this, ChangeAppIconActivity::class.java))
+                    startOwnScreen(ChangeAppIconActivity::class.java)
                 }
             }
             Screen.HOME, Screen.HOME_SECOND -> Unit
