@@ -1,13 +1,13 @@
 package com.example.oslaucher.ui
 
 import android.content.Context
-import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
@@ -48,13 +48,15 @@ class ScreenGridActivity : AppCompatActivity() {
             findViewById(R.id.screen_grid_7)
         )
         findViewById<View>(R.id.screen_grid_options).background =
-            roundedBackground(0xFF1D1D1F.toInt())
+            roundedBackground(ContextCompat.getColor(this, R.color.settings_inset_panel))
         options.forEachIndexed { index, option ->
             val rows = MIN_GRID_ROWS + index
             option.setOnClickListener { selectGridRows(rows) }
         }
         findViewById<View>(R.id.screen_grid_back).apply {
-            background = circleBackground(0xFF303033.toInt())
+            background = circleBackground(
+                ContextCompat.getColor(this@ScreenGridActivity, R.color.settings_surface)
+            )
             setOnClickListener { finish() }
         }
         findViewById<View>(R.id.screen_grid_confirm).apply {
@@ -80,8 +82,18 @@ class ScreenGridActivity : AppCompatActivity() {
         preview.gridRows = selectedRows
         options.forEachIndexed { index, option ->
             val selected = MIN_GRID_ROWS + index == selectedRows
-            option.background = if (selected) roundedBackground(0xFF29292B.toInt()) else null
-            option.setTextColor(if (selected) Color.WHITE else 0xFF9D9D9F.toInt())
+            option.background = if (selected) {
+                roundedBackground(ContextCompat.getColor(option.context, R.color.settings_surface))
+            } else {
+                null
+            }
+            option.setTextColor(
+                if (selected) {
+                    ContextCompat.getColor(option.context, R.color.settings_text_primary)
+                } else {
+                    ContextCompat.getColor(option.context, R.color.settings_text_secondary)
+                }
+            )
             option.paint.isFakeBoldText = selected
         }
     }

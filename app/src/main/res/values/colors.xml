@@ -2,4 +2,22 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Semantic colors for the settings screens. values-night/colors.xml overrides these. -->
+    <color name="settings_screen_background">#FFF2F2F7</color>
+    <color name="settings_surface">#FFFFFFFF</color>
+    <color name="settings_surface_secondary">#FFE9E9EE</color>
+    <color name="settings_surface_selected">#FFDFDFE6</color>
+    <color name="settings_inset_panel">#FFFFFFFF</color>
+    <color name="settings_text_primary">#FF1C1C1E</color>
+    <color name="settings_text_secondary">#FF8E8E93</color>
+    <color name="settings_text_hint">#FFAFAFB6</color>
+    <color name="settings_divider">#FFD6D6DB</color>
+    <color name="settings_switch_off">#FFD1D1D6</color>
+    <color name="settings_switch_on">#FF31CE70</color>
+    <color name="settings_track">#FFC7C7CC</color>
+    <color name="settings_thumb">#FFFFFFFF</color>
+    <color name="settings_accent">#FF32CF70</color>
+    <color name="settings_radio_border">#FFB8B8B8</color>
+    <color name="settings_tile_overlay">#22000000</color>
 </resources>

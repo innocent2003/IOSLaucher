@@ -7,6 +7,7 @@ import android.view.View
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
@@ -39,7 +40,7 @@ class AppEffectsActivity : AppCompatActivity() {
         val preferences = getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         val checkedTrackTint = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-            intArrayOf(GREEN, TRACK_OFF)
+            intArrayOf(GREEN, ContextCompat.getColor(this, R.color.settings_switch_off))
         )
         listOf(
             EffectOption(
@@ -57,7 +58,9 @@ class AppEffectsActivity : AppCompatActivity() {
         ).forEach { option ->
             val toggle = findViewById<SwitchCompat>(option.switchId).apply {
                 isChecked = preferences.getBoolean(option.preferenceKey, option.defaultValue)
-                thumbTintList = ColorStateList.valueOf(WHITE)
+                thumbTintList = ColorStateList.valueOf(
+                    ContextCompat.getColor(this@AppEffectsActivity, R.color.settings_thumb)
+                )
                 trackTintList = checkedTrackTint
                 setOnCheckedChangeListener { _, isChecked ->
                     preferences.edit().putBoolean(option.preferenceKey, isChecked).apply()
@@ -74,7 +77,5 @@ class AppEffectsActivity : AppCompatActivity() {
         private const val CONTINUE_EFFECTS_KEY = "app_effects_continue"
         private const val OPEN_CLOSE_EFFECTS_KEY = "app_effects_open_close"
         private const val GREEN = 0xFF30D16B.toInt()
-        private const val TRACK_OFF = 0xFF777777.toInt()
-        private const val WHITE = 0xFFFFFFFF.toInt()
     }
 }

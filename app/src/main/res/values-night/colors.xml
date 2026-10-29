@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="settings_screen_background">#FF000000</color>
+    <color name="settings_surface">#FF383838</color>
+    <color name="settings_surface_secondary">#FF3C3C3E</color>
+    <color name="settings_surface_selected">#FF414143</color>
+    <color name="settings_inset_panel">#FF1D1D1F</color>
+    <color name="settings_text_primary">#FFFFFFFF</color>
+    <color name="settings_text_secondary">#FFA5A5A7</color>
+    <color name="settings_text_hint">#FF777777</color>
+    <color name="settings_divider">#FF555555</color>
+    <color name="settings_switch_off">#FF68686A</color>
+    <color name="settings_switch_on">#FF31CE70</color>
+    <color name="settings_track">#FF666666</color>
+    <color name="settings_thumb">#FFFFFFFF</color>
+    <color name="settings_accent">#FF32CF70</color>
+    <color name="settings_radio_border">#FFB8B8B8</color>
+    <color name="settings_tile_overlay">#55FFFFFF</color>
+</resources>

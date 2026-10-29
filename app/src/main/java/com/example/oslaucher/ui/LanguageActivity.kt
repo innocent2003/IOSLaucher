@@ -1,6 +1,5 @@
 package com.example.oslaucher.ui
 
-import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
@@ -11,6 +10,7 @@ import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -83,7 +83,9 @@ class LanguageActivity : AppCompatActivity() {
 
     private fun createLanguageRow(language: Language): View {
         val row = FrameLayout(this).apply {
-            background = roundedBackground(ROW_COLOR)
+            background = roundedBackground(
+                ContextCompat.getColor(this@LanguageActivity, R.color.settings_surface)
+            )
             isClickable = true
             isFocusable = true
             contentDescription = language.label
@@ -95,7 +97,7 @@ class LanguageActivity : AppCompatActivity() {
         val label = TextView(this).apply {
             text = language.label
             textSize = 16f
-            setTextColor(Color.WHITE)
+            setTextColor(ContextCompat.getColor(this@LanguageActivity, R.color.settings_text_primary))
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(18), 0, dp(48), 0)
         }
@@ -103,7 +105,7 @@ class LanguageActivity : AppCompatActivity() {
             tag = CHECK_TAG
             text = "✓"
             textSize = 21f
-            setTextColor(Color.WHITE)
+            setTextColor(ContextCompat.getColor(this@LanguageActivity, R.color.settings_text_primary))
             gravity = Gravity.CENTER
         }
         row.addView(
@@ -150,7 +152,6 @@ class LanguageActivity : AppCompatActivity() {
     companion object {
         private const val DEFAULT_LANGUAGE = "vi"
         private const val CHECK_TAG = "language_check"
-        private const val ROW_COLOR = 0xFF383838.toInt()
         private const val ACCENT_COLOR = 0xFF078BFF.toInt()
     }
 }

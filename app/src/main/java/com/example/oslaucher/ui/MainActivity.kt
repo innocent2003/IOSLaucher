@@ -147,6 +147,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var isAlphabeticalLibrary = false
     private var preloadedSettingsView: View? = null
     private var launchedAsHome = false
+    private var returningFromOwnScreen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -184,9 +185,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
                     Screen.HOME -> {
-                        if (launchedAsHome) finish() else showScreen(Screen.SETTINGS, -1)
+                        if (!launchedAsHome) showScreen(Screen.SETTINGS, -1)
                     }
-                    Screen.LOADING, Screen.SETTINGS -> finish()
+                    Screen.LOADING -> finish()
+                    Screen.SETTINGS -> {
+                        if (launchedAsHome) showScreen(Screen.HOME, 1) else finish()
+                    }
                 }
             }
         })
@@ -207,7 +211,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        launchedAsHome = intent.categories?.contains(Intent.CATEGORY_HOME) == true
+        if (launchedAsHome && currentScreen == Screen.SETTINGS) {
+            showScreen(Screen.HOME, 0)
+        }
+    }
+
+    private fun startOwnScreen(target: Class<*>) {
+        returningFromOwnScreen = true
+        startActivity(Intent(this, target))
+    }
+
     private fun requestDefaultHomeRole() {
+        returningFromOwnScreen = true
         try {
             val homeIntent = Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_HOME)
@@ -284,6 +302,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     override fun onResume() {
         super.onResume()
+        if (returningFromOwnScreen) {
+            returningFromOwnScreen = false
+        } else if (launchedAsHome && currentScreen == Screen.SETTINGS) {
+            showScreen(Screen.HOME, 0)
+            return
+        }
         if (currentScreen == Screen.APPS) {
             screenContainer.getChildAt(0)
                 ?.findViewById<View>(R.id.main)
@@ -450,8 +474,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val fromScreen = currentScreen
         val toScreen = when {
             fromScreen == Screen.HOME && direction < 0 -> Screen.APPS
+            // HOME_SECOND là trang ngoài cùng bên phải:
+            // vuốt phải (direction > 0) = quay lại APPS trang cuối
+            // vuốt trái (direction < 0) = dead-end, không làm gì
             fromScreen == Screen.HOME_SECOND && direction > 0 -> Screen.APPS
-            fromScreen == Screen.HOME_SECOND && direction < 0 -> Screen.APPS
             fromScreen == Screen.APPS && !isAlphabeticalLibrary &&
                 direction < 0 && appPageIndex == appPageCount - 1 -> Screen.HOME_SECOND
             fromScreen == Screen.APPS && !isAlphabeticalLibrary &&
@@ -480,7 +506,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
         } else {
             openAppsAtLastPage =
-                fromScreen == Screen.HOME_SECOND && direction < 0
+                fromScreen == Screen.HOME_SECOND
             val view = LayoutInflater.from(this)
                 .inflate(screenLayouts.getValue(toScreen), screenContainer, false)
                 .also { bindScreen(it, toScreen) }
@@ -557,11 +583,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     lastHomeScreen = transition.toScreen
                 }
                 removeTransitionScreen(transition.outgoingFragment, transition.outgoingView)
-                if (transition.toScreen == Screen.APPS &&
-                    transition.fromScreen == Screen.HOME_SECOND
-                ) {
-                    animateAppPageEntrance(appPageIndex, transition.direction)
-                }
             } else {
                 openAppsAtLastPage = false
                 removeTransitionScreen(transition.incomingFragment, transition.incomingView)
@@ -614,28 +635,28 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     requestDefaultHomeRole()
                 }
                 view.findViewById<View>(R.id.appearance_setting).setOnClickListener {
-                    startActivity(Intent(this, AppearanceActivity::class.java))
+                    startOwnScreen(AppearanceActivity::class.java)
                 }
                 view.findViewById<View>(R.id.general_setting).setOnClickListener {
-                    startActivity(Intent(this, GeneralSettingsActivity::class.java))
+                    startOwnScreen(GeneralSettingsActivity::class.java)
                 }
                 view.findViewById<View>(R.id.language_setting).setOnClickListener {
-                    startActivity(Intent(this, LanguageActivity::class.java))
+                    startOwnScreen(LanguageActivity::class.java)
                 }
                 view.findViewById<View>(R.id.screen_grid_setting).setOnClickListener {
-                    startActivity(Intent(this, ScreenGridActivity::class.java))
+                    startOwnScreen(ScreenGridActivity::class.java)
                 }
                 view.findViewById<View>(R.id.page_transition_setting).setOnClickListener {
-                    startActivity(Intent(this, PageTransitionActivity::class.java))
+                    startOwnScreen(PageTransitionActivity::class.java)
                 }
                 view.findViewById<View>(R.id.wallpaper_setting).setOnClickListener {
-                    startActivity(Intent(this, WallpaperActivity::class.java))
+                    startOwnScreen(WallpaperActivity::class.java)
                 }
                 view.findViewById<View>(R.id.app_effects_setting).setOnClickListener {
-                    startActivity(Intent(this, AppEffectsActivity::class.java))
+                    startOwnScreen(AppEffectsActivity::class.java)
                 }
                 view.findViewById<View>(R.id.change_app_icon_setting).setOnClickListener {
-                    startActivity(Intent(this, ChangeAppIconActivity::class.java))
+                    startOwnScreen(ChangeAppIconActivity::class.java)
                 }
             }
             Screen.HOME, Screen.HOME_SECOND -> Unit
@@ -3004,10 +3025,26 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         }
                         super.dispatchTouchEvent(cancel)
                         cancel.recycle()
+                    } else if (homeSwipeTransition == null && !isAlphabeticalLibrary) {
+                        // Boundary: ở trang đầu/cuối → thử bắt đầu HomeSwipeTransition mượt
+                        val homeTransition = startHomeSwipe(direction)
+                        if (homeTransition != null) {
+                            homeSwipeTransition = homeTransition
+                            val cancel = MotionEvent.obtain(event).apply {
+                                action = MotionEvent.ACTION_CANCEL
+                            }
+                            super.dispatchTouchEvent(cancel)
+                            cancel.recycle()
+                        }
                     }
                 }
                 if (appPageTransition != null) {
                     updateAppPageSwipe(appPageTransition, deltaX)
+                    return true
+                }
+                val boundaryHomeTransition = homeSwipeTransition
+                if (boundaryHomeTransition != null && currentScreen == Screen.APPS) {
+                    updateHomeSwipe(boundaryHomeTransition, deltaX)
                     return true
                 }
             }
@@ -3052,7 +3089,43 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         }
                         super.dispatchTouchEvent(cancel)
                         cancel.recycle()
-                        moveAppPageWithSwipe(direction)
+
+                        // Ưu tiên settle HomeSwipeTransition đang chạy từ boundary drag
+                        val boundaryTransition = homeSwipeTransition
+                        if (boundaryTransition != null) {
+                            val movedEnough =
+                                distance * boundaryTransition.direction / boundaryTransition.width >= 0.5f
+                            val flungFarEnough = abs(velocityX) >= swipeMinVelocity &&
+                                velocityX * boundaryTransition.direction > 0f
+                            updateHomeSwipe(boundaryTransition, distance)
+                            settleHomeSwipe(boundaryTransition, movedEnough || flungFarEnough, velocityX)
+                            recycleVelocityTracker()
+                            return true
+                        }
+
+                        val targetPage = appPageIndex + if (direction < 0) 1 else -1
+                        if (targetPage in 0 until appPageCount) {
+                            // Trang nội bộ: dùng moveAppPageWithSwipe bình thường
+                            moveAppPageWithSwipe(direction)
+                        } else if (!isAlphabeticalLibrary) {
+                            // Boundary: tạo HomeSwipeTransition với animation mượt
+                            transition = startHomeSwipe(direction)
+                            if (transition != null) {
+                                homeSwipeTransition = transition
+                            } else {
+                                // Fallback không có outgoing view
+                                moveAppPageWithSwipe(direction)
+                            }
+                        }
+                        if (transition != null) {
+                            val movedEnough =
+                                distance * transition.direction / transition.width >= 0.5f
+                            val flungFarEnough = abs(velocityX) >= swipeMinVelocity &&
+                                velocityX * transition.direction > 0f
+                            updateHomeSwipe(transition, distance)
+                            settleHomeSwipe(transition, movedEnough || flungFarEnough, velocityX)
+                            homeSwipeTransition = null
+                        }
                         recycleVelocityTracker()
                         return true
                     }

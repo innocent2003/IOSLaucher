@@ -11,6 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
@@ -62,7 +63,9 @@ class PageTransitionActivity : AppCompatActivity() {
         }
 
         optionRows.forEachIndexed { index, (row, _) ->
-            row.background = roundedBackground(OPTION_BACKGROUND)
+            row.background = roundedBackground(
+                ContextCompat.getColor(this, R.color.settings_surface_secondary)
+            )
             row.setOnClickListener {
                 selectedEffect = index
                 preferences.edit()
@@ -74,7 +77,9 @@ class PageTransitionActivity : AppCompatActivity() {
         }
 
         findViewById<View>(R.id.page_transition_back).apply {
-            background = circleBackground(0xFF303033.toInt())
+            background = circleBackground(
+                ContextCompat.getColor(this@PageTransitionActivity, R.color.settings_surface)
+            )
             setOnClickListener { finish() }
         }
         createPreviewIcons()
@@ -160,7 +165,10 @@ class PageTransitionActivity : AppCompatActivity() {
         optionRows.forEachIndexed { index, (row, check) ->
             val selected = index == selectedEffect
             row.background = roundedBackground(
-                if (selected) SELECTED_OPTION_BACKGROUND else OPTION_BACKGROUND
+                ContextCompat.getColor(
+                    this,
+                    if (selected) R.color.settings_surface_selected else R.color.settings_surface_secondary
+                )
             )
             check.visibility = if (selected) View.VISIBLE else View.GONE
         }
@@ -184,8 +192,6 @@ class PageTransitionActivity : AppCompatActivity() {
         private const val DEFAULT_EFFECT = 0
         private const val FADE_EFFECT = 4
         private const val PREVIEW_DURATION = 700L
-        private const val OPTION_BACKGROUND = 0xFF3C3C3E.toInt()
-        private const val SELECTED_OPTION_BACKGROUND = 0xFF414143.toInt()
         private val PREVIEW_ICONS = arrayOf(
             "🌈", "📊", "📝", "🪧",
             "📖", "🧮", "📅", "📷",
