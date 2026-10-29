@@ -1,7 +1,6 @@
 package com.example.oslaucher.ui
 
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
@@ -13,6 +12,7 @@ import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
@@ -79,7 +79,9 @@ class ChangeAppIconActivity : AppCompatActivity() {
         if (apps.isEmpty()) {
             appList.addView(TextView(this).apply {
                 text = "Không tìm thấy ứng dụng nào."
-                setTextColor(Color.WHITE)
+                setTextColor(
+                    ContextCompat.getColor(this@ChangeAppIconActivity, R.color.settings_text_primary)
+                )
                 textSize = 14f
                 setPadding(dp(16), dp(20), dp(16), dp(20))
             })
@@ -101,7 +103,9 @@ class ChangeAppIconActivity : AppCompatActivity() {
 
             val name = TextView(this).apply {
                 text = app.name
-                setTextColor(Color.WHITE)
+                setTextColor(
+                    ContextCompat.getColor(this@ChangeAppIconActivity, R.color.settings_text_primary)
+                )
                 textSize = 15f
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -141,7 +145,9 @@ class ChangeAppIconActivity : AppCompatActivity() {
 
             if (index < apps.lastIndex) {
                 appList.addView(View(this).apply {
-                    setBackgroundColor(0xFF555555.toInt())
+                    setBackgroundColor(
+                        ContextCompat.getColor(this@ChangeAppIconActivity, R.color.settings_divider)
+                    )
                 }, LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     dp(1)

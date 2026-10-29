@@ -9,6 +9,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
+import com.example.oslaucher.R
 
 class ScreenGridPreviewView @JvmOverloads constructor(
     context: Context,
@@ -171,7 +172,7 @@ class ScreenGridPreviewView @JvmOverloads constructor(
         val trackLeft = phone.right + 16f * density
         val trackTop = phone.top
         val trackBottom = phone.bottom
-        paint.color = 0xFF242426.toInt()
+        paint.color = context.getColor(R.color.settings_surface)
         canvas.drawRoundRect(
             trackLeft,
             trackTop,

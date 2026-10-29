@@ -9,6 +9,7 @@ import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
@@ -62,12 +63,14 @@ class GeneralSettingsActivity : AppCompatActivity() {
         )
         val checkedTrackTint = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-            intArrayOf(GREEN, TRACK_OFF)
+            intArrayOf(GREEN, ContextCompat.getColor(this, R.color.settings_switch_off))
         )
         options.forEach { option ->
             val toggle = findViewById<SwitchCompat>(option.switchId).apply {
                 isChecked = preferences.getBoolean(option.preferenceKey, option.defaultValue)
-                thumbTintList = ColorStateList.valueOf(WHITE)
+                thumbTintList = ColorStateList.valueOf(
+                    ContextCompat.getColor(this@GeneralSettingsActivity, R.color.settings_thumb)
+                )
                 trackTintList = checkedTrackTint
                 setOnCheckedChangeListener { _, isChecked ->
                     preferences.edit().putBoolean(option.preferenceKey, isChecked).apply()
@@ -113,7 +116,5 @@ class GeneralSettingsActivity : AppCompatActivity() {
         private const val MIN_ICON_SIZE_PERCENT = 50
         private const val ICON_SIZE_PERCENT_RANGE = 100
         private const val GREEN = 0xFF30D16B.toInt()
-        private const val TRACK_OFF = 0xFF777777.toInt()
-        private const val WHITE = 0xFFFFFFFF.toInt()
     }
 }

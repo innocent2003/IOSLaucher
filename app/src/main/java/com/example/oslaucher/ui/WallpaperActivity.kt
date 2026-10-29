@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.oslaucher.R
@@ -334,7 +335,13 @@ class WallpaperActivity : AppCompatActivity() {
             homePreview.setImageResource(wallpaperResources[selectedIndex])
         }
         dots.forEachIndexed { index, dot ->
-            dot.setTextColor(if (index == selectedIndex && uri == null) 0xFFFFFFFF.toInt() else 0xFF777777.toInt())
+            dot.setTextColor(
+                if (index == selectedIndex && uri == null) {
+                    ContextCompat.getColor(this, R.color.settings_text_primary)
+                } else {
+                    ContextCompat.getColor(this, R.color.settings_text_hint)
+                }
+            )
         }
     }
 

@@ -11,6 +11,15 @@
         <item name="android:navigationBarColor">#000000</item>
     </style>
 
+    <!-- Standalone settings screens: colours follow the light/dark setting. -->
+    <style name="Theme.Oslaucher.Settings" parent="Base.Theme.Oslaucher">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">@color/settings_screen_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/settings_screen_background</item>
+        <item name="android:textColorPrimary">@color/settings_text_primary</item>
+    </style>
+
     <style name="AppPreviewIcon">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">58dp</item>

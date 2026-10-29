@@ -3,7 +3,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#050505"
+    android:background="@color/settings_screen_background"
     android:fillViewport="true"
     android:clipToPadding="false">
 
@@ -27,7 +27,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/settings_title"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/settings_text_primary"
                 android:textSize="24sp"
                 android:textStyle="bold" />
 
@@ -35,14 +35,14 @@
                 android:id="@+id/open_home"
                 android:layout_width="wrap_content"
                 android:layout_height="52dp"
-                android:background="@drawable/bg_round_button"
+                android:background="@drawable/bg_round_surface"
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center"
                 android:paddingStart="18dp"
                 android:paddingEnd="18dp"
                 android:text="@string/home_title"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/settings_text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -53,7 +53,7 @@
             android:layout_marginTop="22dp"
             android:layout_marginBottom="20dp"
             android:text="@string/settings_welcome"
-            android:textColor="#E5E5E5"
+            android:textColor="@color/settings_text_secondary"
             android:textSize="14sp" />
 
         <LinearLayout
@@ -99,7 +99,7 @@
                 android:layout_height="68dp"
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                android:background="@drawable/bg_round_button"
+                android:background="@drawable/bg_round_surface"
                 android:gravity="center"
                 android:text="@string/premium"
                 android:textColor="#318CF5"
@@ -110,7 +110,7 @@
                 android:layout_height="68dp"
                 android:layout_marginHorizontal="4dp"
                 android:layout_weight="1"
-                android:background="@drawable/bg_round_button"
+                android:background="@drawable/bg_round_surface"
                 android:gravity="center"
                 android:text="@string/rate_app"
                 android:textColor="#318CF5"
@@ -121,10 +121,10 @@
                 android:layout_height="68dp"
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
-                android:background="@drawable/bg_round_button"
+                android:background="@drawable/bg_round_surface"
                 android:gravity="center"
                 android:text="@string/version_info"
-                android:textColor="#D0D0D0"
+                android:textColor="@color/settings_text_secondary"
                 android:textSize="14sp" />
         </LinearLayout>
 
@@ -132,7 +132,7 @@
             android:layout_width="match_parent"
             android:layout_height="210dp"
             android:layout_marginTop="34dp"
-            android:background="@drawable/bg_round_button"
+            android:background="@drawable/bg_round_surface"
             android:gravity="center"
             android:orientation="vertical"
             android:padding="16dp">
@@ -160,7 +160,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="@string/ad_launcher"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="14sp" />
 
                 <TextView
@@ -181,14 +181,14 @@
             android:layout_marginTop="22dp"
             android:layout_marginBottom="8dp"
             android:text="@string/general_settings"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/settings_text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_round_button"
+            android:background="@drawable/bg_round_surface"
             android:orientation="vertical"
             android:paddingHorizontal="14dp">
 
@@ -204,7 +204,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#14B9DC"
                     android:gravity="center"
                     android:text="▦"
@@ -227,7 +227,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -235,7 +235,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:id="@+id/general_setting"
@@ -249,7 +249,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#EEEEEE"
                     android:gravity="center"
                     android:text="⚙"
@@ -262,7 +262,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/general_settings"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -271,7 +271,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -279,7 +279,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -290,7 +290,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#45CBE5"
                     android:gravity="center"
                     android:text="❀"
@@ -306,7 +306,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:text="@string/wallpaper"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -315,7 +315,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -323,7 +323,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -334,7 +334,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#1775C8"
                     android:gravity="center"
                     android:text="☁"
@@ -347,7 +347,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/weather"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -356,7 +356,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -364,7 +364,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:id="@+id/appearance_setting"
@@ -378,7 +378,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#24B78B"
                     android:gravity="center"
                     android:text="◐"
@@ -391,7 +391,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/appearance"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -400,7 +400,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
         </LinearLayout>
@@ -411,14 +411,14 @@
             android:layout_marginTop="26dp"
             android:layout_marginBottom="8dp"
             android:text="@string/home_and_transitions"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/settings_text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_round_button"
+            android:background="@drawable/bg_round_surface"
             android:orientation="vertical"
             android:paddingHorizontal="14dp">
 
@@ -434,7 +434,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#4B83E8"
                     android:gravity="center"
                     android:text="▦"
@@ -447,7 +447,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/screen_grid"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -456,7 +456,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -464,7 +464,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:id="@+id/page_transition_setting"
@@ -478,7 +478,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#6559D8"
                     android:gravity="center"
                     android:text="▢"
@@ -491,7 +491,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/page_transition"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -500,7 +500,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -508,7 +508,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -519,7 +519,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#16B5DE"
                     android:gravity="center"
                     android:text="▤"
@@ -532,7 +532,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/app_library"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -541,7 +541,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -549,7 +549,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:id="@+id/app_effects_setting"
@@ -563,7 +563,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#6154D2"
                     android:gravity="center"
                     android:text="◎"
@@ -576,7 +576,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/app_effects"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -585,7 +585,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -593,7 +593,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -604,7 +604,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#D85B20"
                     android:gravity="center"
                     android:text="♟"
@@ -617,7 +617,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/notification_badges"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -626,7 +626,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
         </LinearLayout>
@@ -637,14 +637,14 @@
             android:layout_marginTop="26dp"
             android:layout_marginBottom="8dp"
             android:text="@string/customize_icons"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/settings_text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_round_button"
+            android:background="@drawable/bg_round_surface"
             android:orientation="vertical"
             android:paddingHorizontal="14dp">
 
@@ -657,7 +657,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#12AFD2"
                     android:gravity="center"
                     android:text="◎"
@@ -670,7 +670,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/hidden_apps"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -679,7 +679,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -687,7 +687,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:id="@+id/change_app_icon_setting"
@@ -701,7 +701,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#31A52C"
                     android:gravity="center"
                     android:text="⟳"
@@ -714,7 +714,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/change_app_icon"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -723,7 +723,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -731,7 +731,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -742,7 +742,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#3027C8"
                     android:gravity="center"
                     android:text="▣"
@@ -755,7 +755,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/icon_packs"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -764,7 +764,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -772,7 +772,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -783,7 +783,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#31A52C"
                     android:gravity="center"
                     android:text="▣"
@@ -796,7 +796,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/change_app_name"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -805,7 +805,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -813,7 +813,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:id="@+id/language_setting"
@@ -827,7 +827,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#12A8D2"
                     android:gravity="center"
                     android:text="文"
@@ -840,7 +840,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/language"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -849,7 +849,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
         </LinearLayout>
@@ -860,14 +860,14 @@
             android:layout_marginTop="26dp"
             android:layout_marginBottom="8dp"
             android:text="@string/contact_us"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/settings_text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_round_button"
+            android:background="@drawable/bg_round_surface"
             android:orientation="vertical"
             android:paddingHorizontal="14dp">
 
@@ -880,7 +880,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#39AAB7"
                     android:gravity="center"
                     android:text="⇩"
@@ -893,7 +893,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/download_more_apps"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -902,7 +902,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
 
@@ -910,7 +910,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginStart="74dp"
-                android:background="#555555" />
+                android:background="@color/settings_divider" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -921,7 +921,7 @@
                 <TextView
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:background="@drawable/bg_round_button"
+                    android:background="@drawable/bg_round_surface"
                     android:backgroundTint="#888888"
                     android:gravity="center"
                     android:text="▣"
@@ -934,7 +934,7 @@
                     android:layout_marginStart="22dp"
                     android:layout_weight="1"
                     android:text="@string/privacy_policy"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/settings_text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -943,7 +943,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="›"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
         </LinearLayout>
