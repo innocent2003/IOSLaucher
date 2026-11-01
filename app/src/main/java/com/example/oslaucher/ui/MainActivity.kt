@@ -3,6 +3,7 @@ package com.example.oslaucher.ui
 import android.animation.ObjectAnimator
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -95,6 +96,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appPageSwipeTransition: AppPageSwipeTransition? = null
     private var isLoadingApps = false
     private var isAppSelectionMode = false
+    private var isHomeEditMode = false
     private val selectedAppPackages = mutableSetOf<String>()
     private val appFolders = mutableListOf<AppFolder>()
     private val dockFolderSlots = mutableMapOf<String, Int>()
@@ -171,6 +173,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (isHomeEditMode) {
+                    finishHomeEditMode()
+                    return
+                }
                 if (isAppSelectionMode) {
                     exitAppSelectionMode()
                     return
@@ -315,7 +321,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (currentScreen == Screen.LOADING) return
+        preloadedSettingsView = null
+        showScreen(currentScreen, 0)
+    }
+
     private fun showScreen(screen: Screen, animationDirection: Int = 0) {
+        if (screen != Screen.APPS && (isHomeEditMode || isAppSelectionMode)) {
+            isHomeEditMode = false
+            isAppSelectionMode = false
+            selectedAppPackages.clear()
+            stopDragWiggle()
+        }
         currentScreen = screen
         if (screen == Screen.HOME || screen == Screen.HOME_SECOND) {
             lastHomeScreen = screen
@@ -667,6 +686,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
                 val pages = view.findViewById<ViewFlipper>(R.id.apps_pages)
                 val pageIndicator = view.findViewById<LinearLayout>(R.id.apps_page_indicator)
+                val editControls = view.findViewById<LinearLayout>(R.id.apps_edit_controls)
                 val selectionBar = view.findViewById<LinearLayout>(R.id.apps_selection_bar)
                 val selectionCount = view.findViewById<TextView>(R.id.apps_selection_count)
                 appsGridRendered = false
@@ -676,7 +696,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 val dock = view.findViewById<LinearLayout>(R.id.apps_dock)
                 appsDock = dock
                 val appLauncher: (AppInfo) -> Unit = { app ->
-                    if (app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                    if (isHomeEditMode && !isAppSelectionMode) {
+                        Unit
+                    } else if (app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
                         val folderId = app.packageName.removePrefix(FOLDER_PACKAGE_PREFIX)
                         appFolders.find { it.id == folderId }?.let { folder ->
                             showFolderContents(folder, installedApps.orEmpty())
@@ -691,7 +713,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                 }
                 val appLongPress: (AppInfo, View) -> Unit = { app, anchor ->
-                    if (isAppSelectionMode || app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)) {
+                    if (isAppSelectionMode || isHomeEditMode ||
+                        app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)
+                    ) {
                         startAppDrag(app, anchor)
                     } else {
                         appDragCandidate = AppDragCandidate(app, anchor)
@@ -700,9 +724,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
 
                 fun buildHomeApps(apps: List<AppInfo>) {
-                    if (isAppSelectionMode) stopDragWiggle()
+                    if (isAppSelectionMode || isHomeEditMode) stopDragWiggle()
                     (pages.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
-                        params.topMargin = dp(if (isAppSelectionMode) 8 else 22)
+                        params.topMargin = dp(
+                            if (isAppSelectionMode || isHomeEditMode) 8 else 22
+                        )
                         pages.layoutParams = params
                     }
                     val folderPackages = appFolders.flatMapTo(mutableSetOf()) { it.packageNames }
@@ -828,7 +854,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                                 onEmptySlotClick = {
                                     if (isAppSelectionMode) exitAppSelectionMode()
                                 },
-                                selectionBarHeight = selectionBar.layoutParams.height
+                                selectionBarHeight = selectionBar.layoutParams.height,
+                                onEmptySlotLongClick = {
+                                    isHomeEditMode = true
+                                    installedApps?.let { renderApps?.invoke(it) }
+                                }
                             ).apply {
                                 setGridApps(
                                     pageApps + List(appPageSize - pageApps.size) { null }
@@ -836,7 +866,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             }
                         }
                         gridView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                            if (isAppSelectionMode) refreshSelectionWiggle()
+                            if (isAppSelectionMode || isHomeEditMode) refreshSelectionWiggle()
                         }
                         pages.addView(gridView)
 
@@ -851,6 +881,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     pages.displayedChild = appPageIndex
                     updateAppPageIndicator()
                     selectionBar.visibility = if (isAppSelectionMode) View.VISIBLE else View.GONE
+                    editControls.visibility = if (isHomeEditMode) View.VISIBLE else View.GONE
                     selectionCount.text = getString(
                         R.string.selected_apps,
                         selectedAppPackages.size
@@ -931,7 +962,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             )
                             setOnClickListener { appLauncher(app) }
                             setOnLongClickListener {
-                                if (isAppSelectionMode ||
+                                if (isAppSelectionMode || isHomeEditMode ||
                                     app.packageName.startsWith(FOLDER_PACKAGE_PREFIX)
                                 ) {
                                     startAppDrag(app, this)
@@ -955,6 +986,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
                 view.findViewById<View>(R.id.apps_selection_folder).setOnClickListener {
                     promptCreateAppFolder()
+                }
+                view.findViewById<View>(R.id.apps_edit_button).setOnClickListener {
+                    showHomeEditMenu(it)
+                }
+                view.findViewById<View>(R.id.apps_edit_done).setOnClickListener {
+                    finishHomeEditMode()
                 }
                 renderApps = { apps -> buildHomeApps(apps) }
 
@@ -1295,10 +1332,42 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         popupWindow.showAtLocation(anchor, Gravity.NO_GRAVITY, x, y)
     }
 
+    private fun showHomeEditMenu(anchor: View) {
+        val popupView = LayoutInflater.from(this).inflate(R.layout.popup_home_edit, null)
+        val popupWindow = PopupWindow(
+            popupView,
+            dp(228),
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            true
+        ).apply {
+            setBackgroundDrawable(ColorDrawable(0x00000000))
+            isOutsideTouchable = true
+            elevation = dp(18).toFloat()
+        }
+        popupView.findViewById<View>(R.id.home_edit_add_widget).setOnClickListener {
+            popupWindow.dismiss()
+            Toast.makeText(this, R.string.home_edit_widget_unavailable, Toast.LENGTH_SHORT).show()
+        }
+        popupView.findViewById<View>(R.id.home_edit_customize).setOnClickListener {
+            popupWindow.dismiss()
+            startOwnScreen(ScreenGridActivity::class.java)
+        }
+        popupView.findViewById<View>(R.id.home_edit_wallpaper).setOnClickListener {
+            popupWindow.dismiss()
+            startOwnScreen(WallpaperActivity::class.java)
+        }
+        popupWindow.showAsDropDown(anchor, 0, dp(4))
+    }
+
     private fun exitAppSelectionMode() {
         isAppSelectionMode = false
         selectedAppPackages.clear()
         installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun finishHomeEditMode() {
+        isHomeEditMode = false
+        exitAppSelectionMode()
     }
 
     private fun startAppDrag(app: AppInfo, source: View) {
@@ -1450,7 +1519,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun refreshSelectionWiggle() {
-        if (!isAppSelectionMode) {
+        if (!isAppSelectionMode && !isHomeEditMode) {
             stopDragWiggle()
             return
         }

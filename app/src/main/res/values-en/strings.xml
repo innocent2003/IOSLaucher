@@ -67,6 +67,12 @@
     <string name="category_recent">Recently added</string>
     <string name="folder_accessibility">%1$s, %2$d apps</string>
     <string name="selected_apps">%1$d selected</string>
+    <string name="home_edit">Edit</string>
+    <string name="home_edit_done">Done</string>
+    <string name="home_edit_add_widget">Add Widget</string>
+    <string name="home_edit_customize">Customize</string>
+    <string name="home_edit_wallpaper">Wallpaper</string>
+    <string name="home_edit_widget_unavailable">Adding widgets is not available yet.</string>
     <string name="letter_accessibility">Letter %1$s</string>
     <string name="cant_open_app">Cannot open app</string>
     <string name="cant_open_app_info">Cannot open app info</string>

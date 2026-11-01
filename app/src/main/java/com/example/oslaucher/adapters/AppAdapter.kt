@@ -22,7 +22,8 @@ class AppAdapter(
     private val isSelectionMode: () -> Boolean = { false },
     private val canSelectApp: (AppInfo) -> Boolean = { true },
     private val onEmptySlotClick: (() -> Unit)? = null,
-    private val selectionBarHeight: Int = 0
+    private val selectionBarHeight: Int = 0,
+    private val onEmptySlotLongClick: (() -> Unit)? = null
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
     private val iconMaxSize = (58 * context.resources.displayMetrics.density).toInt()
@@ -93,9 +94,12 @@ class AppAdapter(
             itemView.contentDescription = null
             itemView.findViewById<TextView>(R.id.app_selection_badge).visibility = View.GONE
             itemView.setOnClickListener { onEmptySlotClick?.invoke() }
-            itemView.setOnLongClickListener(null)
+            itemView.setOnLongClickListener {
+                onEmptySlotLongClick?.invoke()
+                onEmptySlotLongClick != null
+            }
             itemView.isClickable = onEmptySlotClick != null
-            itemView.isLongClickable = false
+            itemView.isLongClickable = onEmptySlotLongClick != null
             return itemView
         }
         icon.setImageDrawable(AppIconUtils.getIcon(inflater.context, app))

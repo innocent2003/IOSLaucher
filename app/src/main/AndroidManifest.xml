@@ -69,6 +69,7 @@
             android:theme="@style/Theme.Oslaucher.Settings" />
         <activity
             android:name=".ui.MainActivity"
+            android:configChanges="uiMode"
             android:exported="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">

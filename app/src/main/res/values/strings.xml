@@ -67,6 +67,12 @@
     <string name="category_recent">Đã thêm gần đây</string>
     <string name="folder_accessibility">%1$s, %2$d ứng dụng</string>
     <string name="selected_apps">%1$d đã chọn</string>
+    <string name="home_edit">Sửa</string>
+    <string name="home_edit_done">Xong</string>
+    <string name="home_edit_add_widget">Thêm tiện ích</string>
+    <string name="home_edit_customize">Tùy chỉnh</string>
+    <string name="home_edit_wallpaper">Hình nền</string>
+    <string name="home_edit_widget_unavailable">Tính năng thêm tiện ích chưa khả dụng.</string>
     <string name="letter_accessibility">Chữ %1$s</string>
     <string name="cant_open_app">Không thể mở ứng dụng</string>
     <string name="cant_open_app_info">Không thể mở thông tin ứng dụng</string>
