@@ -11,8 +11,10 @@ import java.io.IOException
 object LauncherWallpaper {
     fun applyTo(view: View): Boolean {
         return try {
+            val usesSavedWallpaper = LauncherConfig.usesSavedWallpaper(view.context)
             val preferences = view.context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-            val selectedUri = preferences.getString(URI_KEY, null)?.let(Uri::parse)
+            val selectedUri =
+                if (usesSavedWallpaper) preferences.getString(URI_KEY, null)?.let(Uri::parse) else null
             val selectedWallpaper = try {
                 when {
                     selectedUri != null -> {
@@ -24,7 +26,7 @@ object LauncherWallpaper {
                             }
                         }
                     }
-                    preferences.contains(RESOURCE_KEY) ->
+                    usesSavedWallpaper && preferences.contains(RESOURCE_KEY) ->
                         view.context.getDrawable(preferences.getInt(RESOURCE_KEY, 0))
                     else -> null
                 }
