@@ -56,7 +56,11 @@ internal class LauncherLayoutRepository(context: Context) {
                             HomeWidgetPlacement(
                                 appWidgetId = appWidgetId,
                                 pageIndex = widget.optInt(PAGE_INDEX_KEY, 0).coerceAtLeast(0),
-                                launcherWidgetType = launcherWidgetType
+                                launcherWidgetType = launcherWidgetType,
+                                positionX = widget.optDouble(POSITION_X_KEY, -1.0)
+                                    .toFloat().takeIf { it in 0f..1f },
+                                positionY = widget.optDouble(POSITION_Y_KEY, -1.0)
+                                    .toFloat().takeIf { it in 0f..1f }
                             )
                         )
                     }
@@ -79,6 +83,8 @@ internal class LauncherLayoutRepository(context: Context) {
                         widget.launcherWidgetType?.let {
                             put(LAUNCHER_WIDGET_TYPE_KEY, it.id)
                         }
+                        widget.positionX?.let { put(POSITION_X_KEY, it.toDouble()) }
+                        widget.positionY?.let { put(POSITION_Y_KEY, it.toDouble()) }
                     }
             )
         }
@@ -218,6 +224,8 @@ internal class LauncherLayoutRepository(context: Context) {
         const val APP_WIDGET_ID_KEY = "app_widget_id"
         const val LAUNCHER_WIDGET_TYPE_KEY = "launcher_widget_type"
         const val PAGE_INDEX_KEY = "page_index"
+        const val POSITION_X_KEY = "position_x"
+        const val POSITION_Y_KEY = "position_y"
         const val ID_KEY = "id"
         const val NAME_KEY = "name"
         const val PACKAGES_KEY = "packages"

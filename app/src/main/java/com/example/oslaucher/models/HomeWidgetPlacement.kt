@@ -3,7 +3,9 @@ package com.example.oslaucher.models
 data class HomeWidgetPlacement(
     val appWidgetId: Int,
     val pageIndex: Int,
-    val launcherWidgetType: LauncherWidgetType? = null
+    val launcherWidgetType: LauncherWidgetType? = null,
+    val positionX: Float? = null,
+    val positionY: Float? = null
 )
 
 enum class LauncherWidgetType(val id: String, val labelResId: Int) {

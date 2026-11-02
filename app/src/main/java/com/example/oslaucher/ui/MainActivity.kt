@@ -86,6 +86,7 @@ import java.util.UUID
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity(), HomeScreenActions {
     private val appRepository by lazy { InstalledAppRepository(applicationContext) }
@@ -107,6 +108,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var openAppsAtLastPage = false
     private val appGridOrderPackages = mutableListOf<String?>()
     private var dragCreatedEmptyAppPage = false
+    private var widgetLayoutRetryPosted = false
     private var appPageSwipeTransition: AppPageSwipeTransition? = null
     private var isLoadingApps = false
     private var isAppSelectionMode = false
@@ -118,11 +120,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private val dockEmptySlots = mutableSetOf<Int>()
     private val dockRemovedAppPackages = mutableSetOf<String>()
     private var appsDock: LinearLayout? = null
-    private var appsWidgetContainer: LinearLayout? = null
+    private var appsWidgetContainer: FrameLayout? = null
     private val homeWidgets = mutableListOf<HomeWidgetPlacement>()
     private val appWidgetViews = mutableMapOf<Int, AppWidgetHostView>()
     private var draggedWidgetPlacement: HomeWidgetPlacement? = null
     private var draggedWidgetSource: View? = null
+    private var dragShadowCenteredOnPointer = false
     private var dragCreatedWidgetPageIndex: Int? = null
     private var pendingWidgetId: Int? = null
     private var pendingWidgetPage = 0
@@ -871,25 +874,24 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     val gridRows = LauncherConfig.gridRows(this@MainActivity, defaultHomeActive)
                     val appPageSize = 4 * gridRows
                     appGridPageSize = appPageSize
-                    val gridHeight = appGridBaseHeight(gridRows)
                     val appItemCount = orderedGridApps.count { it != null }
                     val sourcePageCount =
                         (orderedGridApps.size + appPageSize - 1) / appPageSize
                     val lastWidgetPage = homeWidgets.maxOfOrNull { it.pageIndex } ?: -1
                     val pageRows = mutableListOf<Int>()
                     val appChunks = mutableListOf<List<AppInfo?>>()
-                    val overflowApps = mutableListOf<AppInfo>()
+                    val reflowAroundWidgets = homeWidgets.isNotEmpty()
+                    val pageCount = maxOf(
+                        sourcePageCount,
+                        lastWidgetPage + 1,
+                        (dragCreatedWidgetPageIndex ?: -1) + 1,
+                        if (dragCreatedEmptyAppPage) appItemCount / appPageSize + 1 else 0
+                    )
+                    val displacedApps = mutableListOf<AppInfo>()
                     var pageIndex = 0
                     while (
-                        pageIndex < sourcePageCount ||
-                        overflowApps.isNotEmpty() ||
-                        pageIndex <= lastWidgetPage ||
-                        pageIndex == dragCreatedWidgetPageIndex ||
-                        (dragCreatedEmptyAppPage &&
-                            pageIndex == appItemCount / appPageSize)
+                        pageIndex < pageCount || displacedApps.isNotEmpty()
                     ) {
-                        val rows = appRowsForPage(pageIndex, gridRows, gridHeight)
-                        val pageCapacity = rows * 4
                         val pageStart = pageIndex * appPageSize
                         val pageEnd = minOf(pageStart + appPageSize, orderedGridApps.size)
                         val sourceSlots = if (pageStart < pageEnd) {
@@ -897,24 +899,44 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         } else {
                             emptyList()
                         }
-                        val pageApps = buildList {
-                            addAll(overflowApps)
-                            addAll(sourceSlots.filterNotNull())
-                        }
-                        val shouldPackPage = overflowApps.isNotEmpty() ||
-                            homeWidgets.any { it.pageIndex == pageIndex } ||
-                            sourceSlots.drop(pageCapacity).any { it != null }
-                        overflowApps.clear()
-                        val pageItems = if (shouldPackPage) {
-                            pageApps.take(pageCapacity).also {
-                                overflowApps.addAll(pageApps.drop(pageCapacity))
-                            }
+                        if (reflowAroundWidgets) {
+                            val blockedSlots = widgetBlockedAppSlots(pageIndex, gridRows)
+                            val pendingApps = displacedApps.toMutableList()
+                            displacedApps.clear()
+                            appChunks.add(buildList {
+                                repeat(appPageSize) { slot ->
+                                    val sourceApp = sourceSlots.getOrNull(slot)
+                                    when {
+                                        slot in blockedSlots -> {
+                                            if (sourceApp != null) pendingApps += sourceApp
+                                            add(null)
+                                        }
+                                        pendingApps.isNotEmpty() -> {
+                                            add(pendingApps.removeAt(0))
+                                            if (sourceApp != null) pendingApps += sourceApp
+                                        }
+                                        else -> add(sourceApp)
+                                    }
+                                }
+                            })
+                            displacedApps.addAll(pendingApps)
                         } else {
-                            sourceSlots.take(pageCapacity)
+                            appChunks += sourceSlots + List(appPageSize - sourceSlots.size) { null }
                         }
-                        appChunks += pageItems + List(pageCapacity - pageItems.size) { null }
-                        pageRows += rows
+                        pageRows += gridRows
                         pageIndex++
+                    }
+                    if (reflowAroundWidgets && !widgetLayoutRetryPosted) {
+                        val previousGeometry = widgetGridGeometryKey(pages)
+                        widgetLayoutRetryPosted = true
+                        pages.post {
+                            widgetLayoutRetryPosted = false
+                            if (currentScreen == Screen.APPS && homeWidgets.isNotEmpty() &&
+                                previousGeometry != widgetGridGeometryKey(pages)
+                            ) {
+                                installedApps?.let { renderApps?.invoke(it) }
+                            }
+                        }
                     }
                     appGridPackages = MutableList<String?>(appChunks.size * appPageSize) { null }.also { packages ->
                         appChunks.forEachIndexed { page, pageApps ->
@@ -923,7 +945,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             }
                         }
                     }
-                    if (appGridOrderPackages != appGridPackages) {
+                    if (!reflowAroundWidgets && appGridOrderPackages != appGridPackages) {
                         appGridOrderPackages.clear()
                         appGridOrderPackages.addAll(appGridPackages)
                         saveAppGridOrder()
@@ -1308,6 +1330,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             homeSwipeSettling = false
             refreshSelectionWiggle()
         }
+
     }
 
     private fun moveAppPageWithSwipe(direction: Int) {
@@ -1706,32 +1729,109 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun findWidgetPage(pageIndex: Int): Int = pageIndex.coerceAtLeast(0)
 
-    private fun appGridBaseHeight(gridRows: Int): Int {
-        val selectionHeight = if (isAppSelectionMode) viewSelectionBarHeight() else 0
-        val measuredHeight = (appsPages?.height ?: 0) +
-            (appsWidgetContainer?.height ?: 0) +
-            selectionHeight
-        return measuredHeight.takeIf { it > 0 } ?: dp(gridRows * FALLBACK_APP_ROW_HEIGHT_DP)
+    private fun appScreenWidgetWidthPx(container: FrameLayout? = appsWidgetContainer): Int {
+        val containerWidth = container?.width?.takeIf { it > 0 }
+            ?: screenContainer.width.takeIf { it > 0 }
+            ?: resources.displayMetrics.widthPixels
+        val horizontalPadding = container?.let { it.paddingLeft + it.paddingRight }
+            ?.takeIf { it > 0 } ?: dp(WIDGET_SIDE_INSET_DP * 2)
+        return ((containerWidth - horizontalPadding - dp(WIDGET_HORIZONTAL_GAP_DP)) / 2)
+            .coerceAtLeast(1)
     }
 
-    private fun appRowsForPage(pageIndex: Int, gridRows: Int, baseHeight: Int): Int {
-        val widgetCount = homeWidgets.count { it.pageIndex == pageIndex }
-        if (widgetCount == 0) return gridRows
-        val widgetRows = (widgetCount + WIDGETS_PER_ROW - 1) / WIDGETS_PER_ROW
-        val widgetHeight = dp(
-            widgetRows * (LAUNCHER_WIDGET_HEIGHT_DP + WIDGET_VERTICAL_MARGINS_DP)
+    private fun appScreenWidgetWidthDp(container: FrameLayout? = appsWidgetContainer): Int =
+        (appScreenWidgetWidthPx(container) / resources.displayMetrics.density)
+            .roundToInt().coerceAtLeast(1)
+
+    private fun widgetPositionMaxima(
+        container: FrameLayout,
+        widgetWidth: Int,
+        widgetHeight: Int
+    ): Pair<Int, Int> {
+        val width = container.width.takeIf { it > 0 }
+            ?: screenContainer.width.takeIf { it > 0 }
+            ?: resources.displayMetrics.widthPixels
+        val height = container.height.takeIf { it > 0 }
+            ?: screenContainer.height.takeIf { it > 0 }
+            ?: resources.displayMetrics.heightPixels
+        return (width - container.paddingLeft - container.paddingRight - widgetWidth)
+            .coerceAtLeast(0) to
+            (height - container.paddingTop - container.paddingBottom - widgetHeight)
+                .coerceAtLeast(0)
+    }
+
+    private fun widgetGridGeometryKey(pages: ViewFlipper): String {
+        val location = IntArray(2)
+        pages.getLocationOnScreen(location)
+        return "${location[0]}:${location[1]}:${pages.width}:${pages.height}"
+    }
+
+    private fun widgetBlockedAppSlots(pageIndex: Int, gridRows: Int): Set<Int> {
+        val container = appsWidgetContainer ?: return emptySet()
+        val pages = appsPages ?: return emptySet()
+        if (container.width <= 0 || container.height <= 0 ||
+            pages.width <= 0 || pages.height <= 0
+        ) return emptySet()
+        val pageWidgets = homeWidgets.filter { it.pageIndex == pageIndex }
+        if (pageWidgets.isEmpty()) return emptySet()
+
+        val widgetWidth = appScreenWidgetWidthPx(container).toFloat()
+        val widgetHeight = dp(LAUNCHER_WIDGET_HEIGHT_DP).toFloat()
+        val (maxLeft, maxTop) = widgetPositionMaxima(
+            container,
+            widgetWidth.toInt(),
+            widgetHeight.toInt()
         )
-        val baseRowHeight = (baseHeight / gridRows).coerceAtLeast(1)
-        val reservedRows = (widgetHeight + baseRowHeight - 1) / baseRowHeight
-        return (gridRows - reservedRows).coerceAtLeast(0)
+        val containerLocation = IntArray(2)
+        val pagesLocation = IntArray(2)
+        container.getLocationOnScreen(containerLocation)
+        pages.getLocationOnScreen(pagesLocation)
+        val gridCellWidth = pages.width / 4f
+        val gridCellHeight = pages.height / gridRows.coerceAtLeast(1)
+        val blockedSlots = mutableSetOf<Int>()
+
+        pageWidgets.forEachIndexed { index, placement ->
+            val defaultPosition = defaultWidgetPosition(
+                index,
+                container,
+                widgetWidth.toInt(),
+                widgetHeight.toInt()
+            )
+            val left = containerLocation[0] + container.paddingLeft +
+                ((placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f) * maxLeft)
+            val top = containerLocation[1] + container.paddingTop +
+                ((placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f) * maxTop)
+            val widgetBounds = RectF(left, top, left + widgetWidth, top + widgetHeight)
+
+            repeat(gridRows) { row ->
+                repeat(4) { column ->
+                    val slot = row * 4 + column
+                    val cellBounds = RectF(
+                        pagesLocation[0].toFloat() + column * gridCellWidth,
+                        pagesLocation[1].toFloat() + row * gridCellHeight,
+                        pagesLocation[0].toFloat() + (column + 1) * gridCellWidth,
+                        pagesLocation[1].toFloat() + (row + 1) * gridCellHeight
+                    )
+                    if (RectF.intersects(widgetBounds, cellBounds)) blockedSlots += slot
+                }
+            }
+        }
+        return blockedSlots
     }
 
-    private fun appScreenWidgetWidthDp(): Int =
-        (((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() -
-            APP_SCREEN_WIDGET_HORIZONTAL_INSETS_DP) / WIDGETS_PER_ROW).coerceAtLeast(1)
-
-    private fun viewSelectionBarHeight(): Int =
-        findViewById<View?>(R.id.apps_selection_bar)?.height ?: 0
+    private fun defaultWidgetPosition(
+        index: Int,
+        container: FrameLayout,
+        widgetWidth: Int,
+        widgetHeight: Int
+    ): Pair<Float, Float> {
+        val (maxLeft, maxTop) = widgetPositionMaxima(container, widgetWidth, widgetHeight)
+        val left = if (index % 2 == 0) 0 else maxLeft
+        val top = (dp(WIDGET_DEFAULT_TOP_DP) +
+            (index / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))).coerceAtMost(maxTop)
+        return (left.toFloat() / maxLeft.coerceAtLeast(1)) to
+            (top.toFloat() / maxTop.coerceAtLeast(1))
+    }
 
     private fun showAddedWidgetPage(pageIndex: Int) {
         appPageIndex = pageIndex
@@ -1750,25 +1850,47 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
         container.removeAllViews()
         val pageWidgets = homeWidgets.filter { it.pageIndex == appPageIndex }
-        container.visibility = if (pageWidgets.isEmpty()) View.GONE else View.VISIBLE
+        container.visibility = View.VISIBLE
         val missingWidgets = mutableListOf<HomeWidgetPlacement>()
-        val widgetFrames = mutableListOf<View>()
-        pageWidgets.forEach { placement ->
+        var savedDefaultPositions = false
+        val widgetWidth = appScreenWidgetWidthPx(container)
+        val widgetHeight = dp(LAUNCHER_WIDGET_HEIGHT_DP)
+        val (maxLeft, maxTop) = widgetPositionMaxima(container, widgetWidth, widgetHeight)
+        pageWidgets.forEachIndexed { index, placement ->
+            val defaultPosition = defaultWidgetPosition(
+                index,
+                container,
+                widgetWidth,
+                widgetHeight
+            )
+            val positionX = placement.positionX ?: defaultPosition.first
+            val positionY = placement.positionY ?: defaultPosition.second
+            val positionedPlacement = if (
+                placement.positionX == null || placement.positionY == null
+            ) {
+                placement.copy(positionX = positionX, positionY = positionY).also { updated ->
+                    val storedIndex = homeWidgets.indexOf(placement)
+                    if (storedIndex >= 0) homeWidgets[storedIndex] = updated
+                    savedDefaultPositions = true
+                }
+            } else {
+                placement
+            }
             val widgetContent: View
-            val launcherWidgetType = placement.launcherWidgetType
+            val launcherWidgetType = positionedPlacement.launcherWidgetType
             if (launcherWidgetType != null) {
                 widgetContent = LauncherWidgetFactory.create(this, launcherWidgetType)
             } else {
-                val provider = appWidgetManager.getAppWidgetInfo(placement.appWidgetId)
+                val provider = appWidgetManager.getAppWidgetInfo(positionedPlacement.appWidgetId)
                 if (provider == null) {
-                    Log.w(TAG, "Removing unavailable widget ${placement.appWidgetId}")
-                    missingWidgets += placement
-                    appWidgetViews.remove(placement.appWidgetId)
-                    appWidgetHost.deleteAppWidgetId(placement.appWidgetId)
-                    return@forEach
+                    Log.w(TAG, "Removing unavailable widget ${positionedPlacement.appWidgetId}")
+                    missingWidgets += positionedPlacement
+                    appWidgetViews.remove(positionedPlacement.appWidgetId)
+                    appWidgetHost.deleteAppWidgetId(positionedPlacement.appWidgetId)
+                    return@forEachIndexed
                 }
 
-                val widgetWidthDp = appScreenWidgetWidthDp()
+                val widgetWidthDp = appScreenWidgetWidthDp(container)
                 val widgetHeightDp = LAUNCHER_WIDGET_HEIGHT_DP
                 val options = Bundle().apply {
                     putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widgetWidthDp)
@@ -1776,14 +1898,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, widgetHeightDp)
                     putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, widgetHeightDp)
                 }
-                appWidgetManager.updateAppWidgetOptions(placement.appWidgetId, options)
-                widgetContent = appWidgetViews.getOrPut(placement.appWidgetId) {
-                    appWidgetHost.createView(this, placement.appWidgetId, provider)
+                appWidgetManager.updateAppWidgetOptions(positionedPlacement.appWidgetId, options)
+                widgetContent = appWidgetViews.getOrPut(positionedPlacement.appWidgetId) {
+                    appWidgetHost.createView(this, positionedPlacement.appWidgetId, provider)
                 }
             }
             (widgetContent.parent as? ViewGroup)?.removeView(widgetContent)
             val widgetFrame = FrameLayout(this).apply {
-                tag = placement
+                tag = positionedPlacement
                 background = getDrawable(R.drawable.bg_glass)
                 clipChildren = false
                 clipToPadding = false
@@ -1807,53 +1929,37 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             }
                             elevation = dp(8).toFloat()
                             setOnClickListener {
-                                confirmRemoveHomeWidget(placement)
+                                confirmRemoveHomeWidget(positionedPlacement)
                             }
                         },
                         FrameLayout.LayoutParams(dp(28), dp(28), Gravity.TOP or Gravity.START)
                     )
                 }
                 setOnLongClickListener {
-                    startWidgetDrag(placement, this)
+                    startWidgetDrag(positionedPlacement, this)
                     true
                 }
             }
-            attachWidgetLongPress(widgetContent, placement, widgetFrame)
-            widgetFrames += widgetFrame
+            attachWidgetLongPress(widgetContent, positionedPlacement, widgetFrame)
+            container.addView(
+                widgetFrame,
+                FrameLayout.LayoutParams(
+                    widgetWidth,
+                    widgetHeight,
+                    Gravity.TOP or Gravity.LEFT
+                ).apply {
+                    leftMargin = (positionX * maxLeft).roundToInt()
+                    topMargin = (positionY * maxTop).roundToInt()
+                }
+            )
             if (isHomeEditMode) startSelectionWiggle(widgetFrame)
-        }
-        widgetFrames.chunked(WIDGETS_PER_ROW).forEach { rowWidgets ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-            }
-            rowWidgets.forEachIndexed { column, widgetFrame ->
-                row.addView(
-                    widgetFrame,
-                    LinearLayout.LayoutParams(0, dp(LAUNCHER_WIDGET_HEIGHT_DP), 1f).apply {
-                        marginStart = if (column > 0) dp(7) else 0
-                        marginEnd = if (column == 0) dp(7) else 0
-                        topMargin = dp(6)
-                        bottomMargin = dp(6)
-                    }
-                )
-            }
-            if (rowWidgets.size < WIDGETS_PER_ROW) {
-                row.addView(
-                    View(this),
-                    LinearLayout.LayoutParams(0, dp(LAUNCHER_WIDGET_HEIGHT_DP), 1f).apply {
-                        marginStart = dp(7)
-                        marginEnd = 0
-                        topMargin = dp(6)
-                        bottomMargin = dp(6)
-                    }
-                )
-            }
-            container.addView(row)
         }
         if (missingWidgets.isNotEmpty()) {
             homeWidgets.removeAll(missingWidgets.toSet())
+            savedDefaultPositions = true
+        }
+        if (savedDefaultPositions) {
             layoutRepository.saveHomeWidgets(homeWidgets)
-            container.visibility = if (container.childCount == 0) View.GONE else View.VISIBLE
         }
     }
 
@@ -1887,6 +1993,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun startAppDrag(app: AppInfo, source: View) {
         setHoverTarget(null)
+        dragShadowCenteredOnPointer = false
         dragStartedInAppGrid = true
         draggedDockSlot = appsDock?.indexOfChild(source)?.takeIf { it >= 0 }
         dragStartedInDock = draggedDockSlot != null
@@ -1951,28 +2058,32 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun startWidgetDrag(placement: HomeWidgetPlacement, originalSource: View) {
         if (draggedWidgetPlacement != null || draggedApp != null) return
+        val placementIndex = homeWidgets.indexOf(placement)
+        var activePlacement = placement
         if (!isHomeEditMode) {
             isHomeEditMode = true
             installedApps?.let { renderApps?.invoke(it) }
+            activePlacement = homeWidgets.getOrNull(placementIndex) ?: placement
         }
         val source = appsWidgetContainer
             ?.let { container ->
                 (0 until container.childCount)
                     .map(container::getChildAt)
-                    .firstOrNull { it.tag == placement }
+                    .firstOrNull { it.tag == activePlacement }
             }
             ?: originalSource
         if (source.width <= 0 || source.height <= 0) return
 
         val bitmap = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
         source.draw(Canvas(bitmap))
-        draggedWidgetPlacement = placement
+        draggedWidgetPlacement = activePlacement
         draggedWidgetSource = source
         dragSourceVisibility = source.visibility
         source.visibility = View.INVISIBLE
         dragCreatedWidgetPageIndex = null
         dragMoved = false
         dragEdge = 0
+        dragShadowCenteredOnPointer = true
         dragShadow = ImageView(this).apply {
             setImageDrawable(BitmapDrawable(resources, bitmap))
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -1982,11 +2093,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         screenContainer.addView(
             dragShadow,
             FrameLayout.LayoutParams(
-                minOf(source.width, dp(280)),
-                minOf(source.height, dp(164))
+                source.width,
+                source.height
             )
         )
         source.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        val screenLocation = IntArray(2)
+        screenContainer.getLocationOnScreen(screenLocation)
+        dragLastRawX = screenLocation[0] + downX
+        dragLastRawY = screenLocation[1] + downY
         updateDragShadowFromScreen(dragLastRawX, dragLastRawY)
     }
 
@@ -2009,6 +2124,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun finishWidgetDrag(commit: Boolean) {
         val placement = draggedWidgetPlacement
         val source = draggedWidgetSource
+        val dropPosition = if (commit) {
+            appsWidgetContainer?.let(::widgetPositionFromDrag)
+        } else {
+            null
+        }
         val targetPage = if (commit && placement != null && appPageIndex != placement.pageIndex) {
             findWidgetPage(appPageIndex)
         } else {
@@ -2024,10 +2144,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         dragShadow = null
         draggedWidgetSource = null
         draggedWidgetPlacement = null
-        if (commit && placement != null && targetPage != placement.pageIndex) {
+        dragShadowCenteredOnPointer = false
+        if (commit && placement != null) {
             val index = homeWidgets.indexOf(placement)
             if (index >= 0) {
-                homeWidgets[index] = placement.copy(pageIndex = targetPage)
+                homeWidgets[index] = placement.copy(
+                    pageIndex = targetPage,
+                    positionX = dropPosition?.first ?: placement.positionX,
+                    positionY = dropPosition?.second ?: placement.positionY
+                )
                 layoutRepository.saveHomeWidgets(homeWidgets)
                 appPageIndex = targetPage
             }
@@ -2039,6 +2164,28 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         stopDragWiggle()
         installedApps?.let { renderApps?.invoke(it) } ?: renderHomeWidgetViews()
         refreshSelectionWiggle()
+    }
+
+    private fun widgetPositionFromDrag(container: FrameLayout): Pair<Float, Float>? {
+        val shadow = dragShadow ?: return null
+        val shadowParams = shadow.layoutParams as? FrameLayout.LayoutParams ?: return null
+        if (shadowParams.width <= 0 || shadowParams.height <= 0) return null
+        val containerLocation = IntArray(2)
+        container.getLocationOnScreen(containerLocation)
+        val screenLocation = IntArray(2)
+        screenContainer.getLocationOnScreen(screenLocation)
+        val (maxLeft, maxTop) = widgetPositionMaxima(
+            container,
+            shadowParams.width,
+            shadowParams.height
+        )
+        val left = (screenLocation[0] + shadowParams.leftMargin -
+            containerLocation[0] - container.paddingLeft)
+            .coerceIn(0, maxLeft)
+        val top = (screenLocation[1] + shadowParams.topMargin -
+            containerLocation[1] - container.paddingTop)
+            .coerceIn(0, maxTop)
+        return left.toFloat() / maxLeft.coerceAtLeast(1) to top.toFloat() / maxTop.coerceAtLeast(1)
     }
 
     private fun appPageDragWiggleTargets(pageIndex: Int): List<View> {
@@ -2087,8 +2234,22 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun updateDragShadow(x: Float, y: Float) {
         val shadow = dragShadow ?: return
         val layoutParams = shadow.layoutParams as? FrameLayout.LayoutParams ?: return
-        layoutParams.leftMargin = (x - dp(32)).toInt().coerceAtLeast(0)
-        layoutParams.topMargin = (y - dp(32)).toInt().coerceAtLeast(0)
+        val shadowWidth = shadow.width.takeIf { it > 0 } ?: layoutParams.width
+        val shadowHeight = shadow.height.takeIf { it > 0 } ?: layoutParams.height
+        val offsetX = if (dragShadowCenteredOnPointer) shadowWidth / 2f else dp(32).toFloat()
+        val offsetY = if (dragShadowCenteredOnPointer) shadowHeight / 2f else dp(32).toFloat()
+        val left = (x - offsetX).toInt().coerceAtLeast(0)
+        val top = (y - offsetY).toInt().coerceAtLeast(0)
+        layoutParams.leftMargin = if (dragShadowCenteredOnPointer) {
+            left.coerceAtMost((screenContainer.width - shadowWidth).coerceAtLeast(0))
+        } else {
+            left
+        }
+        layoutParams.topMargin = if (dragShadowCenteredOnPointer) {
+            top.coerceAtMost((screenContainer.height - shadowHeight).coerceAtLeast(0))
+        } else {
+            top
+        }
         shadow.layoutParams = layoutParams
         dragCheckBadge?.let { badge ->
             val badgeParams = badge.layoutParams as? FrameLayout.LayoutParams ?: return@let
@@ -2923,6 +3084,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         dragTargetLabel?.let(screenContainer::removeView)
         dragSource?.visibility = dragSourceVisibility
         dragShadow = null
+        dragShadowCenteredOnPointer = false
         dragCheckBadge = null
         dragTargetLabel = null
         draggedApp = null
@@ -3938,12 +4100,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val APP_GRID_TAG = "app_grid_page"
         const val APP_WIDGET_HOST_ID = 1024
         const val DRAG_PAGE_CHANGE_DELAY_MS = 500L
-        const val FALLBACK_APP_ROW_HEIGHT_DP = 64
         const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
         const val LAUNCHER_WIDGET_HEIGHT_DP = 164
-        const val APP_SCREEN_WIDGET_HORIZONTAL_INSETS_DP = 58
         const val TAG = "MainActivity"
-        const val WIDGET_VERTICAL_MARGINS_DP = 12
-        const val WIDGETS_PER_ROW = 2
+        const val WIDGET_DEFAULT_TOP_DP = 10
+        const val WIDGET_HORIZONTAL_GAP_DP = 14
+        const val WIDGET_SIDE_INSET_DP = 22
+        const val WIDGET_VERTICAL_GAP_DP = 12
     }
 }
