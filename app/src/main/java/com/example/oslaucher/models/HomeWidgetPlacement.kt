@@ -1,0 +1,19 @@
+package com.example.oslaucher.models
+
+data class HomeWidgetPlacement(
+    val appWidgetId: Int,
+    val pageIndex: Int,
+    val launcherWidgetType: LauncherWidgetType? = null
+)
+
+enum class LauncherWidgetType(val id: String, val labelResId: Int) {
+    WEATHER("weather", com.example.oslaucher.R.string.home_widget_weather),
+    CALENDAR("calendar", com.example.oslaucher.R.string.home_widget_calendar),
+    CLOCK("clock", com.example.oslaucher.R.string.home_widget_clock),
+    BATTERY("battery", com.example.oslaucher.R.string.home_widget_battery);
+
+    companion object {
+        fun fromId(id: String): LauncherWidgetType? =
+            entries.firstOrNull { it.id == id }
+    }
+}

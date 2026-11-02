@@ -1,0 +1,37 @@
+package com.example.oslaucher.utils
+
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import com.example.oslaucher.ui.PageTransitionAnimator
+import com.example.oslaucher.ui.ScreenGridActivity
+
+/**
+ * Oslaucher restyles the device screens only while it is the default home app. Once another
+ * launcher takes over, every screen falls back to the built-in configuration until Oslaucher
+ * becomes the default home again.
+ */
+object LauncherConfig {
+    fun isDefaultHome(context: Context): Boolean {
+        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val resolved = context.packageManager
+            .resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+        return resolved?.activityInfo?.packageName == context.packageName
+    }
+
+    fun gridRows(context: Context, defaultHomeActive: Boolean): Int {
+        if (!defaultHomeActive) return ScreenGridActivity.DEFAULT_GRID_ROWS
+        return context.getSharedPreferences(ScreenGridActivity.PREFERENCES_NAME, Context.MODE_PRIVATE)
+            .getInt(ScreenGridActivity.GRID_ROWS_KEY, ScreenGridActivity.DEFAULT_GRID_ROWS)
+            .coerceIn(ScreenGridActivity.MIN_GRID_ROWS, ScreenGridActivity.MAX_GRID_ROWS)
+    }
+
+    fun pageTransitionEffect(context: Context, defaultHomeActive: Boolean): Int {
+        if (!defaultHomeActive) return PageTransitionAnimator.DEFAULT
+        return context.getSharedPreferences(PageTransitionAnimator.PREFERENCES_NAME, Context.MODE_PRIVATE)
+            .getInt(PageTransitionAnimator.EFFECT_KEY, PageTransitionAnimator.DEFAULT)
+            .coerceIn(PageTransitionAnimator.DEFAULT, PageTransitionAnimator.FADE)
+    }
+
+    fun usesSavedWallpaper(context: Context): Boolean = isDefaultHome(context)
+}

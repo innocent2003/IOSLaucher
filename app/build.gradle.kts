@@ -24,6 +24,8 @@ val prepareActiveResources by tasks.registering(Sync::class) {
             "item_app.xml",
             "popup_app_actions.xml",
             "popup_home_edit.xml",
+            "widget_picker_sheet.xml",
+            "item_widget_picker.xml",
             "screen_apps.xml",
             "screen_app_library.xml",
             "item_app_library.xml",

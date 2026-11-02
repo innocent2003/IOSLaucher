@@ -90,6 +90,13 @@
             android:tint="#FFFFFF" />
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/apps_widget_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone" />
+
     <ViewFlipper
         android:id="@+id/apps_pages"
         android:layout_width="match_parent"

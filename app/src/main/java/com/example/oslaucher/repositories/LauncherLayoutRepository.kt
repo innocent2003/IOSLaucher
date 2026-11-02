@@ -3,6 +3,8 @@ package com.example.oslaucher.repositories
 import android.content.Context
 import android.util.Log
 import com.example.oslaucher.models.AppFolder
+import com.example.oslaucher.models.LauncherWidgetType
+import com.example.oslaucher.models.HomeWidgetPlacement
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -35,6 +37,53 @@ internal class LauncherLayoutRepository(context: Context) {
     fun saveAppGridOrder(packages: List<String?>) {
         appGridPreferences.edit()
             .putString(APP_GRID_ORDER_KEY, JSONArray(packages).toString())
+            .apply()
+    }
+
+    fun loadHomeWidgets(): List<HomeWidgetPlacement> {
+        val stored = appGridPreferences.getString(HOME_WIDGETS_KEY, null) ?: return emptyList()
+        return try {
+            val widgets = JSONArray(stored)
+            buildList {
+                for (index in 0 until widgets.length()) {
+                    val widget = widgets.getJSONObject(index)
+                    val appWidgetId = widget.optInt(APP_WIDGET_ID_KEY, -1)
+                    val launcherWidgetType = LauncherWidgetType.fromId(
+                        widget.optString(LAUNCHER_WIDGET_TYPE_KEY)
+                    )
+                    if (appWidgetId >= 0 || launcherWidgetType != null) {
+                        add(
+                            HomeWidgetPlacement(
+                                appWidgetId = appWidgetId,
+                                pageIndex = widget.optInt(PAGE_INDEX_KEY, 0).coerceAtLeast(0),
+                                launcherWidgetType = launcherWidgetType
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (exception: JSONException) {
+            Log.w(TAG, "Could not read saved home screen widgets", exception)
+            emptyList()
+        }
+    }
+
+    fun saveHomeWidgets(widgets: List<HomeWidgetPlacement>) {
+        val jsonWidgets = JSONArray()
+        widgets.forEach { widget ->
+            jsonWidgets.put(
+                JSONObject()
+                    .put(APP_WIDGET_ID_KEY, widget.appWidgetId)
+                    .put(PAGE_INDEX_KEY, widget.pageIndex)
+                    .apply {
+                        widget.launcherWidgetType?.let {
+                            put(LAUNCHER_WIDGET_TYPE_KEY, it.id)
+                        }
+                    }
+            )
+        }
+        appGridPreferences.edit()
+            .putString(HOME_WIDGETS_KEY, jsonWidgets.toString())
             .apply()
     }
 
@@ -165,6 +214,10 @@ internal class LauncherLayoutRepository(context: Context) {
         const val DOCK_REMOVED_APP_PACKAGES_KEY = "dock_removed_app_packages"
         const val APP_GRID_ORDER_PREFERENCES = "launcher_app_grid_order"
         const val APP_GRID_ORDER_KEY = "packages"
+        const val HOME_WIDGETS_KEY = "home_widgets"
+        const val APP_WIDGET_ID_KEY = "app_widget_id"
+        const val LAUNCHER_WIDGET_TYPE_KEY = "launcher_widget_type"
+        const val PAGE_INDEX_KEY = "page_index"
         const val ID_KEY = "id"
         const val NAME_KEY = "name"
         const val PACKAGES_KEY = "packages"
