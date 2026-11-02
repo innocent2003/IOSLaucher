@@ -79,6 +79,7 @@ import com.example.oslaucher.ui.fragments.HomeSecondFragment
 import com.example.oslaucher.ui.widgets.LauncherWidgetFactory
 import com.example.oslaucher.utils.AppIconUtils
 import com.example.oslaucher.utils.LauncherConfig
+import com.example.oslaucher.utils.WeatherWidgetPreferences
 import com.example.oslaucher.utils.LauncherWallpaper
 import com.example.oslaucher.utils.Screen
 import java.util.concurrent.Executors
@@ -147,6 +148,19 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var dragEdge = 0
     private var dragPageChangeRunnable: Runnable? = null
     private val dragPageHandler = Handler(Looper.getMainLooper())
+    private val weatherRefreshHandler = Handler(Looper.getMainLooper())
+    private val weatherRefreshRunnable = Runnable {
+        if (
+            currentScreen == Screen.APPS &&
+            homeWidgets.any {
+                it.launcherWidgetType == LauncherWidgetType.WEATHER &&
+                    it.pageIndex == appPageIndex
+            }
+        ) {
+            renderHomeWidgetViews()
+        }
+        scheduleWeatherRefresh()
+    }
     private var dragMoved = false
     private var dragStartedInAppGrid = false
     private var dragStartedInDock = false
@@ -192,6 +206,25 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             } else {
                 appWidgetHost.deleteAppWidgetId(widgetId)
             }
+        }
+
+    private val weatherSettingsLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != RESULT_OK) return@registerForActivityResult
+            val existingWeatherWidget = homeWidgets.firstOrNull {
+                it.launcherWidgetType == LauncherWidgetType.WEATHER
+            }
+            if (existingWeatherWidget != null) {
+                appPageIndex = existingWeatherWidget.pageIndex
+                installedApps?.let { renderApps?.invoke(it) } ?: renderHomeWidgetViews()
+            } else {
+                val targetPage = result.data?.getIntExtra(
+                    WeatherSettingsActivity.EXTRA_PAGE_INDEX,
+                    appPageIndex
+                ) ?: appPageIndex
+                addLauncherWidget(LauncherWidgetType.WEATHER, targetPage)
+            }
+            scheduleWeatherRefresh()
         }
 
     private val swipeTouchSlop by lazy { ViewConfiguration.get(this).scaledTouchSlop }
@@ -388,7 +421,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             screenContainer.getChildAt(0)
                 ?.findViewById<View>(R.id.main)
                 ?.let(LauncherWallpaper::applyTo)
+            if (
+                homeWidgets.any {
+                    it.launcherWidgetType == LauncherWidgetType.WEATHER &&
+                        it.pageIndex == appPageIndex
+                } && WeatherWidgetPreferences.isRefreshDue(this)
+            ) {
+                renderHomeWidgetViews()
+            }
         }
+        scheduleWeatherRefresh()
+    }
+
+    override fun onPause() {
+        weatherRefreshHandler.removeCallbacks(weatherRefreshRunnable)
+        super.onPause()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -742,6 +789,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 view.findViewById<View>(R.id.wallpaper_setting).setOnClickListener {
                     startOwnScreen(WallpaperActivity::class.java)
                 }
+                view.findViewById<View>(R.id.weather_setting).setOnClickListener {
+                    startOwnScreen(WeatherSettingsActivity::class.java)
+                }
                 view.findViewById<View>(R.id.app_effects_setting).setOnClickListener {
                     startOwnScreen(AppEffectsActivity::class.java)
                 }
@@ -925,6 +975,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         }
                         pageRows += gridRows
                         pageIndex++
+                    }
+                    while (appChunks.size > 1) {
+                        val lastPageIndex = appChunks.lastIndex
+                        val lastPageIsTemporary = lastPageIndex == dragCreatedWidgetPageIndex ||
+                            (dragCreatedEmptyAppPage &&
+                                lastPageIndex == appItemCount / appPageSize)
+                        if (appChunks.last().any { it != null } ||
+                            homeWidgets.any { it.pageIndex == lastPageIndex } ||
+                            lastPageIsTemporary
+                        ) {
+                            break
+                        }
+                        appChunks.removeAt(lastPageIndex)
+                        pageRows.removeAt(lastPageIndex)
                     }
                     if (reflowAroundWidgets && !widgetLayoutRetryPosted) {
                         val previousGeometry = widgetGridGeometryKey(pages)
@@ -1602,7 +1666,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             when (val item = adapter.getItem(position)) {
                 is WidgetPickerItem.LauncherWidget -> {
                     dialog.dismiss()
-                    addLauncherWidget(item.type, appPageIndex)
+                    if (item.type == LauncherWidgetType.WEATHER) {
+                        launchWeatherSettings(appPageIndex)
+                    } else {
+                        addLauncherWidget(item.type, appPageIndex)
+                    }
                 }
                 is WidgetPickerItem.AppShortcut -> {
                     dialog.dismiss()
@@ -1729,18 +1797,57 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun findWidgetPage(pageIndex: Int): Int = pageIndex.coerceAtLeast(0)
 
-    private fun appScreenWidgetWidthPx(container: FrameLayout? = appsWidgetContainer): Int {
+    private fun launchWeatherSettings(pageIndex: Int) {
+        returningFromOwnScreen = true
+        weatherSettingsLauncher.launch(
+            Intent(this, WeatherSettingsActivity::class.java).putExtra(
+                WeatherSettingsActivity.EXTRA_PAGE_INDEX,
+                pageIndex
+            )
+        )
+    }
+
+    private fun scheduleWeatherRefresh() {
+        weatherRefreshHandler.removeCallbacks(weatherRefreshRunnable)
+        if (
+            currentScreen != Screen.APPS ||
+            homeWidgets.none {
+                it.launcherWidgetType == LauncherWidgetType.WEATHER &&
+                    it.pageIndex == appPageIndex
+            }
+        ) return
+        val intervalMillis =
+            WeatherWidgetPreferences.refreshIntervalHours(this) * 60L * 60L * 1000L
+        val nextRefreshAt = WeatherWidgetPreferences.lastRefreshTime(this) + intervalMillis
+        val delayMillis = (nextRefreshAt - System.currentTimeMillis()).coerceAtLeast(0L)
+        weatherRefreshHandler.postDelayed(
+            weatherRefreshRunnable,
+            delayMillis
+        )
+    }
+
+    private fun appScreenWidgetWidthPx(
+        container: FrameLayout? = appsWidgetContainer,
+        placement: HomeWidgetPlacement? = null
+    ): Int {
         val containerWidth = container?.width?.takeIf { it > 0 }
             ?: screenContainer.width.takeIf { it > 0 }
             ?: resources.displayMetrics.widthPixels
         val horizontalPadding = container?.let { it.paddingLeft + it.paddingRight }
             ?.takeIf { it > 0 } ?: dp(WIDGET_SIDE_INSET_DP * 2)
-        return ((containerWidth - horizontalPadding - dp(WIDGET_HORIZONTAL_GAP_DP)) / 2)
-            .coerceAtLeast(1)
+        val availableWidth = (containerWidth - horizontalPadding).coerceAtLeast(1)
+        return if (placement?.launcherWidgetType == LauncherWidgetType.WEATHER) {
+            availableWidth
+        } else {
+            ((availableWidth - dp(WIDGET_HORIZONTAL_GAP_DP)) / 2).coerceAtLeast(1)
+        }
     }
 
-    private fun appScreenWidgetWidthDp(container: FrameLayout? = appsWidgetContainer): Int =
-        (appScreenWidgetWidthPx(container) / resources.displayMetrics.density)
+    private fun appScreenWidgetWidthDp(
+        container: FrameLayout? = appsWidgetContainer,
+        placement: HomeWidgetPlacement? = null
+    ): Int =
+        (appScreenWidgetWidthPx(container, placement) / resources.displayMetrics.density)
             .roundToInt().coerceAtLeast(1)
 
     private fun widgetPositionMaxima(
@@ -1775,13 +1882,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val pageWidgets = homeWidgets.filter { it.pageIndex == pageIndex }
         if (pageWidgets.isEmpty()) return emptySet()
 
-        val widgetWidth = appScreenWidgetWidthPx(container).toFloat()
         val widgetHeight = dp(LAUNCHER_WIDGET_HEIGHT_DP).toFloat()
-        val (maxLeft, maxTop) = widgetPositionMaxima(
-            container,
-            widgetWidth.toInt(),
-            widgetHeight.toInt()
-        )
         val containerLocation = IntArray(2)
         val pagesLocation = IntArray(2)
         container.getLocationOnScreen(containerLocation)
@@ -1791,17 +1892,25 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val blockedSlots = mutableSetOf<Int>()
 
         pageWidgets.forEachIndexed { index, placement ->
+            val itemWidgetWidth = appScreenWidgetWidthPx(container, placement).toFloat()
             val defaultPosition = defaultWidgetPosition(
                 index,
+                placement,
+                pageWidgets,
                 container,
-                widgetWidth.toInt(),
+                itemWidgetWidth.toInt(),
+                widgetHeight.toInt()
+            )
+            val (itemMaxLeft, itemMaxTop) = widgetPositionMaxima(
+                container,
+                itemWidgetWidth.toInt(),
                 widgetHeight.toInt()
             )
             val left = containerLocation[0] + container.paddingLeft +
-                ((placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f) * maxLeft)
+                ((placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f) * itemMaxLeft)
             val top = containerLocation[1] + container.paddingTop +
-                ((placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f) * maxTop)
-            val widgetBounds = RectF(left, top, left + widgetWidth, top + widgetHeight)
+                ((placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f) * itemMaxTop)
+            val widgetBounds = RectF(left, top, left + itemWidgetWidth, top + widgetHeight)
 
             repeat(gridRows) { row ->
                 repeat(4) { column ->
@@ -1821,14 +1930,36 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun defaultWidgetPosition(
         index: Int,
+        placement: HomeWidgetPlacement,
+        pageWidgets: List<HomeWidgetPlacement>,
         container: FrameLayout,
         widgetWidth: Int,
         widgetHeight: Int
     ): Pair<Float, Float> {
         val (maxLeft, maxTop) = widgetPositionMaxima(container, widgetWidth, widgetHeight)
-        val left = if (index % 2 == 0) 0 else maxLeft
-        val top = (dp(WIDGET_DEFAULT_TOP_DP) +
-            (index / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))).coerceAtMost(maxTop)
+        val weatherWidget = pageWidgets.firstOrNull {
+            it.launcherWidgetType == LauncherWidgetType.WEATHER
+        }
+        val isWeather = placement.launcherWidgetType == LauncherWidgetType.WEATHER
+        val nonWeatherIndex = pageWidgets
+            .filterNot { it.launcherWidgetType == LauncherWidgetType.WEATHER }
+            .indexOf(placement)
+            .coerceAtLeast(0)
+        val left = when {
+            isWeather -> 0
+            else -> if (nonWeatherIndex % 2 == 0) 0 else maxLeft
+        }
+        val top = when {
+            isWeather -> dp(WIDGET_DEFAULT_TOP_DP) +
+                ((pageWidgets.size - 1).coerceAtLeast(0) + 1) / 2 *
+                (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))
+            weatherWidget != null ->
+                dp(WIDGET_DEFAULT_TOP_DP) + widgetHeight + dp(WIDGET_VERTICAL_GAP_DP) +
+                    (nonWeatherIndex / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))
+            else ->
+                dp(WIDGET_DEFAULT_TOP_DP) +
+                    (index / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))
+        }.coerceAtMost(maxTop)
         return (left.toFloat() / maxLeft.coerceAtLeast(1)) to
             (top.toFloat() / maxTop.coerceAtLeast(1))
     }
@@ -1853,12 +1984,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         container.visibility = View.VISIBLE
         val missingWidgets = mutableListOf<HomeWidgetPlacement>()
         var savedDefaultPositions = false
-        val widgetWidth = appScreenWidgetWidthPx(container)
         val widgetHeight = dp(LAUNCHER_WIDGET_HEIGHT_DP)
-        val (maxLeft, maxTop) = widgetPositionMaxima(container, widgetWidth, widgetHeight)
         pageWidgets.forEachIndexed { index, placement ->
+            val widgetWidth = appScreenWidgetWidthPx(container, placement)
+            val (maxLeft, maxTop) = widgetPositionMaxima(container, widgetWidth, widgetHeight)
             val defaultPosition = defaultWidgetPosition(
                 index,
+                placement,
+                pageWidgets,
                 container,
                 widgetWidth,
                 widgetHeight
@@ -1879,7 +2012,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             val widgetContent: View
             val launcherWidgetType = positionedPlacement.launcherWidgetType
             if (launcherWidgetType != null) {
-                widgetContent = LauncherWidgetFactory.create(this, launcherWidgetType)
+                if (launcherWidgetType == LauncherWidgetType.WEATHER) {
+                    WeatherWidgetPreferences.recordRefresh(this)
+                }
+                widgetContent = LauncherWidgetFactory.create(this, launcherWidgetType) {
+                    if (launcherWidgetType == LauncherWidgetType.WEATHER) {
+                        launchWeatherSettings(positionedPlacement.pageIndex)
+                    }
+                }
             } else {
                 val provider = appWidgetManager.getAppWidgetInfo(positionedPlacement.appWidgetId)
                 if (provider == null) {
@@ -1890,7 +2030,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     return@forEachIndexed
                 }
 
-                val widgetWidthDp = appScreenWidgetWidthDp(container)
+                val widgetWidthDp = appScreenWidgetWidthDp(container, positionedPlacement)
                 val widgetHeightDp = LAUNCHER_WIDGET_HEIGHT_DP
                 val options = Bundle().apply {
                     putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widgetWidthDp)
@@ -1906,7 +2046,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             (widgetContent.parent as? ViewGroup)?.removeView(widgetContent)
             val widgetFrame = FrameLayout(this).apply {
                 tag = positionedPlacement
-                background = getDrawable(R.drawable.bg_glass)
+                background = if (
+                    positionedPlacement.launcherWidgetType == LauncherWidgetType.WEATHER
+                ) null else getDrawable(R.drawable.bg_glass)
                 clipChildren = false
                 clipToPadding = false
                 addView(
@@ -1944,7 +2086,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             container.addView(
                 widgetFrame,
                 FrameLayout.LayoutParams(
-                    widgetWidth,
+                    appScreenWidgetWidthPx(container, positionedPlacement),
                     widgetHeight,
                     Gravity.TOP or Gravity.LEFT
                 ).apply {
@@ -1961,6 +2103,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         if (savedDefaultPositions) {
             layoutRepository.saveHomeWidgets(homeWidgets)
         }
+        scheduleWeatherRefresh()
     }
 
     private fun confirmRemoveHomeWidget(placement: HomeWidgetPlacement) {
@@ -2124,6 +2267,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun finishWidgetDrag(commit: Boolean) {
         val placement = draggedWidgetPlacement
         val source = draggedWidgetSource
+        val appPositionsBeforeReflow = if (commit) {
+            captureVisibleAppPositions(appPageIndex)
+        } else {
+            emptyMap()
+        }
         val dropPosition = if (commit) {
             appsWidgetContainer?.let(::widgetPositionFromDrag)
         } else {
@@ -2162,8 +2310,56 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
         dragMoved = false
         stopDragWiggle()
-        installedApps?.let { renderApps?.invoke(it) } ?: renderHomeWidgetViews()
+        installedApps?.let {
+            renderApps?.invoke(it)
+            if (commit && appPositionsBeforeReflow.isNotEmpty()) {
+                animateAppReflow(appPageIndex, appPositionsBeforeReflow)
+            }
+        } ?: renderHomeWidgetViews()
         refreshSelectionWiggle()
+    }
+
+    private fun captureVisibleAppPositions(pageIndex: Int): Map<String, Pair<Float, Float>> {
+        val grid = appsPages?.getChildAt(pageIndex) as? GridView ?: return emptyMap()
+        return buildMap {
+            for (childIndex in 0 until grid.childCount) {
+                val app = grid.adapter?.getItem(grid.firstVisiblePosition + childIndex) as? AppInfo
+                    ?: continue
+                val child = grid.getChildAt(childIndex)
+                val location = IntArray(2)
+                child.getLocationOnScreen(location)
+                put(app.packageName, location[0].toFloat() to location[1].toFloat())
+            }
+        }
+    }
+
+    private fun animateAppReflow(
+        pageIndex: Int,
+        previousPositions: Map<String, Pair<Float, Float>>
+    ) {
+        val pages = appsPages ?: return
+        pages.post {
+            val grid = pages.getChildAt(pageIndex) as? GridView ?: return@post
+            for (childIndex in 0 until grid.childCount) {
+                val app = grid.adapter?.getItem(grid.firstVisiblePosition + childIndex) as? AppInfo
+                    ?: continue
+                val previousPosition = previousPositions[app.packageName] ?: continue
+                val child = grid.getChildAt(childIndex)
+                val currentLocation = IntArray(2)
+                child.getLocationOnScreen(currentLocation)
+                val offsetX = previousPosition.first - currentLocation[0]
+                val offsetY = previousPosition.second - currentLocation[1]
+                if (offsetX == 0f && offsetY == 0f) continue
+                child.animate().cancel()
+                child.translationX = offsetX
+                child.translationY = offsetY
+                child.animate()
+                    .translationX(0f)
+                    .translationY(0f)
+                    .setDuration(APP_REORDER_ANIMATION_DURATION_MS)
+                    .start()
+            }
+        }
     }
 
     private fun widgetPositionFromDrag(container: FrameLayout): Pair<Float, Float>? {
@@ -4099,6 +4295,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private companion object {
         const val APP_GRID_TAG = "app_grid_page"
         const val APP_WIDGET_HOST_ID = 1024
+        const val APP_REORDER_ANIMATION_DURATION_MS = 160L
         const val DRAG_PAGE_CHANGE_DELAY_MS = 500L
         const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
         const val LAUNCHER_WIDGET_HEIGHT_DP = 164

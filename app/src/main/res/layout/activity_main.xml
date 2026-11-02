@@ -326,8 +326,11 @@
                 android:background="@color/settings_divider" />
 
             <LinearLayout
+                android:id="@+id/weather_setting"
                 android:layout_width="match_parent"
                 android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 

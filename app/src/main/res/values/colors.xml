@@ -20,4 +20,10 @@
     <color name="settings_accent">#FF32CF70</color>
     <color name="settings_radio_border">#FFB8B8B8</color>
     <color name="settings_tile_overlay">#22000000</color>
+    <color name="weather_widget_gradient_start">#E6EAF3FF</color>
+    <color name="weather_widget_gradient_end">#D6C9D8E8</color>
+    <color name="weather_widget_border">#66FFFFFF</color>
+    <color name="weather_widget_divider">#66596674</color>
+    <color name="weather_widget_text_primary">#FF222B36</color>
+    <color name="weather_widget_text_secondary">#FF596674</color>
 </resources>
