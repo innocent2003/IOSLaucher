@@ -1637,12 +1637,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val widgetId = appWidgetHost.allocateAppWidgetId()
         pendingWidgetId = widgetId
         pendingWidgetPage = findWidgetPage(appPageIndex)
-        val screenWidthDp = ((resources.displayMetrics.widthPixels /
-            resources.displayMetrics.density).toInt() - 24).coerceAtLeast(1)
-        val widgetHeightDp = provider.minHeight.coerceAtLeast(1)
+        val widgetWidthDp = appScreenWidgetWidthDp()
+        val widgetHeightDp = LAUNCHER_WIDGET_HEIGHT_DP
         val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, screenWidthDp)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, screenWidthDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widgetWidthDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widgetWidthDp)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, widgetHeightDp)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, widgetHeightDp)
         }
@@ -1716,14 +1715,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun appRowsForPage(pageIndex: Int, gridRows: Int, baseHeight: Int): Int {
-        val widgetHeight = homeWidgets.asSequence()
-            .filter { it.pageIndex == pageIndex }
-            .sumOf { dp(widgetHeightDp(it) + WIDGET_VERTICAL_MARGINS_DP) }
-        if (widgetHeight == 0) return gridRows
+        val widgetCount = homeWidgets.count { it.pageIndex == pageIndex }
+        if (widgetCount == 0) return gridRows
+        val widgetRows = (widgetCount + WIDGETS_PER_ROW - 1) / WIDGETS_PER_ROW
+        val widgetHeight = dp(
+            widgetRows * (LAUNCHER_WIDGET_HEIGHT_DP + WIDGET_VERTICAL_MARGINS_DP)
+        )
         val baseRowHeight = (baseHeight / gridRows).coerceAtLeast(1)
         val reservedRows = (widgetHeight + baseRowHeight - 1) / baseRowHeight
         return (gridRows - reservedRows).coerceAtLeast(0)
     }
+
+    private fun appScreenWidgetWidthDp(): Int =
+        (((resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() -
+            APP_SCREEN_WIDGET_HORIZONTAL_INSETS_DP) / WIDGETS_PER_ROW).coerceAtLeast(1)
 
     private fun viewSelectionBarHeight(): Int =
         findViewById<View?>(R.id.apps_selection_bar)?.height ?: 0
@@ -1747,13 +1752,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val pageWidgets = homeWidgets.filter { it.pageIndex == appPageIndex }
         container.visibility = if (pageWidgets.isEmpty()) View.GONE else View.VISIBLE
         val missingWidgets = mutableListOf<HomeWidgetPlacement>()
+        val widgetFrames = mutableListOf<View>()
         pageWidgets.forEach { placement ->
             val widgetContent: View
-            val widgetHeightDp: Int
             val launcherWidgetType = placement.launcherWidgetType
             if (launcherWidgetType != null) {
                 widgetContent = LauncherWidgetFactory.create(this, launcherWidgetType)
-                widgetHeightDp = 164
             } else {
                 val provider = appWidgetManager.getAppWidgetInfo(placement.appWidgetId)
                 if (provider == null) {
@@ -1764,9 +1768,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     return@forEach
                 }
 
-                val widgetWidthDp = ((resources.displayMetrics.widthPixels /
-                    resources.displayMetrics.density).toInt() - 24).coerceAtLeast(1)
-                widgetHeightDp = provider.minHeight.coerceAtLeast(110)
+                val widgetWidthDp = appScreenWidgetWidthDp()
+                val widgetHeightDp = LAUNCHER_WIDGET_HEIGHT_DP
                 val options = Bundle().apply {
                     putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widgetWidthDp)
                     putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widgetWidthDp)
@@ -1816,17 +1819,36 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
             }
             attachWidgetLongPress(widgetContent, placement, widgetFrame)
-            container.addView(
-                widgetFrame,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(widgetHeightDp)
-                ).apply {
-                    topMargin = dp(6)
-                    bottomMargin = dp(6)
-                }
-            )
+            widgetFrames += widgetFrame
             if (isHomeEditMode) startSelectionWiggle(widgetFrame)
+        }
+        widgetFrames.chunked(WIDGETS_PER_ROW).forEach { rowWidgets ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+            rowWidgets.forEachIndexed { column, widgetFrame ->
+                row.addView(
+                    widgetFrame,
+                    LinearLayout.LayoutParams(0, dp(LAUNCHER_WIDGET_HEIGHT_DP), 1f).apply {
+                        marginStart = if (column > 0) dp(7) else 0
+                        marginEnd = if (column == 0) dp(7) else 0
+                        topMargin = dp(6)
+                        bottomMargin = dp(6)
+                    }
+                )
+            }
+            if (rowWidgets.size < WIDGETS_PER_ROW) {
+                row.addView(
+                    View(this),
+                    LinearLayout.LayoutParams(0, dp(LAUNCHER_WIDGET_HEIGHT_DP), 1f).apply {
+                        marginStart = dp(7)
+                        marginEnd = 0
+                        topMargin = dp(6)
+                        bottomMargin = dp(6)
+                    }
+                )
+            }
+            container.addView(row)
         }
         if (missingWidgets.isNotEmpty()) {
             homeWidgets.removeAll(missingWidgets.toSet())
@@ -2018,12 +2040,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         installedApps?.let { renderApps?.invoke(it) } ?: renderHomeWidgetViews()
         refreshSelectionWiggle()
     }
-
-    private fun widgetHeightDp(placement: HomeWidgetPlacement): Int =
-        placement.launcherWidgetType?.let { LAUNCHER_WIDGET_HEIGHT_DP }
-            ?: appWidgetManager.getAppWidgetInfo(placement.appWidgetId)
-                ?.minHeight?.coerceAtLeast(110)
-            ?: LAUNCHER_WIDGET_HEIGHT_DP
 
     private fun appPageDragWiggleTargets(pageIndex: Int): List<View> {
         val icons = mutableListOf<View>()
@@ -3925,7 +3941,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val FALLBACK_APP_ROW_HEIGHT_DP = 64
         const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
         const val LAUNCHER_WIDGET_HEIGHT_DP = 164
+        const val APP_SCREEN_WIDGET_HORIZONTAL_INSETS_DP = 58
         const val TAG = "MainActivity"
         const val WIDGET_VERTICAL_MARGINS_DP = 12
+        const val WIDGETS_PER_ROW = 2
     }
 }
