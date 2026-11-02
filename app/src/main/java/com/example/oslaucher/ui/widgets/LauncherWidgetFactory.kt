@@ -47,10 +47,18 @@ internal object LauncherWidgetFactory {
         } else {
             "°F"
         }
-        val mainTemperature = weatherText(context, 36f)
-        val condition = weatherText(context, 11f, secondary = true)
-        val currentIcon = weatherText(context, 20f)
-        val highLow = weatherText(context, 10f, secondary = true)
+        val mainTemperature = weatherText(context, 36f).apply {
+            text = "--$temperatureSymbol"
+        }
+        val condition = weatherText(context, 11f, secondary = true).apply {
+            text = context.getString(R.string.weather_updating)
+        }
+        val currentIcon = weatherText(context, 20f).apply {
+            text = "…"
+        }
+        val highLow = weatherText(context, 10f, secondary = true).apply {
+            text = "…"
+        }
         val hourlyForecast = LinearLayout(context).apply {
             gravity = Gravity.CENTER
             orientation = LinearLayout.HORIZONTAL
@@ -99,7 +107,6 @@ internal object LauncherWidgetFactory {
                             gravity = Gravity.CENTER_VERTICAL
                             orientation = LinearLayout.HORIZONTAL
                             addView(mainTemperature.apply {
-                                text = "--$temperatureSymbol"
                                 layoutParams = LinearLayout.LayoutParams(
                                     ViewGroup.LayoutParams.WRAP_CONTENT,
                                     ViewGroup.LayoutParams.WRAP_CONTENT

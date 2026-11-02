@@ -21,6 +21,7 @@ val prepareActiveResources by tasks.registering(Sync::class) {
             "activity_wallpaper.xml",
             "activity_language.xml",
             "activity_weather_settings.xml",
+            "activity_hidden_apps.xml",
             "screen_loading.xml",
             "item_app.xml",
             "popup_app_actions.xml",
