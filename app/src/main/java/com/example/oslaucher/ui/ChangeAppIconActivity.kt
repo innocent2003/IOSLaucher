@@ -78,7 +78,7 @@ class ChangeAppIconActivity : AppCompatActivity() {
         appList.removeAllViews()
         if (apps.isEmpty()) {
             appList.addView(TextView(this).apply {
-                text = "Không tìm thấy ứng dụng nào."
+                setText(R.string.change_app_icon_empty)
                 setTextColor(
                     ContextCompat.getColor(this@ChangeAppIconActivity, R.color.settings_text_primary)
                 )
@@ -120,7 +120,10 @@ class ChangeAppIconActivity : AppCompatActivity() {
 
             val hasCustomIcon = AppIconUtils.hasCustomIcon(this, app.packageName)
             val action = TextView(this).apply {
-                text = if (hasCustomIcon) "Đặt lại" else "Đổi"
+                setText(
+                    if (hasCustomIcon) R.string.change_app_icon_reset
+                    else R.string.change_app_icon_change
+                )
                 setTextColor(if (hasCustomIcon) 0xFFFF7777.toInt() else 0xFF168BFF.toInt())
                 textSize = 14f
                 gravity = Gravity.CENTER
@@ -159,21 +162,25 @@ class ChangeAppIconActivity : AppCompatActivity() {
     private fun applySelectedIcon(uri: Uri) {
         val packageName = selectedPackageName
         if (packageName == null) {
-            Toast.makeText(this, "Chưa chọn ứng dụng.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.change_app_icon_not_selected, Toast.LENGTH_SHORT).show()
             return
         }
 
         try {
             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         } catch (exception: SecurityException) {
-            Toast.makeText(this, "Không thể lưu quyền truy cập ảnh đã chọn.", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                this,
+                R.string.change_app_icon_permission_error,
+                Toast.LENGTH_LONG
+            ).show()
             return
         }
 
         AppIconUtils.setCustomIcon(this, packageName, uri)
         selectedPackageName = null
         showApps()
-        Toast.makeText(this, "Đã cập nhật biểu tượng ứng dụng.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, R.string.change_app_icon_updated, Toast.LENGTH_SHORT).show()
     }
 
     private fun dp(value: Int): Int =

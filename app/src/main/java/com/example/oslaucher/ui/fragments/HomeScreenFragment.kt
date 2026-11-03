@@ -31,6 +31,7 @@ import androidx.appcompat.app.AlertDialog
 import com.example.oslaucher.R
 import com.example.oslaucher.models.Weather
 import com.example.oslaucher.utils.LauncherWallpaper
+import com.example.oslaucher.utils.WeatherWidgetPreferences
 import com.example.oslaucher.ui.widgets.BatteryRingView
 import org.json.JSONException
 import org.json.JSONObject
@@ -230,12 +231,25 @@ abstract class HomeScreenFragment : Fragment() {
         if (weatherRequestInProgress) return
         val root = view ?: return
         val condition = root.findViewById<TextView?>(R.id.home_weather_condition) ?: return
+        val temperatureUnit = WeatherWidgetPreferences.temperatureUnit(requireContext())
+        val temperatureSymbol = if (temperatureUnit == WeatherWidgetPreferences.CELSIUS) {
+            "°C"
+        } else {
+            "°F"
+        }
         weatherRequestInProgress = true
         condition.text = condition.context.getString(R.string.weather_updating)
+        root.findViewById<TextView?>(R.id.home_weather_temperature)?.text = "--$temperatureSymbol"
+        root.findViewById<TextView?>(R.id.home_weather_range)?.text = getString(
+            R.string.weather_range,
+            "--",
+            "--",
+            temperatureSymbol
+        )
 
         Thread {
             val result = try {
-                Result.success(loadWeather())
+                Result.success(loadWeather(temperatureUnit))
             } catch (error: IOException) {
                 Result.failure(error)
             } catch (error: JSONException) {
@@ -249,14 +263,15 @@ abstract class HomeScreenFragment : Fragment() {
                 val currentCondition = currentView.findViewById<TextView?>(R.id.home_weather_condition)
                 val range = currentView.findViewById<TextView?>(R.id.home_weather_range)
                 result.onSuccess { weather ->
-                    temperature?.text = "${weather.temperature.toInt()}°C"
+                    temperature?.text = "${weather.temperature.toInt()}$temperatureSymbol"
                     icon?.text = weather.icon
                     currentCondition?.text =
                         currentView.context.getString(weather.descriptionResId)
                     range?.text = currentView.context.getString(
                         R.string.weather_range,
                         weather.high.toInt(),
-                        weather.low.toInt()
+                        weather.low.toInt(),
+                        temperatureSymbol
                     )
                 }.onFailure { error ->
                     Log.w(TAG, "Unable to load weather", error)
@@ -271,12 +286,22 @@ abstract class HomeScreenFragment : Fragment() {
         }
     }
 
-    private fun loadWeather(): Weather {
+    private fun loadWeather(temperatureUnit: String): Weather {
+        require(
+            temperatureUnit == WeatherWidgetPreferences.CELSIUS ||
+                temperatureUnit == WeatherWidgetPreferences.FAHRENHEIT
+        )
+        val apiTemperatureUnit = if (temperatureUnit == WeatherWidgetPreferences.CELSIUS) {
+            "celsius"
+        } else {
+            "fahrenheit"
+        }
         val url = URL(
             "https://api.open-meteo.com/v1/forecast" +
                 "?latitude=20.9947&longitude=105.8066" +
                 "&current=temperature_2m,weather_code" +
                 "&daily=temperature_2m_max,temperature_2m_min" +
+                "&temperature_unit=$apiTemperatureUnit" +
                 "&timezone=Asia%2FBangkok&forecast_days=1"
         )
         val connection = (url.openConnection() as HttpURLConnection).apply {

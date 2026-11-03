@@ -27,7 +27,7 @@
                 android:layout_width="46dp"
                 android:layout_height="46dp"
                 android:background="@drawable/bg_round_surface"
-                android:contentDescription="Quay lại"
+                android:contentDescription="@string/back"
                 android:gravity="center"
                 android:text="←"
                 android:textColor="@color/settings_text_primary"
@@ -40,7 +40,7 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text="Thay đổi biểu tượng"
+                android:text="@string/change_app_icon"
                 android:textColor="@color/settings_text_primary"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -51,7 +51,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:layout_marginBottom="12dp"
-            android:text="Chọn ứng dụng để thay đổi biểu tượng"
+            android:text="@string/change_app_icon_instruction"
             android:textColor="@color/settings_text_secondary"
             android:textSize="14sp" />
 
