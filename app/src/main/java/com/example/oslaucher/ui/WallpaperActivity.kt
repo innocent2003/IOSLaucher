@@ -402,6 +402,7 @@ class WallpaperActivity : AppCompatActivity() {
                     bitmap.recycle()
                 }
             }
+            LauncherWallpaper.notifyChanged(this)
             Toast.makeText(this, R.string.wallpaper_applied, Toast.LENGTH_SHORT).show()
         } catch (exception: IOException) {
             Toast.makeText(
