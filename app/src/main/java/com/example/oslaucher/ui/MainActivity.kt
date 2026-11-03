@@ -223,6 +223,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
         }
 
+    private val uninstallAppLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                installedApps = null
+                requestInstalledApps { apps ->
+                    if (currentScreen == Screen.APPS) {
+                        renderApps?.invoke(apps)
+                    }
+                }
+            }
+        }
+
     private val weatherSettingsLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode != RESULT_OK) return@registerForActivityResult
@@ -1752,10 +1764,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             try {
                 val intent = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
                     data = Uri.parse("package:${app.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra(Intent.EXTRA_RETURN_RESULT, true)
                 }
-                startActivity(intent)
-            } catch (_: Exception) {
+                uninstallAppLauncher.launch(intent)
+            } catch (exception: ActivityNotFoundException) {
+                Log.w(TAG, "No package uninstaller is available for ${app.packageName}", exception)
+                Toast.makeText(this, R.string.cant_remove_app, Toast.LENGTH_SHORT).show()
+            } catch (exception: SecurityException) {
+                Log.w(TAG, "Not allowed to uninstall ${app.packageName}", exception)
                 Toast.makeText(this, R.string.cant_remove_app, Toast.LENGTH_SHORT).show()
             }
             popupWindow.dismiss()
