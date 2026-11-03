@@ -23,6 +23,13 @@
     <string name="screen_grid">Screen grid</string>
     <string name="page_transition">Page transition</string>
     <string name="app_library">App library</string>
+    <string name="apps_search_hint">Search</string>
+    <string name="apps_search_suggestions">Suggestions</string>
+    <string name="apps_search_results_title">Apps</string>
+    <string name="apps_search_more">Show more</string>
+    <string name="apps_search_less">Show less</string>
+    <string name="apps_search_no_results">No matching apps found.</string>
+    <string name="apps_search_launch_accessibility">Open %1$s</string>
     <string name="app_effects">App effects</string>
     <string name="notification_badges">Notification badges</string>
     <string name="customize_icons">Customize icons</string>

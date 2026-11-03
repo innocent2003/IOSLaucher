@@ -72,6 +72,7 @@ Khi hiển thị màn hình apps, `MainActivity` lọc ứng dụng đã ẩn, �
 - Nếu có widget trên trang, các vị trí bị widget chiếm được để trống khi sắp ứng dụng.
 - `AppAdapter` tạo từng ô từ `item_app.xml`: icon, tên ứng dụng và trạng thái chọn.
 - Chạm ứng dụng để mở; nhấn giữ để mở menu thao tác hoặc kéo thả/sắp xếp tùy chế độ.
+- Thanh tìm kiếm mở lớp phủ trên màn hình Apps: khi ô tìm kiếm rỗng sẽ hiện gợi ý, khi nhập sẽ lọc tên app tức thời (không phân biệt hoa/thường và dấu tiếng Việt). Chạm gợi ý hoặc kết quả để mở ứng dụng; nút xóa làm rỗng truy vấn, còn Back đóng lớp phủ.
 
 ### 5. Cấu hình và lưu dữ liệu
 
@@ -82,7 +83,7 @@ Các thiết lập đơn giản được lưu bằng `SharedPreferences`, ví d�
 - Thứ tự ứng dụng trong lưới.
 - Folder và các ứng dụng thuộc folder.
 - Vị trí ứng dụng/folder trong dock và các ô dock trống.
-- Vị trí widget trên các trang.
+- Vị trí widget trên các trang; vị trí được lưu trong `SharedPreferences`, còn mỗi widget có ID ổn định để tái sử dụng view khi đổi trang hoặc dựng lại màn hình.
 
 Một số dữ liệu cấu trúc được tuần tự hóa thành JSON trong `SharedPreferences`. `AppDatabase` (SQLite) chỉ lưu cache tên và package ứng dụng.
 
@@ -91,6 +92,7 @@ Một số dữ liệu cấu trúc được tuần tự hóa thành JSON trong `
 - Wallpaper người dùng chọn được lưu dưới dạng resource hoặc URI; launcher đọc wallpaper và áp dụng lên các màn hình launcher.
 - Icon ứng dụng mặc định lấy từ `PackageManager`. Màn hình đổi icon cho phép người dùng chọn ảnh trên thiết bị; URI ảnh được lưu để dùng thay icon mặc định.
 - Widget hệ thống được quản lý bằng `AppWidgetHost`/`AppWidgetManager`; các widget nội bộ (đồng hồ, pin, lịch, thời tiết) được dựng bằng các View của ứng dụng.
+- View widget được giữ trong bộ nhớ khi render lại trang; chỉ cập nhật kích thước option khi thay đổi. ID ổn định được ghi cùng vị trí để khôi phục danh tính widget cũ trong lúc migrate dữ liệu.
 - Dữ liệu thời tiết được tải từ Open-Meteo thông qua `WeatherForecastRepository`. Tọa độ hiện được cấu hình cố định trong URL của repository.
 
 ## Cấu trúc mã nguồn
@@ -117,7 +119,7 @@ Các mô tả dưới đây tập trung vào vai trò của từng file trong lu
 
 | File | Trách nhiệm |
 |---|---|
-| [`MainActivity.kt`](./app/src/main/java/com/example/oslaucher/ui/MainActivity.kt) | Điều phối launcher: khởi tạo và chuyển màn hình, tải ứng dụng, dựng các trang lưới và dock, xử lý vuốt, kéo thả, chọn app, folder, widget, menu ứng dụng và các kết quả trả về từ màn hình cài đặt. |
+| [`MainActivity.kt`](./app/src/main/java/com/example/oslaucher/ui/MainActivity.kt) | Điều phối launcher: khởi tạo và chuyển màn hình, tải ứng dụng, dựng các trang lưới và dock, xử lý vuốt, kéo thả, chọn app, tìm kiếm/gợi ý app, folder, widget, menu ứng dụng và các kết quả trả về từ màn hình cài đặt. |
 | [`AppEffectsActivity.kt`](./app/src/main/java/com/example/oslaucher/ui/AppEffectsActivity.kt) | Hiển thị và lưu các công tắc hiệu ứng khi mở/đóng ứng dụng và tiếp tục hiệu ứng. |
 | [`AppearanceActivity.kt`](./app/src/main/java/com/example/oslaucher/ui/AppearanceActivity.kt) | Cho chọn sáng/tối hoặc theo hệ thống, dựng bản xem trước và áp dụng chế độ giao diện bằng `OslauncherApp`. |
 | [`ChangeAppIconActivity.kt`](./app/src/main/java/com/example/oslaucher/ui/ChangeAppIconActivity.kt) | Tải danh sách app, hiển thị icon/tên, cho chọn ảnh làm icon tùy chỉnh hoặc xóa tùy chỉnh để trở về icon gốc. |
@@ -166,7 +168,7 @@ Các mô tả dưới đây tập trung vào vai trò của từng file trong lu
 | [`AppDragCandidate.kt`](./app/src/main/java/com/example/oslaucher/models/AppDragCandidate.kt) | Trạng thái app và view nguồn khi bắt đầu thao tác nhấn giữ/kéo. |
 | [`AppPageSwipeTransition.kt`](./app/src/main/java/com/example/oslaucher/models/AppPageSwipeTransition.kt) | Trạng thái chuyển vuốt giữa hai trang app, gồm view, hướng, chiều rộng và tiến độ. |
 | [`HomeSwipeTransition.kt`](./app/src/main/java/com/example/oslaucher/models/HomeSwipeTransition.kt) | Trạng thái chuyển vuốt giữa các màn hình Home và Apps, gồm fragment/view đi và đến. |
-| [`HomeWidgetPlacement.kt`](./app/src/main/java/com/example/oslaucher/models/HomeWidgetPlacement.kt) | Vị trí widget: ID widget hệ thống hoặc loại widget nội bộ, trang và tọa độ tùy chọn; cũng định nghĩa các loại widget nội bộ. |
+| [`HomeWidgetPlacement.kt`](./app/src/main/java/com/example/oslaucher/models/HomeWidgetPlacement.kt) | Vị trí và ID ổn định của widget hệ thống hoặc widget nội bộ; cũng định nghĩa các loại widget nội bộ. |
 | [`Weather.kt`](./app/src/main/java/com/example/oslaucher/models/Weather.kt) | Kết quả thời tiết đã chuyển thành dữ liệu trình bày cho widget. |
 | [`EffectOption.kt`](./app/src/main/java/com/example/oslaucher/models/EffectOption.kt) | Cấu hình binding của một công tắc hiệu ứng: ID hàng, ID switch, khóa preference và mặc định. |
 | [`SwitchOption.kt`](./app/src/main/java/com/example/oslaucher/models/SwitchOption.kt) | Cấu hình binding của một công tắc trong màn hình cài đặt chung. |
@@ -176,7 +178,7 @@ Các mô tả dưới đây tập trung vào vai trò của từng file trong lu
 | File | Trách nhiệm |
 |---|---|
 | [`InstalledAppRepository.kt`](./app/src/main/java/com/example/oslaucher/repositories/InstalledAppRepository.kt) | Nạp app từ PackageManager qua `InstalledAppUtils`, cập nhật SQLite cache; nếu truy vấn gặp lỗi thì thử khôi phục các app cache còn tồn tại. |
-| [`LauncherLayoutRepository.kt`](./app/src/main/java/com/example/oslaucher/repositories/LauncherLayoutRepository.kt) | Đọc/ghi thứ tự lưới, widget, folder, vị trí dock và các ô dock trống bằng JSON/`SharedPreferences`; ghi log và dùng giá trị rỗng an toàn nếu JSON không hợp lệ. |
+| [`LauncherLayoutRepository.kt`](./app/src/main/java/com/example/oslaucher/repositories/LauncherLayoutRepository.kt) | Đọc/ghi thứ tự lưới, widget, folder, vị trí dock và các ô dock trống bằng JSON/`SharedPreferences`; tự bổ sung ID ổn định cho widget đã lưu từ phiên bản cũ. |
 | [`WeatherForecastRepository.kt`](./app/src/main/java/com/example/oslaucher/repositories/WeatherForecastRepository.kt) | Gọi Open-Meteo, phân tích JSON thời tiết hiện tại/theo giờ/theo ngày, chuyển mã thời tiết thành mô tả và icon; đóng kết nối sau khi tải. |
 | [`AppDatabase.kt`](./app/src/main/java/com/example/oslaucher/db/AppDatabase.kt) | Tạo bảng SQLite cache app, thay toàn bộ dữ liệu trong transaction và đọc cache theo tên. |
 

@@ -8,6 +8,7 @@ import com.example.oslaucher.models.HomeWidgetPlacement
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.util.UUID
 
 internal class LauncherLayoutRepository(context: Context) {
     private val folderPreferences = context.getSharedPreferences(
@@ -42,12 +43,16 @@ internal class LauncherLayoutRepository(context: Context) {
 
     fun loadHomeWidgets(): List<HomeWidgetPlacement> {
         val stored = appGridPreferences.getString(HOME_WIDGETS_KEY, null) ?: return emptyList()
-        return try {
-            val widgets = JSONArray(stored)
-            buildList {
-                for (index in 0 until widgets.length()) {
-                    val widget = widgets.getJSONObject(index)
+        var migratedInstanceIds = false
+        val widgets = try {
+            val jsonWidgets = JSONArray(stored)
+            buildList<HomeWidgetPlacement> {
+                for (index in 0 until jsonWidgets.length()) {
+                    val widget = jsonWidgets.getJSONObject(index)
                     val appWidgetId = widget.optInt(APP_WIDGET_ID_KEY, -1)
+                    val instanceId = widget.optString(INSTANCE_ID_KEY, "")
+                        .takeIf(String::isNotBlank)
+                        ?: UUID.randomUUID().toString().also { migratedInstanceIds = true }
                     val launcherWidgetType = LauncherWidgetType.fromId(
                         widget.optString(LAUNCHER_WIDGET_TYPE_KEY)
                     )
@@ -60,7 +65,8 @@ internal class LauncherLayoutRepository(context: Context) {
                                 positionX = widget.optDouble(POSITION_X_KEY, -1.0)
                                     .toFloat().takeIf { it in 0f..1f },
                                 positionY = widget.optDouble(POSITION_Y_KEY, -1.0)
-                                    .toFloat().takeIf { it in 0f..1f }
+                                    .toFloat().takeIf { it in 0f..1f },
+                                instanceId = instanceId
                             )
                         )
                     }
@@ -68,8 +74,10 @@ internal class LauncherLayoutRepository(context: Context) {
             }
         } catch (exception: JSONException) {
             Log.w(TAG, "Could not read saved home screen widgets", exception)
-            emptyList()
+            return emptyList()
         }
+        if (migratedInstanceIds) saveHomeWidgets(widgets)
+        return widgets
     }
 
     fun saveHomeWidgets(widgets: List<HomeWidgetPlacement>) {
@@ -78,6 +86,7 @@ internal class LauncherLayoutRepository(context: Context) {
             jsonWidgets.put(
                 JSONObject()
                     .put(APP_WIDGET_ID_KEY, widget.appWidgetId)
+                    .put(INSTANCE_ID_KEY, widget.instanceId)
                     .put(PAGE_INDEX_KEY, widget.pageIndex)
                     .apply {
                         widget.launcherWidgetType?.let {
@@ -222,6 +231,7 @@ internal class LauncherLayoutRepository(context: Context) {
         const val APP_GRID_ORDER_KEY = "packages"
         const val HOME_WIDGETS_KEY = "home_widgets"
         const val APP_WIDGET_ID_KEY = "app_widget_id"
+        const val INSTANCE_ID_KEY = "instance_id"
         const val LAUNCHER_WIDGET_TYPE_KEY = "launcher_widget_type"
         const val PAGE_INDEX_KEY = "page_index"
         const val POSITION_X_KEY = "position_x"

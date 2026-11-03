@@ -1,11 +1,14 @@
 package com.example.oslaucher.models
 
+import java.util.UUID
+
 data class HomeWidgetPlacement(
     val appWidgetId: Int,
     val pageIndex: Int,
     val launcherWidgetType: LauncherWidgetType? = null,
     val positionX: Float? = null,
-    val positionY: Float? = null
+    val positionY: Float? = null,
+    val instanceId: String = UUID.randomUUID().toString()
 )
 
 enum class LauncherWidgetType(val id: String, val labelResId: Int) {

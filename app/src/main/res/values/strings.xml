@@ -23,6 +23,13 @@
     <string name="screen_grid">Lưới màn hình</string>
     <string name="page_transition">Chuyển trang</string>
     <string name="app_library">Thư viện ứng dụng</string>
+    <string name="apps_search_hint">Tìm kiếm</string>
+    <string name="apps_search_suggestions">Gợi ý</string>
+    <string name="apps_search_results_title">Ứng dụng</string>
+    <string name="apps_search_more">Hiện thêm</string>
+    <string name="apps_search_less">Hiện ít hơn</string>
+    <string name="apps_search_no_results">Không tìm thấy ứng dụng phù hợp.</string>
+    <string name="apps_search_launch_accessibility">Mở %1$s</string>
     <string name="app_effects">Hiệu ứng ứng dụng</string>
     <string name="notification_badges">Huy hiệu thông báo</string>
     <string name="customize_icons">Tùy chỉnh biểu tượng</string>

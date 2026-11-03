@@ -18,7 +18,9 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RenderEffect
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
@@ -93,6 +95,7 @@ import com.example.oslaucher.utils.WeatherWidgetPreferences
 import java.util.concurrent.Executors
 import java.util.UUID
 import java.util.Locale
+import java.text.Normalizer
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -119,6 +122,19 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appPageIndex = 0
     private var appPageCount = 1
     private var appGridPageSize = 1
+    private var isAppSearchVisible = false
+    private var isSearchSuggestionsExpanded = false
+    private var appSearchOverlay: View? = null
+    private var appSearchInput: EditText? = null
+    private var appSearchContent: View? = null
+    private var appSearchWidgetContainer: View? = null
+    private var appSearchSuggestions: View? = null
+    private var appSearchSuggestionItems: LinearLayout? = null
+    private var appSearchResultsScroll: View? = null
+    private var appSearchResults: LinearLayout? = null
+    private var appSearchTitle: TextView? = null
+    private var appSearchMore: TextView? = null
+    private var appSearchClear: TextView? = null
     private var appGridPackages: List<String?> = emptyList()
     private var openAppsAtLastPage = false
     private val appGridOrderPackages = mutableListOf<String?>()
@@ -139,6 +155,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appsWidgetContainer: FrameLayout? = null
     private val homeWidgets = mutableListOf<HomeWidgetPlacement>()
     private val appWidgetViews = mutableMapOf<Int, AppWidgetHostView>()
+    private val appWidgetOptionSizes = mutableMapOf<Int, Pair<Int, Int>>()
+    private val launcherWidgetViews = mutableMapOf<String, View>()
+    private val widgetFrames = mutableMapOf<String, FrameLayout>()
     private var draggedWidgetPlacement: HomeWidgetPlacement? = null
     private var draggedWidgetSource: View? = null
     private var dragShadowCenteredOnPointer = false
@@ -172,6 +191,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     it.pageIndex == appPageIndex
             }
         ) {
+            invalidateLauncherWidgetViews(LauncherWidgetType.WEATHER)
             renderHomeWidgetViews()
         }
         scheduleWeatherRefresh()
@@ -243,6 +263,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
             if (existingWeatherWidget != null) {
                 appPageIndex = existingWeatherWidget.pageIndex
+                invalidateLauncherWidgetViews(LauncherWidgetType.WEATHER)
                 installedApps?.let { renderApps?.invoke(it) } ?: renderHomeWidgetViews()
             } else {
                 val targetPage = result.data?.getIntExtra(
@@ -313,6 +334,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (isAppSearchVisible) {
+                    closeAppSearch()
+                    return
+                }
                 if (isHomeEditMode) {
                     finishHomeEditMode()
                     return
@@ -476,6 +501,223 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
     }
 
+    private fun bindAppsSearch(view: View) {
+        appSearchOverlay = view.findViewById(R.id.apps_search_overlay)
+        appSearchInput = view.findViewById(R.id.apps_search_input)
+        appSearchContent = view.findViewById(R.id.apps_content)
+        appSearchWidgetContainer = view.findViewById(R.id.apps_widget_container)
+        appSearchSuggestions = view.findViewById(R.id.apps_search_suggestions)
+        appSearchSuggestionItems = view.findViewById(R.id.apps_search_suggestion_items)
+        appSearchResultsScroll = view.findViewById(R.id.apps_search_results_scroll)
+        appSearchResults = view.findViewById(R.id.apps_search_results)
+        appSearchTitle = view.findViewById(R.id.apps_search_title)
+        appSearchMore = view.findViewById(R.id.apps_search_more)
+        appSearchClear = view.findViewById(R.id.apps_search_clear)
+
+        view.findViewById<View>(R.id.apps_search_button).setOnClickListener {
+            if (!isAppSelectionMode && !isHomeEditMode) showAppSearch()
+        }
+        appSearchInput?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(text: Editable?) {
+                appSearchClear?.visibility =
+                    if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
+                renderAppSearch(text?.toString().orEmpty())
+            }
+        })
+        appSearchClear?.setOnClickListener {
+            appSearchInput?.setText("")
+            appSearchInput?.requestFocus()
+        }
+        appSearchMore?.setOnClickListener {
+            val input = appSearchInput ?: return@setOnClickListener
+            if (input.text.isNotEmpty()) {
+                input.setText("")
+            } else {
+                isSearchSuggestionsExpanded = !isSearchSuggestionsExpanded
+                renderAppSearch("")
+            }
+        }
+        isAppSearchVisible = false
+        isSearchSuggestionsExpanded = false
+        appSearchOverlay?.visibility = View.GONE
+    }
+
+    private fun showAppSearch() {
+        val overlay = appSearchOverlay ?: return
+        isAppSearchVisible = true
+        overlay.visibility = View.VISIBLE
+        appSearchInput?.apply {
+            setText("")
+            requestFocus()
+            post {
+                getSystemService<InputMethodManager>()
+                    ?.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
+        setAppSearchBlurred(true)
+        renderAppSearch("")
+        requestInstalledApps {
+            if (isAppSearchVisible) {
+                renderAppSearch(appSearchInput?.text?.toString().orEmpty())
+            }
+        }
+    }
+
+    private fun closeAppSearch() {
+        isAppSearchVisible = false
+        appSearchOverlay?.visibility = View.GONE
+        appSearchInput?.let { input ->
+            getSystemService<InputMethodManager>()
+                ?.hideSoftInputFromWindow(input.windowToken, 0)
+            input.setText("")
+            input.clearFocus()
+        }
+        isSearchSuggestionsExpanded = false
+        setAppSearchBlurred(false)
+    }
+
+    private fun setAppSearchBlurred(blurred: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val effect = if (blurred) {
+            RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP)
+        } else {
+            null
+        }
+        appSearchContent?.setRenderEffect(effect)
+        appSearchWidgetContainer?.setRenderEffect(effect)
+    }
+
+    private fun renderAppSearch(query: String) {
+        val suggestionItems = appSearchSuggestionItems ?: return
+        val results = appSearchResults ?: return
+        val matchingApps = installedApps.orEmpty()
+            .filterNot { it.packageName in hiddenAppPackages }
+            .filter { query.isBlank() || searchKey(it.name).contains(searchKey(query.trim())) }
+
+        val showingResults = query.isNotBlank()
+        appSearchTitle?.setText(
+            if (showingResults) R.string.apps_search_results_title
+            else R.string.apps_search_suggestions
+        )
+        appSearchMore?.setText(
+            if (showingResults || isSearchSuggestionsExpanded) R.string.apps_search_less
+            else R.string.apps_search_more
+        )
+        appSearchSuggestions?.visibility = if (showingResults) View.GONE else View.VISIBLE
+        appSearchResultsScroll?.visibility = if (showingResults) View.VISIBLE else View.GONE
+
+        if (!showingResults) {
+            suggestionItems.removeAllViews()
+            matchingApps.take(if (isSearchSuggestionsExpanded) 8 else 4)
+                .forEach { app -> suggestionItems.addView(createAppSuggestion(app)) }
+            return
+        }
+
+        results.removeAllViews()
+        if (matchingApps.isEmpty()) {
+            results.addView(TextView(this).apply {
+                setText(R.string.apps_search_no_results)
+                setTextColor(0xFFEAF5FF.toInt())
+                textSize = 15f
+                setPadding(dp(16), dp(20), dp(16), dp(20))
+            })
+        } else {
+            matchingApps.forEachIndexed { index, app ->
+                results.addView(createAppSearchResult(app))
+                if (index < matchingApps.lastIndex) {
+                    results.addView(View(this).apply {
+                        setBackgroundColor(0x3DFFFFFF)
+                    }, LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(1)
+                    ).apply {
+                        marginStart = dp(76)
+                    })
+                }
+            }
+        }
+    }
+
+    private fun createAppSuggestion(app: AppInfo): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            contentDescription = app.name
+            setPadding(dp(8), dp(2), dp(8), dp(2))
+            setOnClickListener { launchSearchApp(app) }
+
+            addView(ImageView(this@MainActivity).apply {
+                setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
+                contentDescription = app.name
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(dp(58), dp(58)))
+            addView(TextView(this@MainActivity).apply {
+                text = app.name
+                setTextColor(0xFFFFFFFF.toInt())
+                textSize = 11f
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(dp(78), dp(22)))
+        }
+
+    private fun createAppSearchResult(app: AppInfo): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(88)
+            setPadding(dp(4), dp(8), dp(2), dp(8))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { launchSearchApp(app) }
+        }
+        row.addView(ImageView(this).apply {
+            setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
+            contentDescription = app.name
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }, LinearLayout.LayoutParams(dp(64), dp(64)))
+        row.addView(TextView(this).apply {
+            text = app.name
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 15f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, dp(64), 1f).apply {
+                marginStart = dp(14)
+                marginEnd = dp(8)
+            }
+        })
+        row.addView(TextView(this).apply {
+            text = "↗"
+            gravity = Gravity.CENTER
+            textSize = 22f
+            setTextColor(0xFFFFFFFF.toInt())
+            contentDescription = getString(R.string.apps_search_launch_accessibility, app.name)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0x55777777)
+            }
+            isClickable = true
+            setOnClickListener { launchSearchApp(app) }
+        }, LinearLayout.LayoutParams(dp(44), dp(44)))
+        return row
+    }
+
+    private fun launchSearchApp(app: AppInfo) {
+        closeAppSearch()
+        launchHomeScreenApp(app.packageName)
+    }
+
+    private fun searchKey(value: String): String =
+        Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
+            .lowercase(Locale.ROOT)
+
     override fun onResume() {
         super.onResume()
         val latestHiddenPackages = HiddenAppsPreferences.packages(this)
@@ -513,6 +755,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         it.pageIndex == appPageIndex
                 } && WeatherWidgetPreferences.isRefreshDue(this)
             ) {
+                invalidateLauncherWidgetViews(LauncherWidgetType.WEATHER)
                 renderHomeWidgetViews()
             }
         }
@@ -532,6 +775,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun showScreen(screen: Screen, animationDirection: Int = 0) {
+        if (screen != Screen.APPS && isAppSearchVisible) closeAppSearch()
         if (screen != Screen.APPS) appsWidgetContainer = null
         if (screen != Screen.APPS && (isHomeEditMode || isAppSelectionMode)) {
             isHomeEditMode = false
@@ -922,6 +1166,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     bindAlphabeticalAppLibrary(view)
                     return
                 }
+                bindAppsSearch(view)
                 val pages = view.findViewById<ViewFlipper>(R.id.apps_pages)
                 val pageIndicator = view.findViewById<LinearLayout>(R.id.apps_page_indicator)
                 val editControls = view.findViewById<LinearLayout>(R.id.apps_edit_controls)
@@ -2284,15 +2529,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             return
         }
         for (index in 0 until container.childCount) {
-            stopSelectionWiggle(container.getChildAt(index))
+            container.getChildAt(index).visibility = View.GONE
         }
-        container.removeAllViews()
+        widgetFrames.values.forEach { frame ->
+            if (frame.parent !== container) {
+                (frame.parent as? ViewGroup)?.removeView(frame)
+                container.addView(frame)
+            }
+            frame.visibility = View.GONE
+        }
         val pageWidgets = homeWidgets.filter { it.pageIndex == appPageIndex }
         container.visibility = View.VISIBLE
         val missingWidgets = mutableListOf<HomeWidgetPlacement>()
         var savedDefaultPositions = false
         val widgetHeight = dp(LAUNCHER_WIDGET_HEIGHT_DP)
-        pageWidgets.forEachIndexed { index, placement ->
+        pageWidgets.toList().forEachIndexed { index, placement ->
             val widgetWidth = appScreenWidgetWidthPx(container, placement)
             val (maxLeft, maxTop) = widgetPositionMaxima(container, widgetWidth, widgetHeight)
             val defaultPosition = defaultWidgetPosition(
@@ -2319,12 +2570,17 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             val widgetContent: View
             val launcherWidgetType = positionedPlacement.launcherWidgetType
             if (launcherWidgetType != null) {
-                if (launcherWidgetType == LauncherWidgetType.WEATHER) {
-                    WeatherWidgetPreferences.recordRefresh(this)
-                }
-                widgetContent = LauncherWidgetFactory.create(this, launcherWidgetType) {
+                widgetContent = launcherWidgetViews.getOrPut(positionedPlacement.instanceId) {
                     if (launcherWidgetType == LauncherWidgetType.WEATHER) {
-                        launchWeatherSettings(positionedPlacement.pageIndex)
+                        WeatherWidgetPreferences.recordRefresh(this)
+                    }
+                    LauncherWidgetFactory.create(this, launcherWidgetType) {
+                        if (launcherWidgetType == LauncherWidgetType.WEATHER) {
+                            val currentPlacement = homeWidgets.firstOrNull {
+                                it.instanceId == positionedPlacement.instanceId
+                            }
+                            launchWeatherSettings(currentPlacement?.pageIndex ?: appPageIndex)
+                        }
                     }
                 }
             } else {
@@ -2333,84 +2589,131 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     Log.w(TAG, "Removing unavailable widget ${positionedPlacement.appWidgetId}")
                     missingWidgets += positionedPlacement
                     appWidgetViews.remove(positionedPlacement.appWidgetId)
+                    appWidgetOptionSizes.remove(positionedPlacement.appWidgetId)
                     appWidgetHost.deleteAppWidgetId(positionedPlacement.appWidgetId)
                     return@forEachIndexed
                 }
 
                 val widgetWidthDp = appScreenWidgetWidthDp(container, positionedPlacement)
                 val widgetHeightDp = LAUNCHER_WIDGET_HEIGHT_DP
-                val options = Bundle().apply {
-                    putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widgetWidthDp)
-                    putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widgetWidthDp)
-                    putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, widgetHeightDp)
-                    putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, widgetHeightDp)
+                val optionSize = widgetWidthDp to widgetHeightDp
+                if (appWidgetOptionSizes[positionedPlacement.appWidgetId] != optionSize) {
+                    val options = Bundle().apply {
+                        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widgetWidthDp)
+                        putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widgetWidthDp)
+                        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, widgetHeightDp)
+                        putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, widgetHeightDp)
+                    }
+                    appWidgetManager.updateAppWidgetOptions(
+                        positionedPlacement.appWidgetId,
+                        options
+                    )
+                    appWidgetOptionSizes[positionedPlacement.appWidgetId] = optionSize
                 }
-                appWidgetManager.updateAppWidgetOptions(positionedPlacement.appWidgetId, options)
                 widgetContent = appWidgetViews.getOrPut(positionedPlacement.appWidgetId) {
                     appWidgetHost.createView(this, positionedPlacement.appWidgetId, provider)
                 }
             }
-            (widgetContent.parent as? ViewGroup)?.removeView(widgetContent)
-            val widgetFrame = FrameLayout(this).apply {
-                tag = positionedPlacement
-                background = if (
-                    positionedPlacement.launcherWidgetType == LauncherWidgetType.WEATHER
-                ) null else getDrawable(R.drawable.bg_glass)
-                clipChildren = false
-                clipToPadding = false
-                addView(
+            val widgetFrame = widgetFrames.getOrPut(positionedPlacement.instanceId) {
+                FrameLayout(this)
+            }
+            widgetFrame.tag = positionedPlacement
+            widgetFrame.background = if (
+                positionedPlacement.launcherWidgetType == LauncherWidgetType.WEATHER
+            ) null else getDrawable(R.drawable.bg_glass)
+            widgetFrame.clipChildren = false
+            widgetFrame.clipToPadding = false
+            if (widgetContent.parent !== widgetFrame) {
+                (widgetContent.parent as? ViewGroup)?.removeView(widgetContent)
+                if (widgetFrame.childCount > 0) widgetFrame.removeViewAt(0)
+                widgetFrame.addView(
                     widgetContent,
+                    0,
                     FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                 )
-                if (isHomeEditMode) {
-                    addView(
-                        TextView(this@MainActivity).apply {
-                            text = "−"
-                            gravity = Gravity.CENTER
-                            textSize = 22f
-                            setTextColor(0xFFFFFFFF.toInt())
-                            background = GradientDrawable().apply {
-                                shape = GradientDrawable.OVAL
-                                setColor(0xFFE74C5B.toInt())
-                            }
-                            elevation = dp(8).toFloat()
-                            setOnClickListener {
-                                confirmRemoveHomeWidget(positionedPlacement)
-                            }
-                        },
-                        FrameLayout.LayoutParams(dp(28), dp(28), Gravity.TOP or Gravity.START)
-                    )
-                }
-                setOnLongClickListener {
-                    startWidgetDrag(positionedPlacement, this)
-                    true
-                }
+            }
+            val removeButton =
+                widgetFrame.findViewWithTag<TextView>(WIDGET_REMOVE_BUTTON_TAG)
+            if (isHomeEditMode && removeButton == null) {
+                widgetFrame.addView(
+                    TextView(this).apply {
+                        tag = WIDGET_REMOVE_BUTTON_TAG
+                        text = "−"
+                        gravity = Gravity.CENTER
+                        textSize = 22f
+                        setTextColor(0xFFFFFFFF.toInt())
+                        background = GradientDrawable().apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(0xFFE74C5B.toInt())
+                        }
+                        elevation = dp(8).toFloat()
+                        setOnClickListener {
+                            val currentPlacement = homeWidgets.firstOrNull {
+                                it.instanceId == positionedPlacement.instanceId
+                            } ?: return@setOnClickListener
+                            confirmRemoveHomeWidget(currentPlacement)
+                        }
+                    },
+                    FrameLayout.LayoutParams(dp(28), dp(28), Gravity.TOP or Gravity.START)
+                )
+            } else if (!isHomeEditMode && removeButton != null) {
+                widgetFrame.removeView(removeButton)
+            }
+            widgetFrame.setOnLongClickListener {
+                val currentPlacement = homeWidgets.firstOrNull {
+                    it.instanceId == positionedPlacement.instanceId
+                } ?: return@setOnLongClickListener false
+                startWidgetDrag(currentPlacement, widgetFrame)
+                true
             }
             attachWidgetLongPress(widgetContent, positionedPlacement, widgetFrame)
-            container.addView(
-                widgetFrame,
-                FrameLayout.LayoutParams(
-                    appScreenWidgetWidthPx(container, positionedPlacement),
-                    widgetHeight,
-                    Gravity.TOP or Gravity.LEFT
-                ).apply {
-                    leftMargin = (positionX * maxLeft).roundToInt()
-                    topMargin = (positionY * maxTop).roundToInt()
-                }
-            )
+            val layoutParams = FrameLayout.LayoutParams(
+                appScreenWidgetWidthPx(container, positionedPlacement),
+                widgetHeight,
+                Gravity.TOP or Gravity.LEFT
+            ).apply {
+                leftMargin = (positionX * maxLeft).roundToInt()
+                topMargin = (positionY * maxTop).roundToInt()
+            }
+            if (widgetFrame.parent !== container) {
+                (widgetFrame.parent as? ViewGroup)?.removeView(widgetFrame)
+                container.addView(widgetFrame, layoutParams)
+            } else {
+                widgetFrame.layoutParams = layoutParams
+            }
+            widgetFrame.visibility = View.VISIBLE
             if (isHomeEditMode) startSelectionWiggle(widgetFrame)
+            else stopSelectionWiggle(widgetFrame)
         }
         if (missingWidgets.isNotEmpty()) {
             homeWidgets.removeAll(missingWidgets.toSet())
             savedDefaultPositions = true
         }
+        val activeWidgetIds = homeWidgets.mapTo(mutableSetOf()) { it.instanceId }
+        widgetFrames.keys.filterNot(activeWidgetIds::contains).forEach { instanceId ->
+            widgetFrames.remove(instanceId)?.let { frame ->
+                stopSelectionWiggle(frame)
+                (frame.parent as? ViewGroup)?.removeView(frame)
+            }
+            launcherWidgetViews.remove(instanceId)
+        }
         if (savedDefaultPositions) {
             layoutRepository.saveHomeWidgets(homeWidgets)
         }
         scheduleWeatherRefresh()
+    }
+
+    private fun invalidateLauncherWidgetViews(type: LauncherWidgetType) {
+        homeWidgets.asSequence()
+            .filter { it.launcherWidgetType == type }
+            .forEach { placement ->
+                launcherWidgetViews.remove(placement.instanceId)?.let { widgetView ->
+                    (widgetView.parent as? ViewGroup)?.removeView(widgetView)
+                }
+            }
     }
 
     private fun confirmRemoveHomeWidget(placement: HomeWidgetPlacement) {
@@ -2423,6 +2726,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 layoutRepository.saveHomeWidgets(homeWidgets)
                 if (placement.launcherWidgetType == null) {
                     appWidgetViews.remove(placement.appWidgetId)
+                    appWidgetOptionSizes.remove(placement.appWidgetId)
                     appWidgetHost.deleteAppWidgetId(placement.appWidgetId)
                 }
                 renderHomeWidgetViews()
@@ -4623,6 +4927,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
         const val LAUNCHER_WIDGET_HEIGHT_DP = 164
         const val TAG = "MainActivity"
+        const val WIDGET_REMOVE_BUTTON_TAG = "home_widget_remove_button"
         const val WIDGET_DEFAULT_TOP_DP = 10
         const val WIDGET_HORIZONTAL_GAP_DP = 14
         const val WIDGET_SIDE_INSET_DP = 22
