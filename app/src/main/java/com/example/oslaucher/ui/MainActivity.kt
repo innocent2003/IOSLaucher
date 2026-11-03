@@ -9,7 +9,10 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -58,6 +61,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -100,6 +104,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private val appWidgetHost by lazy { AppWidgetHost(this, APP_WIDGET_HOST_ID) }
     private val appLoadExecutor = Executors.newSingleThreadExecutor()
     private lateinit var screenContainer: FrameLayout
+    private var wallpaperReceiverRegistered = false
+    private val wallpaperChangedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            refreshWallpaperViews()
+        }
+    }
     private var installedApps: List<AppInfo>? = null
     private val installedAppsCallbacks = mutableListOf<(List<AppInfo>) -> Unit>()
     private var renderApps: ((List<AppInfo>) -> Unit)? = null
@@ -213,6 +223,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
         }
 
+    private val uninstallAppLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                installedApps = null
+                requestInstalledApps { apps ->
+                    if (currentScreen == Screen.APPS) {
+                        renderApps?.invoke(apps)
+                    }
+                }
+            }
+        }
+
     private val weatherSettingsLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode != RESULT_OK) return@registerForActivityResult
@@ -237,6 +259,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             returningFromOwnScreen = false
             if (LauncherConfig.isDefaultHome(this)) {
                 defaultHomeActive = true
+                if (currentScreen == Screen.HOME ||
+                    currentScreen == Screen.HOME_SECOND ||
+                    currentScreen == Screen.APPS
+                ) {
+                    showScreen(currentScreen, 0)
+                }
                 Toast.makeText(this, R.string.default_home_set, Toast.LENGTH_SHORT).show()
             } else {
                 openHomeSettingsFallback()
@@ -470,10 +498,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             showScreen(currentScreen, 0)
             return
         }
+        if (currentScreen == Screen.HOME ||
+            currentScreen == Screen.HOME_SECOND ||
+            currentScreen == Screen.APPS
+        ) {
+            refreshWallpaperViews()
+        }
         if (currentScreen == Screen.APPS) {
-            screenContainer.getChildAt(0)
-                ?.findViewById<View>(R.id.main)
-                ?.let(LauncherWallpaper::applyTo)
             if (hiddenAppsChanged) {
                 installedApps?.let { renderApps?.invoke(it) }
             } else if (
@@ -814,6 +845,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             supportFragmentManager.beginTransaction().remove(fragment).commitNow()
         } else {
             screenContainer.removeView(view)
+        }
+    }
+
+    private fun refreshWallpaperViews() {
+        if (currentScreen != Screen.HOME &&
+            currentScreen != Screen.HOME_SECOND &&
+            currentScreen != Screen.APPS
+        ) {
+            return
+        }
+        for (index in 0 until screenContainer.childCount) {
+            screenContainer.getChildAt(index)
+                .findViewById<View>(R.id.main)
+                ?.let(LauncherWallpaper::applyTo)
         }
     }
 
@@ -1719,10 +1764,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             try {
                 val intent = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
                     data = Uri.parse("package:${app.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra(Intent.EXTRA_RETURN_RESULT, true)
                 }
-                startActivity(intent)
-            } catch (_: Exception) {
+                uninstallAppLauncher.launch(intent)
+            } catch (exception: ActivityNotFoundException) {
+                Log.w(TAG, "No package uninstaller is available for ${app.packageName}", exception)
+                Toast.makeText(this, R.string.cant_remove_app, Toast.LENGTH_SHORT).show()
+            } catch (exception: SecurityException) {
+                Log.w(TAG, "Not allowed to uninstall ${app.packageName}", exception)
                 Toast.makeText(this, R.string.cant_remove_app, Toast.LENGTH_SHORT).show()
             }
             popupWindow.dismiss()
@@ -4538,9 +4587,24 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     override fun onStart() {
         super.onStart()
         appWidgetHost.startListening()
+        val filter = IntentFilter().apply {
+            addAction(LauncherWallpaper.ACTION_CHANGED)
+            addAction(Intent.ACTION_WALLPAPER_CHANGED)
+        }
+        ContextCompat.registerReceiver(
+            this,
+            wallpaperChangedReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        wallpaperReceiverRegistered = true
     }
 
     override fun onStop() {
+        if (wallpaperReceiverRegistered) {
+            unregisterReceiver(wallpaperChangedReceiver)
+            wallpaperReceiverRegistered = false
+        }
         appWidgetHost.stopListening()
         super.onStop()
     }

@@ -10,11 +10,16 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
         <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
             <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
         </intent>
     </queries>
 
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />

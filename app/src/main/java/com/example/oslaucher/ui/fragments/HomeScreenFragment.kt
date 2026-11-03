@@ -56,13 +56,8 @@ abstract class HomeScreenFragment : Fragment() {
     private var receiverRegistered = false
     private var weatherRequestInProgress = false
     private val updatesReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            when (intent?.action) {
-                ACTION_WALLPAPER_CHANGED ->
-                    view?.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
-                else -> view?.let(::updateWidgets)
-            }
-        }
+        override fun onReceive(context: Context?, intent: Intent?) =
+            view?.let(::updateWidgets) ?: Unit
     }
 
     override fun onCreateView(
@@ -103,7 +98,6 @@ abstract class HomeScreenFragment : Fragment() {
             addAction(Intent.ACTION_TIME_CHANGED)
             addAction(Intent.ACTION_TIMEZONE_CHANGED)
             addAction(Intent.ACTION_TIME_TICK)
-            addAction(ACTION_WALLPAPER_CHANGED)
         }
         ContextCompat.registerReceiver(
             requireContext(),
@@ -392,6 +386,5 @@ abstract class HomeScreenFragment : Fragment() {
 
     private companion object {
         const val TAG = "HomeScreenFragment"
-        const val ACTION_WALLPAPER_CHANGED = "android.intent.action.WALLPAPER_CHANGED"
     }
 }

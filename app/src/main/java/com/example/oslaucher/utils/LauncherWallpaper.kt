@@ -2,6 +2,7 @@ package com.example.oslaucher.utils
 
 import android.app.WallpaperManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.util.Log
@@ -9,6 +10,8 @@ import android.view.View
 import java.io.IOException
 
 object LauncherWallpaper {
+    const val ACTION_CHANGED = "com.example.oslaucher.action.WALLPAPER_CHANGED"
+
     fun applyTo(view: View): Boolean {
         return try {
             val usesSavedWallpaper = LauncherConfig.usesSavedWallpaper(view.context)
@@ -42,6 +45,12 @@ object LauncherWallpaper {
             Log.w(TAG, "Permission is required to read the saved or device wallpaper", exception)
             false
         }
+    }
+
+    fun notifyChanged(context: Context) {
+        context.sendBroadcast(
+            Intent(ACTION_CHANGED).setPackage(context.packageName)
+        )
     }
 
     fun saveResource(context: Context, resourceId: Int) {
