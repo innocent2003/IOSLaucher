@@ -34,7 +34,7 @@
                 android:paddingEnd="16dp"
                 android:text="@string/home_edit"
                 android:textColor="#FFFFFF"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <View
@@ -52,7 +52,7 @@
                 android:paddingEnd="16dp"
                 android:text="@string/home_edit_done"
                 android:textColor="#FFFFFF"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -82,7 +82,7 @@
                 android:gravity="center"
                 android:text="0 đã chọn"
                 android:textColor="#FFFFFF"
-                android:textSize="13sp" />
+                android:textSize="12sp" />
 
             <ImageView
                 android:id="@+id/apps_selection_folder"
@@ -124,12 +124,12 @@
             android:paddingEnd="16dp"
             android:text="@string/apps_search_hint"
             android:textColor="#EAF5FF"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
 
         <LinearLayout
             android:id="@+id/apps_dock"
             android:layout_width="match_parent"
-            android:layout_height="88dp"
+            android:layout_height="78dp"
             android:layout_marginTop="8dp"
             android:background="@drawable/bg_glass"
             android:gravity="center"

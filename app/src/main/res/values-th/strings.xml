@@ -90,6 +90,7 @@
     <string name="cant_remove_app">ถอนการติดตั้งแอปไม่ได้</string>
     <string name="drop_on_app_grid">วางบนตารางแอป %1$d</string>
     <string name="drop_apps_in_grid_only">วางแอปได้เฉพาะในตารางแอปเท่านั้น</string>
+    <string name="widget_drop_page_full">วางวิดเจ็ตบนหน้าจอที่ไม่มีช่องแอปว่างไม่ได้</string>
     <string name="drop_app_on_icon_or_dock">วางแอปบนไอคอนในตารางหรือ Dock</string>
     <string name="select_two_apps">เลือกอย่างน้อยสองแอปเพื่อสร้างโฟลเดอร์</string>
     <string name="folder">โฟลเดอร์</string>
@@ -146,6 +147,7 @@
     <string name="default_home_confirm_message">ดำเนินการต่อเพื่อเปิดหน้าต่างยืนยันของระบบและเลือก Oslaucher เป็นแอปหน้าจอหลักเริ่มต้น คุณสามารถเปลี่ยนได้ภายหลังในการตั้งค่า</string>
     <string name="default_home_set">ตั้ง Oslaucher เป็นแอปหน้าจอหลักเริ่มต้นแล้ว</string>
     <string name="home_edit">แก้ไข</string>
+    <string name="edit_home_screen">แก้ไขหน้าจอหลัก</string>
     <string name="home_edit_done">เสร็จสิ้น</string>
     <string name="home_edit_add_widget">เพิ่มวิดเจ็ต</string>
     <string name="home_edit_customize">ปรับแต่ง</string>

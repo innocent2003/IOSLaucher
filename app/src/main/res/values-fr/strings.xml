@@ -90,6 +90,7 @@
     <string name="cant_remove_app">Impossible de désinstaller l’application</string>
     <string name="drop_on_app_grid">Déposer sur la grille %1$d</string>
     <string name="drop_apps_in_grid_only">Les applications ne peuvent être déposées que dans la grille.</string>
+    <string name="widget_drop_page_full">Impossible de déposer un widget sur un écran sans emplacement d’application libre.</string>
     <string name="drop_app_on_icon_or_dock">Déposez l’application sur une icône de la grille ou du dock.</string>
     <string name="select_two_apps">Sélectionnez au moins deux applications pour créer un dossier.</string>
     <string name="folder">Dossier</string>
@@ -146,6 +147,7 @@
     <string name="default_home_confirm_message">Continuez pour ouvrir la confirmation du système et choisir Oslaucher comme application d’écran d’accueil par défaut. Vous pourrez modifier ce choix dans les paramètres.</string>
     <string name="default_home_set">Oslaucher est maintenant votre application d’écran d’accueil par défaut.</string>
     <string name="home_edit">Modifier</string>
+    <string name="edit_home_screen">Modifier l’écran d’accueil</string>
     <string name="home_edit_done">Terminé</string>
     <string name="home_edit_add_widget">Ajouter un widget</string>
     <string name="home_edit_customize">Personnaliser</string>

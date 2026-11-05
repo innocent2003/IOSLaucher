@@ -101,6 +101,7 @@
     <string name="folder_accessibility">%1$s, %2$d apps</string>
     <string name="selected_apps">%1$d selected</string>
     <string name="home_edit">Edit</string>
+    <string name="edit_home_screen">Edit home screen</string>
     <string name="home_edit_done">Done</string>
     <string name="home_edit_add_widget">Add Widget</string>
     <string name="home_edit_customize">Customize</string>
@@ -124,6 +125,7 @@
     <string name="drop_on_app_grid">Drop on app grid %1$d</string>
     <string name="drop_apps_in_grid_only">Apps can only be dropped in the app grid.</string>
     <string name="drop_app_on_icon_or_dock">Drop an app onto an icon in the grid or dock.</string>
+    <string name="widget_drop_page_full">Widgets cannot be dropped on a screen with no empty app slots.</string>
     <string name="select_two_apps">Select at least two apps to create a folder.</string>
     <string name="folder">Folder</string>
     <string name="create_folder">Create folder</string>

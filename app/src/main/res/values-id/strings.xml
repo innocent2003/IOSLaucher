@@ -90,6 +90,7 @@
     <string name="cant_remove_app">Tidak dapat menghapus aplikasi</string>
     <string name="drop_on_app_grid">Letakkan di grid aplikasi %1$d</string>
     <string name="drop_apps_in_grid_only">Aplikasi hanya dapat diletakkan di grid aplikasi.</string>
+    <string name="widget_drop_page_full">Widget tidak dapat diletakkan di layar tanpa slot aplikasi kosong.</string>
     <string name="drop_app_on_icon_or_dock">Letakkan aplikasi pada ikon di grid atau dock.</string>
     <string name="select_two_apps">Pilih minimal dua aplikasi untuk membuat folder.</string>
     <string name="folder">Folder</string>
@@ -146,6 +147,7 @@
     <string name="default_home_confirm_message">Lanjutkan untuk membuka konfirmasi sistem dan memilih Oslaucher sebagai aplikasi layar utama default. Anda dapat mengubahnya nanti di Pengaturan.</string>
     <string name="default_home_set">Oslaucher kini menjadi aplikasi layar utama default Anda.</string>
     <string name="home_edit">Edit</string>
+    <string name="edit_home_screen">Edit layar utama</string>
     <string name="home_edit_done">Selesai</string>
     <string name="home_edit_add_widget">Tambah widget</string>
     <string name="home_edit_customize">Sesuaikan</string>

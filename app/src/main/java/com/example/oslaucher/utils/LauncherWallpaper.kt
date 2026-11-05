@@ -31,6 +31,10 @@ object LauncherWallpaper {
                     }
                     usesSavedWallpaper && preferences.contains(RESOURCE_KEY) ->
                         view.context.getDrawable(preferences.getInt(RESOURCE_KEY, 0))
+                    usesSavedWallpaper -> {
+                        saveResource(view.context, DEFAULT_WALLPAPER_RESOURCE)
+                        view.context.getDrawable(DEFAULT_WALLPAPER_RESOURCE)
+                    }
                     else -> null
                 }
             } catch (exception: IOException) {
@@ -88,5 +92,6 @@ object LauncherWallpaper {
     private const val PREFERENCES_NAME = "launcher_wallpaper_preferences"
     private const val RESOURCE_KEY = "wallpaper_resource"
     private const val URI_KEY = "wallpaper_uri"
+    private val DEFAULT_WALLPAPER_RESOURCE = com.example.oslaucher.R.drawable.wallpaper_preview_1
     private const val TAG = "LauncherWallpaper"
 }

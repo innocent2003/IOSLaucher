@@ -53,5 +53,5 @@
         android:gravity="center"
         android:maxLines="1"
         android:textColor="#FFFFFF"
-        android:textSize="11sp" />
+        android:textSize="9sp" />
 </LinearLayout>

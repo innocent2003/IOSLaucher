@@ -73,10 +73,22 @@ abstract class HomeScreenFragment : Fragment() {
                 requestWallpaperPermission()
             }
         }
-        ViewCompat.setOnApplyWindowInsetsListener(view.findViewById(R.id.main)) { root, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            root.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
+        view.findViewById<View>(R.id.main)?.let { root ->
+            val baseLeft = root.paddingLeft
+            val baseTop = root.paddingTop
+            val baseRight = root.paddingRight
+            val baseBottom = root.paddingBottom
+            ViewCompat.setOnApplyWindowInsetsListener(root) { target, insets ->
+                val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+                target.setPadding(
+                    baseLeft + systemBars.left,
+                    baseTop + systemBars.top,
+                    baseRight + systemBars.right,
+                    baseBottom + systemBars.bottom
+                )
+                insets
+            }
+            root.post { ViewCompat.requestApplyInsets(root) }
         }
         view.findViewById<View>(R.id.home_settings).setOnClickListener {
             (activity as? HomeScreenActions)?.openSettings()

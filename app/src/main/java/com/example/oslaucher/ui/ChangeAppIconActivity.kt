@@ -22,6 +22,10 @@ import com.example.oslaucher.utils.AppIconUtils
 import java.util.concurrent.Executors
 
 class ChangeAppIconActivity : AppCompatActivity() {
+    companion object {
+        const val EXTRA_PACKAGE_NAME = "com.example.oslaucher.extra.APP_PACKAGE_NAME"
+    }
+
     private val appRepository by lazy { InstalledAppRepository(applicationContext) }
     private val appLoadExecutor = Executors.newSingleThreadExecutor()
     private var apps: List<AppInfo> = emptyList()
@@ -68,7 +72,12 @@ class ChangeAppIconActivity : AppCompatActivity() {
             val loadedApps = appRepository.loadInstalledApps()
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                apps = loadedApps
+                val targetPackageName = intent.getStringExtra(EXTRA_PACKAGE_NAME)
+                apps = if (targetPackageName == null) {
+                    loadedApps
+                } else {
+                    loadedApps.filter { it.packageName == targetPackageName }
+                }
                 showApps()
             }
         }

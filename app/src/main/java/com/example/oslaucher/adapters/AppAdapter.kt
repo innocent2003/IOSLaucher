@@ -26,7 +26,7 @@ class AppAdapter(
     private val onEmptySlotLongClick: (() -> Unit)? = null
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
-    private val iconMaxSize = (58 * context.resources.displayMetrics.density).toInt()
+    private val iconMaxSize = (52 * context.resources.displayMetrics.density).toInt()
     private var allApps: List<AppInfo?> = emptyList()
     private var visibleApps: List<AppInfo?> = emptyList()
 
@@ -68,7 +68,7 @@ class AppAdapter(
                 ?: ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowHeight)).apply {
                 height = rowHeight
             }
-            val iconSize = minOf(iconMaxSize, (rowHeight * 0.68f).toInt())
+            val iconSize = minOf(iconMaxSize, (rowHeight * 0.62f).toInt())
             val icon = itemView.findViewById<ImageView>(R.id.app_icon)
             icon.layoutParams = icon.layoutParams.apply {
                 width = iconSize

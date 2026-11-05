@@ -42,7 +42,19 @@ internal class LauncherLayoutRepository(context: Context) {
     }
 
     fun loadHomeWidgets(): List<HomeWidgetPlacement> {
-        val stored = appGridPreferences.getString(HOME_WIDGETS_KEY, null) ?: return emptyList()
+        val stored = appGridPreferences.getString(HOME_WIDGETS_KEY, null)
+            ?: return listOf(
+                HomeWidgetPlacement(
+                    appWidgetId = -1,
+                    pageIndex = 0,
+                    launcherWidgetType = LauncherWidgetType.CLOCK
+                ),
+                HomeWidgetPlacement(
+                    appWidgetId = -1,
+                    pageIndex = 0,
+                    launcherWidgetType = LauncherWidgetType.BATTERY
+                )
+            ).also(::saveHomeWidgets)
         var migratedInstanceIds = false
         val widgets = try {
             val jsonWidgets = JSONArray(stored)
