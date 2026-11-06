@@ -84,39 +84,72 @@ internal object PageTransitionAnimator {
         when (effect) {
             ROTATE -> {
                 setCameraDistance(context, outgoing, incoming)
-                outgoing.pivotX = if (direction < 0) 0f else outgoing.width.toFloat()
-                incoming.pivotX = if (direction < 0) incoming.width.toFloat() else 0f
-                outgoing.rotationY = direction * 8f * amount
-                incoming.rotationY = -direction * 8f * (1f - amount)
-                outgoing.scaleX = 1f - 0.04f * amount
-                incoming.scaleX = 0.96f + 0.04f * amount
+                setEdgePivots(outgoing, incoming, direction)
+                outgoing.rotationY = direction * 90f * amount
+                incoming.rotationY = -direction * 90f * (1f - amount)
             }
 
             FLIP -> {
                 setCameraDistance(context, outgoing, incoming)
-                outgoing.rotationY = direction * 16f * amount
-                incoming.rotationY = -direction * 16f * (1f - amount)
+                val depth = kotlin.math.sin(amount * Math.PI).toFloat().coerceAtLeast(0f)
+                outgoing.rotationY = direction * 90f * amount
+                incoming.rotationY = -direction * 90f * (1f - amount)
+                outgoing.scaleX = 1f - 0.16f * depth
+                outgoing.scaleY = 1f - 0.16f * depth
+                incoming.scaleX = 1f - 0.16f * depth
+                incoming.scaleY = 1f - 0.16f * depth
+                outgoing.translationZ = -dp(context, 48f) * depth
+                incoming.translationZ = dp(context, 48f) * depth + 1f
             }
 
             ZOOM -> {
-                outgoing.scaleX = 1f - 0.06f * amount
-                outgoing.scaleY = 1f - 0.06f * amount
-                incoming.scaleX = 0.94f + 0.06f * amount
-                incoming.scaleY = 0.94f + 0.06f * amount
+                setCameraDistance(context, outgoing, incoming)
+                setEdgePivots(outgoing, incoming, direction)
+                val depth = kotlin.math.sin(amount * Math.PI).toFloat().coerceAtLeast(0f)
+                outgoing.rotationY = direction * 180f * amount
+                incoming.rotationY = -direction * 180f * (1f - amount)
+                outgoing.scaleX = 1f - 0.08f * depth
+                outgoing.scaleY = 1f - 0.08f * depth
+                incoming.scaleX = 1f - 0.08f * depth
+                incoming.scaleY = 1f - 0.08f * depth
             }
 
             FADE -> {
+                setCameraDistance(context, outgoing, incoming)
+                outgoing.pivotX = if (direction < 0) outgoing.width.toFloat() else 0f
+                incoming.pivotX = if (direction < 0) 0f else incoming.width.toFloat()
+                outgoing.rotationY = direction * 30f * amount
+                incoming.rotationY = -direction * 30f * (1f - amount)
+                outgoing.scaleX = 1f - 0.08f * amount
+                outgoing.scaleY = 1f - 0.08f * amount
+                incoming.scaleX = 0.92f + 0.08f * amount
+                incoming.scaleY = 0.92f + 0.08f * amount
                 outgoing.alpha = (1f - 0.18f * amount).coerceIn(0f, 1f)
                 incoming.alpha = (0.82f + 0.18f * amount).coerceIn(0f, 1f)
             }
         }
     }
 
+    private fun setEdgePivots(outgoing: View, incoming: View, direction: Int) {
+        outgoing.pivotX = if (direction < 0) outgoing.width.toFloat() else 0f
+        incoming.pivotX = if (direction < 0) 0f else incoming.width.toFloat()
+    }
+
     private fun setCameraDistance(context: Context, outgoing: View, incoming: View) {
-        val distance = context.resources.displayMetrics.density * 12000f
+        val maxDimension = maxOf(
+            outgoing.width,
+            outgoing.height,
+            incoming.width,
+            incoming.height,
+            1
+        )
+        val distance = maxDimension * 4f
         outgoing.cameraDistance = distance
         incoming.cameraDistance = distance
     }
+
+    private fun dp(context: Context, value: Float): Float =
+        value * context.resources.displayMetrics.density
 
     fun reset(view: View) {
         view.translationX = 0f
