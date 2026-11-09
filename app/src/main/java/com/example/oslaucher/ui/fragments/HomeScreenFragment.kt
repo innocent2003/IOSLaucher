@@ -13,7 +13,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.text.format.DateFormat
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -151,10 +150,7 @@ abstract class HomeScreenFragment : Fragment() {
             ?.let { "$it%" }
             ?: "--%"
 
-        root.findViewById<TextView>(R.id.home_clock)?.text =
-            DateFormat.getTimeFormat(requireContext()).format(now)
         root.findViewById<TextView>(R.id.home_date)?.text = localizedDate
-        root.findViewById<TextView>(R.id.home_battery)?.text = batteryLevel
         root.findViewById<TextView>(R.id.home_battery_widget)?.text = batteryLevel
         root.findViewById<BatteryRingView>(R.id.home_battery_ring)?.batteryLevel = batteryPercent
         root.findViewById<View>(R.id.home_analog_clock)?.invalidate()

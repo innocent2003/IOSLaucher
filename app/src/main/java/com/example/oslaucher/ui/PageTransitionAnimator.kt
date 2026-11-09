@@ -6,6 +6,11 @@ import android.view.View
 import android.view.animation.PathInterpolator
 
 internal object PageTransitionAnimator {
+    class TransitionLayerCache internal constructor(
+        val outgoingLayerType: Int,
+        val incomingLayerType: Int
+    )
+
     const val PREFERENCES_NAME = "launcher_settings"
     const val EFFECT_KEY = "page_transition_effect"
     const val DEFAULT = 0
@@ -13,6 +18,8 @@ internal object PageTransitionAnimator {
     const val FLIP = 2
     const val ZOOM = 3
     const val FADE = 4
+    const val SCREEN_DURATION = 300L
+    private val transitionInterpolator = PathInterpolator(0.2f, 0f, 0.2f, 1f)
 
     fun animate(
         context: Context,
@@ -21,9 +28,21 @@ internal object PageTransitionAnimator {
         direction: Int,
         effect: Int,
         duration: Long,
+        travelWidth: Float? = null,
         onEnd: () -> Unit
     ) {
-        animateProgress(context, outgoing, incoming, direction, effect, 0f, 1f, duration, onEnd)
+        animateProgress(
+            context,
+            outgoing,
+            incoming,
+            direction,
+            effect,
+            0f,
+            1f,
+            duration,
+            travelWidth,
+            onEnd
+        )
     }
 
     fun animateProgress(
@@ -35,14 +54,16 @@ internal object PageTransitionAnimator {
         startProgress: Float,
         endProgress: Float,
         duration: Long,
+        travelWidth: Float? = null,
         onEnd: () -> Unit
     ) {
         outgoing.animate().cancel()
         incoming.animate().cancel()
-        applyProgress(context, outgoing, incoming, direction, effect, startProgress)
+        val layerCache = enableTransitionLayerCache(outgoing, incoming)
+        applyProgress(context, outgoing, incoming, direction, effect, startProgress, travelWidth)
         val animator = ValueAnimator.ofFloat(startProgress, endProgress).apply {
             this.duration = duration
-            interpolator = PathInterpolator(0.22f, 1f, 0.36f, 1f)
+            interpolator = transitionInterpolator
             addUpdateListener {
                 applyProgress(
                     context,
@@ -50,18 +71,39 @@ internal object PageTransitionAnimator {
                     incoming,
                     direction,
                     effect,
-                    it.animatedValue as Float
+                    it.animatedValue as Float,
+                    travelWidth
                 )
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
                     reset(outgoing)
                     reset(incoming)
+                    restoreTransitionLayerCache(outgoing, incoming, layerCache)
                     onEnd()
                 }
             })
         }
         animator.start()
+    }
+
+    fun enableTransitionLayerCache(
+        outgoing: View,
+        incoming: View
+    ): TransitionLayerCache {
+        val cache = TransitionLayerCache(outgoing.layerType, incoming.layerType)
+        outgoing.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        incoming.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        return cache
+    }
+
+    fun restoreTransitionLayerCache(
+        outgoing: View,
+        incoming: View,
+        cache: TransitionLayerCache
+    ) {
+        outgoing.setLayerType(cache.outgoingLayerType, null)
+        incoming.setLayerType(cache.incomingLayerType, null)
     }
 
     fun applyProgress(
@@ -70,11 +112,13 @@ internal object PageTransitionAnimator {
         incoming: View,
         direction: Int,
         effect: Int,
-        progress: Float
+        progress: Float,
+        travelWidth: Float? = null
     ) {
         val amount = progress.coerceIn(-0.04f, 1.04f)
-        val width = (outgoing.width.takeIf { it > 0 }
-            ?: context.resources.displayMetrics.widthPixels).toFloat()
+        val width = travelWidth?.takeIf { it > 0f }
+            ?: (outgoing.width.takeIf { it > 0 }
+                ?: context.resources.displayMetrics.widthPixels).toFloat()
         reset(outgoing)
         reset(incoming)
         incoming.translationZ = outgoing.translationZ + 1f
