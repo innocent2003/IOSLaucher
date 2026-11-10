@@ -1,15 +1,12 @@
 package com.example.oslaucher.ui.fragments
 
-import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.BatteryManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -25,8 +22,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import com.example.oslaucher.R
 import com.example.oslaucher.models.Weather
 import com.example.oslaucher.utils.LauncherWallpaper
@@ -45,15 +40,9 @@ import java.util.Locale
 abstract class HomeScreenFragment : Fragment() {
     protected abstract val layoutResId: Int
 
-    private val wallpaperPermissionRequest =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                view?.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
-            }
-        }
-
     private var receiverRegistered = false
     private var weatherRequestInProgress = false
+    private var renderedCalendarDay: String? = null
     private val updatesReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) =
             view?.let(::updateWidgets) ?: Unit
@@ -67,11 +56,7 @@ abstract class HomeScreenFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        view.findViewById<View>(R.id.main)?.let { root ->
-            if (!LauncherWallpaper.applyTo(root)) {
-                requestWallpaperPermission()
-            }
-        }
+        view.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
         view.findViewById<View>(R.id.main)?.let { root ->
             val baseLeft = root.paddingLeft
             val baseTop = root.paddingTop
@@ -125,7 +110,14 @@ abstract class HomeScreenFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        view?.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
+        // Re-apply only when the background has not been set yet (e.g. activity resume
+        // after returning from Settings). Skip when bindScreen already applied it during
+        // a swipe gesture to avoid an expensive redundant call per swipe.
+        view?.findViewById<View>(R.id.main)?.let { root ->
+            if (root.background == null) {
+                LauncherWallpaper.applyTo(root)
+            }
+        }
     }
 
     override fun onStop() {
@@ -162,6 +154,12 @@ abstract class HomeScreenFragment : Fragment() {
         val monthView = root.findViewById<TextView?>(R.id.home_calendar_month) ?: return
         val grid = root.findViewById<GridLayout?>(R.id.home_calendar_widget_grid) ?: return
         val calendar = Calendar.getInstance().apply { time = now }
+        val dayKey = "${calendar.get(Calendar.YEAR)}-${calendar.get(Calendar.MONTH)}-" +
+            calendar.get(Calendar.DAY_OF_MONTH)
+        // updateWidgets runs on every battery/time tick broadcast; rebuilding 49 cells makes
+        // GridLayout re-solve its constraints and drop frames, so only redraw when the day changes.
+        if (dayKey == renderedCalendarDay && grid.childCount > 0) return
+        renderedCalendarDay = dayKey
         monthView.text = SimpleDateFormat("MMMM yyyy", locale).format(now)
             .uppercase(locale)
 
@@ -219,12 +217,15 @@ abstract class HomeScreenFragment : Fragment() {
                 }
             }
         }
+        // Use weight=1f on both axes so GridLayout can distribute space freely without
+        // generating the 'constraints are inconsistent' warning that appears when fixed
+        // heights exceed the available space (skips frames on every calendar redraw).
         val params = GridLayout.LayoutParams(
-            GridLayout.spec(row),
+            GridLayout.spec(row, 1f),
             GridLayout.spec(column, 1f)
         ).apply {
             width = 0
-            height = dp(15)
+            height = 0
         }
         grid.addView(cell, params)
     }
@@ -370,27 +371,6 @@ abstract class HomeScreenFragment : Fragment() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
-
-    private fun requestWallpaperPermission() {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-        if (ContextCompat.checkSelfPermission(requireContext(), permission) ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-
-        AlertDialog.Builder(requireContext())
-            .setMessage(R.string.wallpaper_permission)
-            .setPositiveButton(R.string.continue_action) { _, _ ->
-                wallpaperPermissionRequest.launch(permission)
-            }
-            .setNegativeButton(R.string.later, null)
-            .show()
-    }
 
     private companion object {
         const val TAG = "HomeScreenFragment"

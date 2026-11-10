@@ -116,7 +116,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 override fun updateAppWidget(remoteViews: RemoteViews?) {
                     super.updateAppWidget(remoteViews)
                     if (remoteViews != null) {
-                        readyAppWidgetIds += appWidgetId
                         appsWidgetContainer?.postInvalidateOnAnimation()
                     }
                 }
@@ -166,13 +165,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var isLoadingApps = false
     private var isLoadingHomeWidgets = false
     private var homeWidgetsLoaded = false
-    private var initialWidgetWarmupStarted = false
-    private var initialWidgetWarmupView: View? = null
-    private var initialWidgetDrawListener: ViewTreeObserver.OnPreDrawListener? = null
-    private var initialScreenAfterWidgetWarmup: Screen? = null
-    private var initialWidgetWarmupPages: List<Int> = emptyList()
-    private var initialWidgetWarmupPageIndex = 0
-    private var startupLayoutsWarmed = false
     private var isAppSelectionMode = false
     private var isHomeEditMode = false
     private val selectedAppPackages = mutableSetOf<String>()
@@ -185,7 +177,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appsWidgetContainer: FrameLayout? = null
     private val homeWidgets = mutableListOf<HomeWidgetPlacement>()
     private val appWidgetViews = mutableMapOf<Int, AppWidgetHostView>()
-    private val readyAppWidgetIds = mutableSetOf<Int>()
     private val appWidgetOptionSizes = mutableMapOf<Int, Pair<Int, Int>>()
     private val launcherWidgetViews = mutableMapOf<String, View>()
     private val widgetFrames = mutableMapOf<String, FrameLayout>()
@@ -355,6 +346,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             )
         }
         setContentView(screenContainer)
+
+        // HOME only needs the clock/widgets, so draw the launcher first and let the
+        // repositories and layout warmup fill in behind it instead of gating the first frame.
+        showScreen(if (launchedAsHome) Screen.HOME else Screen.SETTINGS, 0)
+        initializeLauncherData()
+    }
+
+    private fun initializeLauncherData() {
         appFolders.addAll(loadAppFolders())
         dockFolderSlots.putAll(loadDockFolderSlots())
         dockAppSlots.putAll(loadDockAppSlots())
@@ -364,7 +363,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (initialWidgetWarmupStarted) return
                 if (isAppSearchVisible) {
                     closeAppSearch()
                     return
@@ -397,20 +395,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
         })
 
-        showScreen(Screen.LOADING, 0)
         warmStartupLayouts()
         loadHomeWidgetsInBackground()
-        requestInstalledApps {
-            showInitialScreenWhenReady()
-        }
+        requestInstalledApps { onLauncherDataReady() }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         launchedAsHome = intent.categories?.contains(Intent.CATEGORY_HOME) == true
-        if (launchedAsHome && initialWidgetWarmupStarted) {
-            initialScreenAfterWidgetWarmup = Screen.HOME
-        } else if (launchedAsHome && currentScreen != Screen.HOME) {
+        if (launchedAsHome && currentScreen != Screen.HOME) {
             showScreen(Screen.HOME, 0)
         }
     }
@@ -770,7 +763,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             currentScreen == Screen.HOME_SECOND ||
             currentScreen == Screen.APPS
         ) {
-            refreshWallpaperViews()
+            // Only refresh wallpaper views when we can actually read a wallpaper:
+            // either the user has picked a saved wallpaper (no permission needed) or
+            // the read-storage permission is granted.
+            val hasSavedWallpaper = LauncherWallpaper.hasSavedWallpaper(this)
+            if (hasSavedWallpaper || LauncherWallpaper.hasWallpaperPermission(this)) {
+                refreshWallpaperViews()
+            }
         }
         if (currentScreen == Screen.APPS) {
             if (hiddenAppsChanged || returnedFromOwnScreen) {
@@ -1600,7 +1599,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 homeWidgets.addAll(loadedWidgets)
                 isLoadingHomeWidgets = false
                 homeWidgetsLoaded = true
-                showInitialScreenWhenReady()
+                onLauncherDataReady()
             }
         }
     }
@@ -1611,7 +1610,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             ContextThemeWrapper(this, R.style.Theme_Oslaucher_Settings)
         )
         val layouts = listOf(
-            mainInflater to R.layout.screen_loading,
             mainInflater to R.layout.activity_main,
             mainInflater to R.layout.screen_home,
             mainInflater to R.layout.screen_home_second,
@@ -1636,135 +1634,33 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         )
 
         fun warmLayout(index: Int) {
-            if (isFinishing || isDestroyed) return
-            if (index >= layouts.size) {
-                startupLayoutsWarmed = true
-                showInitialScreenWhenReady()
-                return
-            }
+            if (isFinishing || isDestroyed || index >= layouts.size) return
 
             val (inflater, layoutResId) = layouts[index]
             val view = inflater.inflate(layoutResId, screenContainer, false)
             if (layoutResId == R.layout.activity_main && !launchedAsHome) {
                 preloadedSettingsView = view
             }
-            screenContainer.postOnAnimation { warmLayout(index + 1) }
-        }
-
-        screenContainer.postOnAnimation { warmLayout(0) }
-    }
-
-    private fun showInitialScreenWhenReady() {
-        if (currentScreen != Screen.LOADING || isFinishing || isDestroyed ||
-            installedApps == null || !homeWidgetsLoaded || isLoadingHomeWidgets ||
-            !startupLayoutsWarmed
-        ) return
-        val initialScreen = if (launchedAsHome) Screen.HOME else Screen.SETTINGS
-        if (homeWidgets.isNotEmpty()) {
-            warmInitialWidgetsBeforeShowing(initialScreen)
-        } else {
-            showScreen(initialScreen, 1)
-        }
-    }
-
-    private fun warmInitialWidgetsBeforeShowing(initialScreen: Screen) {
-        val loadingView = screenContainer.getChildAt(0) ?: run {
-            showScreen(initialScreen, 1)
-            return
-        }
-        initialWidgetWarmupStarted = true
-        initialScreenAfterWidgetWarmup = initialScreen
-        initialWidgetWarmupPages = homeWidgets.map { it.pageIndex }.distinct().sorted()
-        initialWidgetWarmupPageIndex = 0
-        appPageIndex = initialWidgetWarmupPages.firstOrNull() ?: 0
-        screenContainer.removeView(loadingView)
-        currentScreen = Screen.APPS
-        val warmupView = LayoutInflater.from(this)
-            .inflate(screenLayouts.getValue(Screen.APPS), screenContainer, false)
-        bindScreen(warmupView, Screen.APPS)
-        initialWidgetWarmupView = warmupView
-        screenContainer.addView(warmupView)
-        (loadingView as? FrameLayout)?.addView(
-            View(this).apply {
-                isClickable = true
-                isFocusable = true
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            },
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-        screenContainer.addView(loadingView)
-        loadingView.bringToFront()
-    }
-
-    private fun finishInitialWidgetWarmup() {
-        if (!initialWidgetWarmupStarted) return
-        appsWidgetContainer?.viewTreeObserver?.let { observer ->
-            initialWidgetDrawListener?.let { listener ->
-                if (observer.isAlive) observer.removeOnPreDrawListener(listener)
+            Looper.myQueue().addIdleHandler {
+                warmLayout(index + 1)
+                false
             }
         }
-        initialWidgetDrawListener = null
-        initialWidgetWarmupPages = emptyList()
-        initialWidgetWarmupPageIndex = 0
-        initialWidgetWarmupStarted = false
-        initialWidgetWarmupView?.let(screenContainer::removeView)
-        initialWidgetWarmupView = null
-        val initialScreen = initialScreenAfterWidgetWarmup ?: return
-        initialScreenAfterWidgetWarmup = null
-        showScreen(initialScreen, 0)
+
+        // Only inflate while the main thread is idle so warming never competes with
+        // drawing or touching the launcher that is already on screen.
+        Looper.myQueue().addIdleHandler {
+            warmLayout(0)
+            false
+        }
     }
 
-    private fun waitForInitialWidgetsToDraw(container: FrameLayout) {
-        if (!initialWidgetWarmupStarted || initialWidgetDrawListener != null) return
-        val listener = object : ViewTreeObserver.OnPreDrawListener {
-            override fun onPreDraw(): Boolean {
-                if (!initialWidgetWarmupStarted) {
-                    if (container.viewTreeObserver.isAlive) {
-                        container.viewTreeObserver.removeOnPreDrawListener(this)
-                    }
-                    initialWidgetDrawListener = null
-                    return true
-                }
-                val pageWidgets = homeWidgets.filter { it.pageIndex == appPageIndex }
-                val widgetsAreLaidOut = pageWidgets.all { placement ->
-                    val frame = widgetFrames[placement.instanceId]
-                    frame?.parent === container &&
-                        frame.visibility == View.VISIBLE &&
-                        frame.width > 0 && frame.height > 0 &&
-                        (placement.launcherWidgetType != null ||
-                            placement.appWidgetId in readyAppWidgetIds)
-                }
-                if (widgetsAreLaidOut) {
-                    if (container.viewTreeObserver.isAlive) {
-                        container.viewTreeObserver.removeOnPreDrawListener(this)
-                    }
-                    initialWidgetDrawListener = null
-                    if (!showNextInitialWidgetWarmupPage()) {
-                        finishInitialWidgetWarmup()
-                    }
-                }
-                return true
-            }
-        }
-        initialWidgetDrawListener = listener
-        container.viewTreeObserver.addOnPreDrawListener(listener)
-    }
-
-    private fun showNextInitialWidgetWarmupPage(): Boolean {
-        val nextPageIndex = initialWidgetWarmupPageIndex + 1
-        if (nextPageIndex >= initialWidgetWarmupPages.size) return false
-        initialWidgetWarmupPageIndex = nextPageIndex
-        val nextPage = initialWidgetWarmupPages[nextPageIndex]
-        if (nextPage !in 0 until appPageCount || appsPages?.getChildAt(nextPage) == null) {
-            return showNextInitialWidgetWarmupPage()
-        }
-        appPageIndex = nextPage
-        appsPages?.displayedChild = nextPage
-        renderHomeWidgetViews()
-        return true
+    private fun onLauncherDataReady() {
+        if (isFinishing || isDestroyed || !homeWidgetsLoaded || isLoadingHomeWidgets) return
+        val apps = installedApps ?: return
+        // The launcher is already on screen; only the drawer has to be rebuilt once both
+        // the app list and the saved widget placements have arrived.
+        if (currentScreen == Screen.APPS) renderApps?.invoke(apps)
     }
 
     private fun requestInstalledApps(onLoaded: (List<AppInfo>) -> Unit) {
@@ -3001,7 +2897,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
         container.visibility = View.VISIBLE
         setWidgetLoading(false)
-        waitForInitialWidgetsToDraw(container)
         scheduleWeatherRefresh()
     }
 

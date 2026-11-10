@@ -34,6 +34,7 @@
         android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.Oslaucher">
         <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
