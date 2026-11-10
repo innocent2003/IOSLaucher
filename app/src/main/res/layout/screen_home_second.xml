@@ -5,6 +5,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/bg_wallpaper"
     android:fillViewport="true"
+    android:clipToPadding="false"
     android:scrollbars="vertical">
 
     <LinearLayout

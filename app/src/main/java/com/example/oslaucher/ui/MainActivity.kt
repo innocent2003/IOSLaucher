@@ -1136,6 +1136,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 )
                 insets
             }
+            root.post { ViewCompat.requestApplyInsets(root) }
         }
         if (screen == Screen.APPS) {
             view.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)

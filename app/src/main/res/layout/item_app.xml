@@ -13,8 +13,8 @@
 
     <FrameLayout
         android:id="@+id/app_icon_frame"
-        android:layout_width="58dp"
-        android:layout_height="58dp"
+        android:layout_width="66dp"
+        android:layout_height="66dp"
         android:clipChildren="false"
         android:clipToPadding="false">
 
@@ -53,5 +53,5 @@
         android:gravity="center"
         android:maxLines="1"
         android:textColor="#FFFFFF"
-        android:textSize="9sp" />
+        android:textSize="7.5sp" />
 </LinearLayout>
