@@ -1220,7 +1220,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         }
                         installedApps?.let { renderApps?.invoke(it) }
                     } else {
-                        packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity)
+                        launchHomeScreenApp(app.packageName)
                     }
                 }
                 val appLongPress: (AppInfo, View) -> Unit = { app, anchor ->
@@ -1282,8 +1282,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             }
                         }
                     }
-                    dockAppSlots.toMap().forEach { (packageName, slot) ->
-                        val app = visibleApps.firstOrNull { it.packageName == packageName }
+                    dockAppSlots.remove(packageName)
+                    dockAppSlots.toMap().forEach { (pkgName, slot) ->
+                        val app = visibleApps.firstOrNull { it.packageName == pkgName }
                         if (app != null && slot in dockSlots.indices &&
                             dockSlots[slot] == null && slot !in dockEmptySlots
                         ) {
@@ -1293,7 +1294,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     val placedDockPackages = dockSlots.filterNotNull()
                         .mapTo(mutableSetOf()) { it.packageName }
                     visibleApps.filterNot {
-                        it.packageName in dockRemovedAppPackages ||
+                        it.packageName == packageName ||
+                            it.packageName in dockRemovedAppPackages ||
                             it.packageName in placedDockPackages ||
                             it.packageName in dockAppSlots
                     }.forEach { app ->
@@ -1692,6 +1694,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     override fun launchHomeScreenApp(packageName: String) {
+        if (packageName == this.packageName) {
+            if (isAppSearchVisible) closeAppSearch()
+            if (isHomeEditMode) finishHomeEditMode()
+            if (isAppSelectionMode) exitAppSelectionMode()
+            appPageIndex = 0
+            showScreen(Screen.HOME, 0)
+            return
+        }
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
         if (launchIntent == null) {
             Toast.makeText(this, R.string.cant_open_app, Toast.LENGTH_SHORT).show()
@@ -4123,8 +4133,33 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         refreshSelectionWiggle()
     }
 
-    private fun orderAppGridApps(apps: List<AppInfo>): List<AppInfo?> =
-        AppGridOrder.orderItems(apps, appGridOrderPackages, AppInfo::packageName)
+    private fun orderAppGridApps(apps: List<AppInfo>): List<AppInfo?> {
+        val launcherPkg = packageName
+        val launcherApp = apps.firstOrNull { it.packageName == launcherPkg }
+        val ordered = AppGridOrder.orderItems(apps, appGridOrderPackages, AppInfo::packageName).toMutableList()
+        if (launcherApp != null) {
+            val currentIndex = ordered.indexOfFirst { it?.packageName == launcherPkg }
+            if (currentIndex != 0) {
+                if (currentIndex > 0) {
+                    ordered.removeAt(currentIndex)
+                }
+                if (ordered.isEmpty()) {
+                    ordered.add(launcherApp)
+                } else {
+                    val firstItem = ordered[0]
+                    ordered[0] = launcherApp
+                    if (firstItem != null && firstItem.packageName != launcherPkg) {
+                        if (currentIndex > 0 && currentIndex <= ordered.size) {
+                            ordered.add(currentIndex, firstItem)
+                        } else {
+                            ordered.add(firstItem)
+                        }
+                    }
+                }
+            }
+        }
+        return ordered
+    }
 
     private fun reorderAppGridItem(
         app: AppInfo,
@@ -4238,7 +4273,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             adapter = AppAdapter(
                 this@MainActivity,
                 { app ->
-                    packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity)
+                    launchHomeScreenApp(app.packageName)
                     popupWindow.dismiss()
                 },
                 { app, anchor ->

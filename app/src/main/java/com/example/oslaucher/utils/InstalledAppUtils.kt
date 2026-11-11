@@ -43,7 +43,13 @@ object InstalledAppUtils {
                 }
             }
             .sortedWith(Comparator { a, b ->
-                // Sort by install time ascending (oldest first); if equal, sort alphabetically
+                // Ensure Oslaucher (the launcher) appears first
+                val launcherPkg = "com.example.oslaucher"
+                val aIsLauncher = a.first.packageName == launcherPkg
+                val bIsLauncher = b.first.packageName == launcherPkg
+                if (aIsLauncher && !bIsLauncher) return@Comparator -1
+                if (bIsLauncher && !aIsLauncher) return@Comparator 1
+                // Otherwise sort by install time ascending (oldest first); if equal, sort alphabetically
                 val timeDiff = a.second.compareTo(b.second) // older first
                 if (timeDiff != 0) timeDiff else collator.compare(a.third, b.third)
             })
