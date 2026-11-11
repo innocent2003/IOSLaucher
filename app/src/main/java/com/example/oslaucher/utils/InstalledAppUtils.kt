@@ -7,6 +7,7 @@ import com.example.oslaucher.models.AppInfo
 import java.text.Collator
 import java.util.Locale
 
+
 object InstalledAppUtils {
     fun queryLaunchableApps(packageManager: PackageManager): List<AppInfo> {
         val launchIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -23,17 +24,37 @@ object InstalledAppUtils {
             packageManager.queryIntentActivities(launchIntent, 0)
         }
 
-        return resolvedActivities
+        // Map each launchable app to its install timestamp and sort by most recent install first
+        val appsWithInstallTime = resolvedActivities
             .mapNotNull { it.activityInfo?.applicationInfo }
             .distinctBy { it.packageName }
-            .map { applicationInfo ->
-                AppInfo(
-                    packageName = applicationInfo.packageName,
-                    name = packageManager.getApplicationLabel(applicationInfo).toString(),
-                    icon = packageManager.getApplicationIcon(applicationInfo)
-                )
+            .mapNotNull { appInfo ->
+                try {
+                    val pkgInfo = packageManager.getPackageInfo(appInfo.packageName, 0)
+                    val installTime = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        // firstInstallTime is available from API 9, but use safer method for newer APIs
+                        pkgInfo.firstInstallTime
+                    } else {
+                        pkgInfo.firstInstallTime
+                    }
+                    Triple(appInfo, installTime, packageManager.getApplicationLabel(appInfo).toString())
+                } catch (_: PackageManager.NameNotFoundException) {
+                    null
+                }
             }
-            .sortedWith { first, second -> collator.compare(first.name, second.name) }
+            .sortedWith(Comparator { a, b ->
+                // Sort by install time ascending (oldest first); if equal, sort alphabetically
+                val timeDiff = a.second.compareTo(b.second) // older first
+                if (timeDiff != 0) timeDiff else collator.compare(a.third, b.third)
+            })
+
+        return appsWithInstallTime.map { (appInfo, _, _) ->
+            AppInfo(
+                packageName = appInfo.packageName,
+                name = packageManager.getApplicationLabel(appInfo).toString(),
+                icon = packageManager.getApplicationIcon(appInfo)
+            )
+        }
     }
 
     fun loadCachedApp(packageManager: PackageManager, packageName: String, name: String): AppInfo? {

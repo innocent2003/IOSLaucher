@@ -397,7 +397,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         warmStartupLayouts()
         loadHomeWidgetsInBackground()
-        requestInstalledApps { onLauncherDataReady() }
+        requestInstalledApps { checkAndRenderLauncherReady() }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -1600,7 +1600,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 homeWidgets.addAll(loadedWidgets)
                 isLoadingHomeWidgets = false
                 homeWidgetsLoaded = true
-                onLauncherDataReady()
+                checkAndRenderLauncherReady()
             }
         }
     }
@@ -1656,12 +1656,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
     }
 
-    private fun onLauncherDataReady() {
+    private fun checkAndRenderLauncherReady() {
         if (isFinishing || isDestroyed || !homeWidgetsLoaded || isLoadingHomeWidgets) return
         val apps = installedApps ?: return
-        // The launcher is already on screen; only the drawer has to be rebuilt once both
-        // the app list and the saved widget placements have arrived.
-        if (currentScreen == Screen.APPS) renderApps?.invoke(apps)
+        if (currentScreen == Screen.HOME || currentScreen == Screen.HOME_SECOND || currentScreen == Screen.APPS) {
+            renderApps?.invoke(apps)
+            renderHomeWidgetViews()
+        }
     }
 
     private fun requestInstalledApps(onLoaded: (List<AppInfo>) -> Unit) {
