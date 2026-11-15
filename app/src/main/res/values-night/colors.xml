@@ -16,9 +16,9 @@
     <color name="settings_accent">#FF32CF70</color>
     <color name="settings_radio_border">#FFB8B8B8</color>
     <color name="settings_tile_overlay">#55FFFFFF</color>
-    <color name="weather_widget_gradient_start">#FF3A72D8</color>
-    <color name="weather_widget_gradient_end">#FF4C9BEA</color>
-    <color name="weather_widget_border">#33FFFFFF</color>
+    <color name="weather_widget_gradient_start">#C2414857</color>
+    <color name="weather_widget_gradient_end">#C21E222B</color>
+    <color name="weather_widget_border">#2EFFFFFF</color>
     <color name="weather_widget_divider">#55FFFFFF</color>
     <color name="weather_widget_text_primary">#FFFFFFFF</color>
     <color name="weather_widget_text_secondary">#E6FFFFFF</color>

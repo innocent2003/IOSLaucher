@@ -3022,9 +3022,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 FrameLayout(this)
             }
             widgetFrame.tag = positionedPlacement
-            widgetFrame.background = if (
-                positionedPlacement.launcherWidgetType == LauncherWidgetType.WEATHER
-            ) null else getDrawable(R.drawable.bg_glass)
+            // Weather and calendar draw their own card plus a caption underneath.
+            widgetFrame.background = when (positionedPlacement.launcherWidgetType) {
+                LauncherWidgetType.WEATHER, LauncherWidgetType.CALENDAR -> null
+                else -> getDrawable(R.drawable.bg_glass)
+            }
             widgetFrame.clipChildren = false
             widgetFrame.clipToPadding = false
             if (widgetContent.parent !== widgetFrame) {

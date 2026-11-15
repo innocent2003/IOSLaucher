@@ -63,56 +63,49 @@ internal object LauncherWidgetFactory {
             gravity = Gravity.CENTER
             orientation = LinearLayout.HORIZONTAL
         }
-        // Compact 2x2 tile like the reference: blue card with city, big temperature,
-        // condition and today's high/low; the caption sits under the card.
-        mainTemperature.textSize = 40f
+        // Compact 2x2 tile like the reference: dark glass card with city, big temperature,
+        // a small condition icon, the condition text and "H:.. L:..". Caption under the card.
+        mainTemperature.apply {
+            textSize = 38f
+            typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
+            includeFontPadding = false
+        }
         val root = LinearLayout(context).apply {
-            gravity = Gravity.CENTER
+            gravity = Gravity.CENTER_HORIZONTAL
             orientation = LinearLayout.VERTICAL
             addView(
                 LinearLayout(context).apply {
-                    background = GradientDrawable(
-                        GradientDrawable.Orientation.TOP_BOTTOM,
-                        intArrayOf(
-                            color(context, R.color.weather_widget_gradient_start),
-                            color(context, R.color.weather_widget_gradient_end)
-                        )
-                    ).apply {
-                        cornerRadius = dp(context, 24).toFloat()
-                        setStroke(dp(context, 1), color(context, R.color.weather_widget_border))
-                    }
+                    background = widgetCardBackground(context)
                     orientation = LinearLayout.VERTICAL
-                    setPadding(dp(context, 14), dp(context, 12), dp(context, 14), dp(context, 12))
+                    setPadding(dp(context, 16), dp(context, 12), dp(context, 14), dp(context, 12))
                     layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         0,
                         1f
                     )
-                    addView(weatherText(context, 14f, bold = true).apply {
+                    addView(weatherText(context, 15f, bold = true).apply {
                         text = "Thanh Xuân"
-                        maxLines = 1
+                        singleLine()
                     })
                     addView(mainTemperature)
                     addView(
                         View(context),
                         LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
                     )
-                    addView(currentIcon.apply { textSize = 18f })
+                    addView(currentIcon.apply { textSize = 13f })
                     addView(condition.apply {
-                        textSize = 12f
-                        maxLines = 1
+                        textSize = 13f
+                        setTextColor(color(context, R.color.weather_widget_text_primary))
+                        singleLine()
                     })
                     addView(highLow.apply {
-                        textSize = 12f
-                        maxLines = 1
+                        textSize = 13f
+                        setTextColor(color(context, R.color.weather_widget_text_primary))
+                        singleLine()
                     })
                 }
             )
-            addView(weatherText(context, 12f).apply {
-                text = context.getString(R.string.weather_widget_caption)
-                setShadowLayer(3f, 0f, 1f, 0x66000000)
-                setPadding(0, dp(context, 4), 0, 0)
-            })
+            addView(widgetCaption(context, context.getString(R.string.weather_widget_caption)))
         }
 
         fun refresh() {
@@ -129,7 +122,8 @@ internal object LauncherWidgetFactory {
                         mainTemperature.text = "${data.temperature}$temperatureSymbol"
                         currentIcon.text = data.icon
                         condition.text = data.description
-                        highLow.text = "↑${data.high}°  ↓${data.low}°"
+                        highLow.text = "H:${data.high}$temperatureSymbol " +
+                            "L:${data.low}$temperatureSymbol"
                         hourlyForecast.removeAllViews()
                         data.hours.forEach { hour ->
                             hourlyForecast.addView(
@@ -192,17 +186,20 @@ internal object LauncherWidgetFactory {
     private fun createCalendar(context: Context): View {
         val now = Calendar.getInstance()
         val locale = context.resources.configuration.locales[0] ?: Locale.getDefault()
-        val container = LinearLayout(context).apply {
-            background = context.getDrawable(R.drawable.bg_widget)
+        val card = LinearLayout(context).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = dp(context, WIDGET_CORNER_DP).toFloat()
+                setColor(0xF01C1C1E.toInt())
+                setStroke(dp(context, 1), 0x2EFFFFFF)
+            }
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(context, 10), dp(context, 12), dp(context, 10), dp(context, 8))
+            setPadding(dp(context, 14), dp(context, 12), dp(context, 12), dp(context, 8))
             addView(TextView(context).apply {
-                text = SimpleDateFormat("MMMM yyyy", locale).format(now.time)
-                    .uppercase(locale)
-                gravity = Gravity.CENTER
+                text = SimpleDateFormat("LLLL", locale).format(now.time).uppercase(locale)
                 setTextColor(0xFFFFFFFF.toInt())
-                textSize = 12f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                textSize = 13f
+                setTypeface(typeface, Typeface.BOLD)
+                singleLine()
             })
         }
         val grid = GridLayout(context).apply {
@@ -213,23 +210,12 @@ internal object LauncherWidgetFactory {
                 0,
                 1f
             ).apply {
-                topMargin = dp(context, 6)
+                topMargin = dp(context, 4)
             }
         }
-        val weekday = Calendar.getInstance().apply {
-            set(1970, Calendar.JANUARY, 5)
-        }
-        val weekdayFormatter = SimpleDateFormat("EE", locale)
-        repeat(7) { column ->
-            addCalendarCell(
-                context,
-                grid,
-                weekdayFormatter.format(weekday.time).uppercase(locale),
-                0,
-                column,
-                false
-            )
-            weekday.add(Calendar.DAY_OF_MONTH, 1)
+        // Monday-first single-letter weekday header, as in the reference widget.
+        listOf("M", "T", "W", "T", "F", "S", "S").forEachIndexed { column, label ->
+            addCalendarCell(context, grid, label, 0, column, false)
         }
         val firstDay = now.clone() as Calendar
         firstDay.set(Calendar.DAY_OF_MONTH, 1)
@@ -247,14 +233,16 @@ internal object LauncherWidgetFactory {
                 isValidDay && day == now.get(Calendar.DAY_OF_MONTH)
             )
         }
-        container.addView(grid)
-        container.addView(TextView(context).apply {
-            text = context.getString(R.string.category_calendar)
-            gravity = Gravity.CENTER
-            setTextColor(0xFFCFD5DC.toInt())
-            textSize = 10f
-        })
-        return container
+        card.addView(grid)
+        return LinearLayout(context).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            orientation = LinearLayout.VERTICAL
+            addView(
+                card,
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+            )
+            addView(widgetCaption(context, context.getString(R.string.category_calendar)))
+        }
     }
 
     private fun addCalendarCell(
@@ -268,12 +256,14 @@ internal object LauncherWidgetFactory {
         val cell = TextView(context).apply {
             this.text = text
             gravity = Gravity.CENTER
-            textSize = if (row == 0) 9f else 10f
-            setTextColor(if (row == 0) 0xFFBFC8D2.toInt() else 0xFFFFFFFF.toInt())
+            includeFontPadding = false
+            textSize = 11f
+            setTextColor(0xFFFFFFFF.toInt())
+            setTypeface(typeface, Typeface.BOLD)
             if (isToday) {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(0xFFE74C5B.toInt())
+                    setColor(0xFFC0392B.toInt())
                 }
             }
         }
@@ -287,6 +277,34 @@ internal object LauncherWidgetFactory {
                 height = 0
             }
         )
+    }
+
+    private fun widgetCardBackground(context: Context) = GradientDrawable(
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        intArrayOf(
+            color(context, R.color.weather_widget_gradient_start),
+            color(context, R.color.weather_widget_gradient_end)
+        )
+    ).apply {
+        cornerRadius = dp(context, WIDGET_CORNER_DP).toFloat()
+        setStroke(dp(context, 1), color(context, R.color.weather_widget_border))
+    }
+
+    /** Small white label under a widget card ("Thời tiết", "Lịch"), like app icon labels. */
+    private fun widgetCaption(context: Context, label: String) = TextView(context).apply {
+        text = label
+        gravity = Gravity.CENTER
+        setTextColor(0xFFFFFFFF.toInt())
+        textSize = 11f
+        setShadowLayer(3f, 0f, 1f, 0x66000000)
+        setPadding(0, dp(context, 4), 0, 0)
+        singleLine()
+    }
+
+    private fun TextView.singleLine() {
+        maxLines = 1
+        isSingleLine = true
+        ellipsize = android.text.TextUtils.TruncateAt.END
     }
 
     private fun createBattery(context: Context): View {
@@ -324,4 +342,5 @@ internal object LauncherWidgetFactory {
         ContextCompat.getColor(context, resourceId)
 
     private const val TAG = "LauncherWidgetFactory"
+    private const val WIDGET_CORNER_DP = 22
 }
