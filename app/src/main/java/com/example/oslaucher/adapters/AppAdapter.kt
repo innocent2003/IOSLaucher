@@ -3,6 +3,7 @@ package com.example.oslaucher.adapters
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +13,7 @@ import android.widget.TextView
 import com.example.oslaucher.R
 import com.example.oslaucher.models.AppInfo
 import com.example.oslaucher.utils.AppIconUtils
+import com.example.oslaucher.utils.IconMetrics
 
 class AppAdapter(
     context: Context,
@@ -26,8 +28,9 @@ class AppAdapter(
     private val onEmptySlotLongClick: (() -> Unit)? = null
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
-    private val iconMaxSize = (68 * context.resources.displayMetrics.density).toInt()
-    private val labelGap = (8 * context.resources.displayMetrics.density).toInt()
+    private val iconMaxSize = IconMetrics.iconSizePx(context)
+    private val labelTextSizePx = IconMetrics.labelTextSizePx(context)
+    private val labelGap = (6 * context.resources.displayMetrics.density).toInt()
     private var allApps: List<AppInfo?> = emptyList()
     private var visibleApps: List<AppInfo?> = emptyList()
 
@@ -61,7 +64,10 @@ class AppAdapter(
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
         val itemView = convertView ?: inflater.inflate(R.layout.item_app, parent, false).also {
-            it.tag = ViewHolder(it)
+            val newHolder = ViewHolder(it)
+            // Pixel size (not sp) so the system font scale does not blow labels up.
+            newHolder.name.setTextSize(TypedValue.COMPLEX_UNIT_PX, labelTextSizePx)
+            it.tag = newHolder
         }
         val holder = itemView.tag as? ViewHolder ?: ViewHolder(itemView).also { itemView.tag = it }
         val rowHeight = parent.height.takeIf { it > 0 }

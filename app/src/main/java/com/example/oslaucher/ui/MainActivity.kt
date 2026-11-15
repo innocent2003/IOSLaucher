@@ -90,6 +90,7 @@ import com.example.oslaucher.ui.fragments.HomeSecondFragment
 import com.example.oslaucher.ui.widgets.AppPagesLayout
 import com.example.oslaucher.ui.widgets.LauncherWidgetFactory
 import com.example.oslaucher.utils.AppIconUtils
+import com.example.oslaucher.utils.IconMetrics
 import com.example.oslaucher.utils.HiddenAppsPreferences
 import com.example.oslaucher.utils.LauncherConfig
 import com.example.oslaucher.utils.LauncherWallpaper
@@ -1205,6 +1206,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 if (!openAppsAtLastPage) appPageIndex = 0
                 val dock = view.findViewById<LinearLayout>(R.id.apps_dock)
                 appsDock = dock
+                val dockIconSize = IconMetrics.iconSizePx(this)
+                dock.layoutParams = dock.layoutParams.apply {
+                    height = IconMetrics.dockHeightPx(this@MainActivity)
+                }
                 val appLauncher: (AppInfo) -> Unit = { app ->
                     if (isHomeEditMode && !isAppSelectionMode) {
                         Unit
@@ -1513,16 +1518,16 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             addView(
                                 icon,
                                 FrameLayout.LayoutParams(
-                                    dp(DOCK_ICON_SIZE_DP),
-                                    dp(DOCK_ICON_SIZE_DP),
+                                    dockIconSize,
+                                    dockIconSize,
                                     Gravity.CENTER
                                 )
                             )
                             addView(
                                 hoverGlow,
                                 FrameLayout.LayoutParams(
-                                    dp(DOCK_ICON_SIZE_DP),
-                                    dp(DOCK_ICON_SIZE_DP),
+                                    dockIconSize,
+                                    dockIconSize,
                                     Gravity.CENTER
                                 )
                             )
@@ -5306,7 +5311,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val WIDGET_HORIZONTAL_GAP_DP = 14
         const val WIDGET_SIDE_INSET_DP = 22
         const val WIDGET_VERTICAL_GAP_DP = 12
-        const val DOCK_ICON_SIZE_DP = 66
         const val WIDGET_EDIT_BAR_GAP_DP = 8
         const val PAGE_DOT_INACTIVE_ALPHA = 0.4f
         const val BOTTOM_PILL_FADE_MS = 160L
