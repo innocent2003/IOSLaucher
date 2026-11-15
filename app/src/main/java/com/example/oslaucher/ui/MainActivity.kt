@@ -337,6 +337,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var returningFromOwnScreen = false
     private var defaultHomeActive = false
     private var settingsReturnScreen: Screen? = null
+    private val bottomPillHandler = Handler(Looper.getMainLooper())
+    private val restoreSearchPillRunnable = Runnable {
+        if (currentScreen == Screen.APPS && appPageSwipeTransition == null && !homeSwipeSettling) {
+            setPageIndicatorShown(false)
+        } else if (currentScreen == Screen.APPS) {
+            scheduleSearchPillRestore()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -2109,13 +2117,22 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 dot.alpha = if (index == appPageIndex) 1f else PAGE_DOT_INACTIVE_ALPHA
             }
         }
-        // Like the reference home screen: the first page shows the "Search" pill, the
-        // other pages show the page dots in the same spot.
-        setPageIndicatorShown(appPageIndex > 0 && appPageCount > 1)
+        // Like the reference home screen: page dots show while swiping, then about a second
+        // after the pages settle the same spot turns back into the "Search" pill, on any page.
+        scheduleSearchPillRestore()
         if (renderWidgets) scheduleHomeWidgetRendering()
     }
 
+    private fun scheduleSearchPillRestore() {
+        bottomPillHandler.removeCallbacks(restoreSearchPillRunnable)
+        if (appsPageIndicatorShown) {
+            bottomPillHandler.postDelayed(restoreSearchPillRunnable, SEARCH_PILL_RESTORE_DELAY_MS)
+        }
+    }
+
     private fun setPageIndicatorShown(shown: Boolean, animate: Boolean = true) {
+        // Any new page movement keeps the dots up; the restore is re-armed when it settles.
+        if (shown) bottomPillHandler.removeCallbacks(restoreSearchPillRunnable)
         val indicator = appsIndicator ?: return
         val searchPill = appsSearchPill ?: return
         if (appsPageIndicatorShown == shown) return
@@ -5329,6 +5346,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     override fun onDestroy() {
+        bottomPillHandler.removeCallbacks(restoreSearchPillRunnable)
         cancelDragPageChange()
         appLoadExecutor.shutdownNow()
         super.onDestroy()
@@ -5354,5 +5372,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val GOOGLE_FOLDER_NAME = "Google"
         const val PAGE_DOT_INACTIVE_ALPHA = 0.4f
         const val BOTTOM_PILL_FADE_MS = 160L
+        const val SEARCH_PILL_RESTORE_DELAY_MS = 1000L
     }
 }
