@@ -7,6 +7,7 @@ import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -17,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.example.oslaucher.R
 import com.example.oslaucher.models.LauncherWidgetType
 import com.example.oslaucher.repositories.WeatherForecastRepository
+import com.example.oslaucher.utils.IconMetrics
 import com.example.oslaucher.utils.WeatherWidgetPreferences
 import org.json.JSONException
 import java.io.IOException
@@ -66,7 +68,7 @@ internal object LauncherWidgetFactory {
         // Compact 2x2 tile like the reference: dark glass card with city, big temperature,
         // a small condition icon, the condition text and "H:.. L:..". Caption under the card.
         mainTemperature.apply {
-            textSize = 38f
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, 36f)
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
             includeFontPadding = false
         }
@@ -92,14 +94,14 @@ internal object LauncherWidgetFactory {
                         View(context),
                         LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
                     )
-                    addView(currentIcon.apply { textSize = 13f })
+                    addView(currentIcon.apply { setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f) })
                     addView(condition.apply {
-                        textSize = 13f
+                        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f)
                         setTextColor(color(context, R.color.weather_widget_text_primary))
                         singleLine()
                     })
                     addView(highLow.apply {
-                        textSize = 13f
+                        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f)
                         setTextColor(color(context, R.color.weather_widget_text_primary))
                         singleLine()
                     })
@@ -178,7 +180,7 @@ internal object LauncherWidgetFactory {
                 else R.color.weather_widget_text_primary
             )
         )
-        textSize = size
+        setTextSize(TypedValue.COMPLEX_UNIT_DIP, size)
         gravity = Gravity.CENTER_VERTICAL
         if (bold) setTypeface(typeface, Typeface.BOLD)
     }
@@ -197,14 +199,19 @@ internal object LauncherWidgetFactory {
             addView(TextView(context).apply {
                 text = SimpleDateFormat("LLLL", locale).format(now.time).uppercase(locale)
                 setTextColor(0xFFFFFFFF.toInt())
-                textSize = 13f
+                setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14f)
                 setTypeface(typeface, Typeface.BOLD)
                 singleLine()
             })
         }
+        val firstDay = now.clone() as Calendar
+        firstDay.set(Calendar.DAY_OF_MONTH, 1)
+        val offset = (firstDay.get(Calendar.DAY_OF_WEEK) + 5) % 7
+        val daysInMonth = now.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val weekRows = (offset + daysInMonth + 6) / 7
         val grid = GridLayout(context).apply {
             columnCount = 7
-            rowCount = 7
+            rowCount = weekRows + 1
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
@@ -217,11 +224,7 @@ internal object LauncherWidgetFactory {
         listOf("M", "T", "W", "T", "F", "S", "S").forEachIndexed { column, label ->
             addCalendarCell(context, grid, label, 0, column, false)
         }
-        val firstDay = now.clone() as Calendar
-        firstDay.set(Calendar.DAY_OF_MONTH, 1)
-        val offset = (firstDay.get(Calendar.DAY_OF_WEEK) + 5) % 7
-        val daysInMonth = now.getActualMaximum(Calendar.DAY_OF_MONTH)
-        for (index in 0 until 42) {
+        for (index in 0 until weekRows * 7) {
             val day = index - offset + 1
             val isValidDay = day in 1..daysInMonth
             addCalendarCell(
@@ -257,7 +260,7 @@ internal object LauncherWidgetFactory {
             this.text = text
             gravity = Gravity.CENTER
             includeFontPadding = false
-            textSize = 11f
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, 10.5f)
             setTextColor(0xFFFFFFFF.toInt())
             setTypeface(typeface, Typeface.BOLD)
             if (isToday) {
@@ -295,9 +298,11 @@ internal object LauncherWidgetFactory {
         text = label
         gravity = Gravity.CENTER
         setTextColor(0xFFFFFFFF.toInt())
-        textSize = 11f
+        // Same size as app icon labels so the caption reads like one.
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, IconMetrics.labelTextSizePx(context))
+        includeFontPadding = false
         setShadowLayer(3f, 0f, 1f, 0x66000000)
-        setPadding(0, dp(context, 4), 0, 0)
+        setPadding(0, dp(context, 5), 0, 0)
         singleLine()
     }
 

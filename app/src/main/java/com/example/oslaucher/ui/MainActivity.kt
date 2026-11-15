@@ -35,6 +35,7 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
@@ -1218,6 +1219,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 appsPages = pages
                 appsIndicator = pageIndicator
                 appsSearchPill = view.findViewById(R.id.apps_search_button)
+                (appsSearchPill as? TextView)?.setTextSize(
+                    TypedValue.COMPLEX_UNIT_PX,
+                    IconMetrics.labelTextSizePx(this) * SEARCH_PILL_TEXT_RATIO
+                )
                 appsPageIndicatorShown = false
                 appsWidgetContainer = view.findViewById(R.id.apps_widget_container)
                 appsIncomingWidgetContainer =
@@ -1446,7 +1451,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     appChunks.forEachIndexed { pageIndex, pageApps ->
                         val gridView = GridView(this).apply {
                             numColumns = 4
-                            horizontalSpacing = dp(6)
+                            horizontalSpacing = dp(APP_GRID_COLUMN_SPACING_DP)
                             verticalSpacing = dp(0)
                             stretchMode = GridView.STRETCH_COLUMN_WIDTH
                             isVerticalScrollBarEnabled = false
@@ -2569,10 +2574,53 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             .roundToInt().coerceAtLeast(1)
 
     private fun appScreenWidgetHeightPx(): Int {
-        val pageHeight = appsPages?.height?.takeIf { it > 0 }
+        val rowHeight = appGridRowHeightPx().takeIf { it > 0 }
             ?: return dp(LAUNCHER_WIDGET_HEIGHT_DP)
-        val gridRows = LauncherConfig.gridRows(this, defaultHomeActive)
-        return (pageHeight * WIDGET_GRID_ROW_SPAN / gridRows).roundToInt().coerceAtLeast(1)
+        // Widgets are 2x2 tiles: exactly two icon rows tall, like the reference launcher.
+        return rowHeight * WIDGET_GRID_ROW_SPAN
+    }
+
+    /** Height of one icon row, computed exactly like AppAdapter sizes its cells. */
+    private fun appGridRowHeightPx(): Int {
+        val pageHeight = appsPages?.height?.takeIf { it > 0 } ?: return 0
+        val gridRows = LauncherConfig.gridRows(this, defaultHomeActive).coerceAtLeast(1)
+        return (pageHeight + if (isAppSelectionMode) dp(40) else 0) / gridRows
+    }
+
+    /** Snaps a widget's top offset to the icon rows so it lines up with the app grid. */
+    private fun snapWidgetTop(rawTop: Float, maxTop: Int): Int {
+        val rowHeight = appGridRowHeightPx()
+        if (rowHeight <= 0) return rawTop.roundToInt().coerceIn(0, maxTop.coerceAtLeast(0))
+        val rows = (rawTop / rowHeight).roundToInt()
+        var top = rows * rowHeight
+        while (top > maxTop && top >= rowHeight) top -= rowHeight
+        return top.coerceAtLeast(0)
+    }
+
+    private fun snapWidgetLeft(rawLeft: Float, maxLeft: Int): Int =
+        if (rawLeft * 2 >= maxLeft) maxLeft else 0
+
+    /**
+     * Insets a widget frame so its card lines up with the icons of the two columns and two
+     * rows it covers, and its caption sits on the label line of the second row.
+     */
+    private fun applyWidgetCellInsets(frame: View) {
+        val pages = appsPages ?: return
+        val rowHeight = appGridRowHeightPx().takeIf { it > 0 } ?: return
+        val columnWidth = (pages.width - dp(APP_GRID_COLUMN_SPACING_DP) * 3) / 4
+        val activeGrid = pages.getChildAt(appPageIndex) as? GridView
+        val sampleItem = activeGrid?.getChildAt(0)
+        val sampleIcon = sampleItem?.findViewById<View>(R.id.app_icon_frame)
+        val iconSize = sampleIcon?.width?.takeIf { it > 0 } ?: IconMetrics.iconSizePx(this)
+        val iconTop = sampleIcon?.top?.takeIf { sampleIcon.width > 0 }
+            ?: ((rowHeight - iconSize - dp(18)) / 2).coerceAtLeast(0)
+        val horizontal = ((columnWidth - iconSize) / 2).coerceAtLeast(0)
+        val vertical = iconTop.coerceAtLeast(0)
+        if (frame.paddingLeft != horizontal || frame.paddingTop != vertical ||
+            frame.paddingRight != horizontal || frame.paddingBottom != vertical
+        ) {
+            frame.setPadding(horizontal, vertical, horizontal, vertical)
+        }
     }
 
     private fun appScreenWidgetHeightDp(): Int =
@@ -2621,7 +2669,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val container = appsWidgetContainer ?: return
         val root = container.parent as? View ?: return
         val content = root.findViewById<View?>(R.id.apps_content)
-        var inset = 0
+        // Start the widget layer exactly where the icon grid starts (below the edit/selection
+        // bars when they are shown), so widget row 0 lines up with icon row 0.
+        var inset = content?.paddingTop ?: 0
         listOf(R.id.apps_edit_controls, R.id.apps_selection_bar).forEach { id ->
             val bar = root.findViewById<View?>(id) ?: return@forEach
             if (bar.visibility == View.GONE) return@forEach
@@ -2629,7 +2679,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             inset += (params?.topMargin ?: 0) + (params?.height?.takeIf { it > 0 } ?: bar.height) +
                 (params?.bottomMargin ?: 0)
         }
-        if (inset > 0) inset += (content?.paddingTop ?: 0) + dp(WIDGET_EDIT_BAR_GAP_DP)
+        inset += (appsPages?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
         listOfNotNull(container, appsIncomingWidgetContainer).forEach { layer ->
             if (layer.paddingTop != inset) {
                 layer.setPadding(layer.paddingLeft, inset, layer.paddingRight, layer.paddingBottom)
@@ -2669,7 +2719,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 )
             }
         }
-        val columnSpacing = dp(6).toFloat()
+        val columnSpacing = dp(APP_GRID_COLUMN_SPACING_DP).toFloat()
         val gridCellWidth = (pages.width - columnSpacing * 3) / 4
         val gridCellHeight = (
             pages.height +
@@ -2692,11 +2742,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 itemWidgetWidth.toInt(),
                 widgetHeight.toInt()
             )
-            val left = containerLocation[0] + container.paddingLeft +
-                ((placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f) * itemMaxLeft)
-            val top = containerLocation[1] + container.paddingTop +
-                ((placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f) * itemMaxTop)
+            val left = containerLocation[0] + container.paddingLeft + snapWidgetLeft(
+                (placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f) * itemMaxLeft,
+                itemMaxLeft
+            )
+            val top = containerLocation[1] + container.paddingTop + snapWidgetTop(
+                (placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f) * itemMaxTop,
+                itemMaxTop
+            )
+            // Inset by a couple of pixels so a widget exactly covering two rows does not
+            // also "touch" (and block) the row below it because of rounding.
             val widgetBounds = RectF(left, top, left + itemWidgetWidth, top + widgetHeight)
+                .apply { inset(dp(2).toFloat(), dp(2).toFloat()) }
 
             repeat(gridRows) { row ->
                 repeat(4) { column ->
@@ -2763,20 +2820,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             )
             val preferredX = (placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f)
             val preferredY = (placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f)
-            val preferredLeft = (preferredX * maxLeft).roundToInt()
-            val preferredTop = (preferredY * maxTop).roundToInt()
+            val preferredLeft = snapWidgetLeft(preferredX * maxLeft, maxLeft)
+            val preferredTop = snapWidgetTop(preferredY * maxTop, maxTop)
             val candidateLefts = if (maxLeft == 0) {
                 listOf(0)
             } else {
                 listOf(0, maxLeft)
             }
+            val rowStep = appGridRowHeightPx().takeIf { it > 0 } ?: (widgetHeight + gap)
             val candidateTops = buildList {
                 var top = 0
-                while (top < maxTop) {
+                while (top <= maxTop) {
                     add(top)
-                    top += (widgetHeight + gap).coerceAtLeast(1)
+                    top += rowStep.coerceAtLeast(1)
                 }
-                if (isEmpty() || last() != maxTop) add(maxTop)
+                if (isEmpty()) add(0)
             }
 
             var resolvedPage = originalPage
@@ -3081,8 +3139,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 widgetHeight,
                 Gravity.TOP or Gravity.LEFT
             ).apply {
-                leftMargin = (positionX * maxLeft).roundToInt()
-                topMargin = (positionY * maxTop).roundToInt()
+                leftMargin = snapWidgetLeft(positionX * maxLeft, maxLeft)
+                topMargin = snapWidgetTop(positionY * maxTop, maxTop)
+            }
+            if (positionedPlacement.launcherWidgetType == LauncherWidgetType.WEATHER ||
+                positionedPlacement.launcherWidgetType == LauncherWidgetType.CALENDAR
+            ) {
+                applyWidgetCellInsets(widgetFrame)
             }
             if (widgetFrame.parent !== target) {
                 (widgetFrame.parent as? ViewGroup)?.removeView(widgetFrame)
@@ -5361,19 +5424,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val DRAG_PAGE_CHANGE_DELAY_MS = 500L
         const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
         const val LAUNCHER_WIDGET_HEIGHT_DP = 136
-        const val WIDGET_GRID_ROW_SPAN = 1.65f
+        const val WIDGET_GRID_ROW_SPAN = 2
+        const val APP_GRID_COLUMN_SPACING_DP = 6
         const val TAG = "MainActivity"
         const val WIDGET_REMOVE_BUTTON_TAG = "home_widget_remove_button"
-        const val WIDGET_DEFAULT_TOP_DP = 10
-        const val WIDGET_HORIZONTAL_GAP_DP = 14
-        const val WIDGET_SIDE_INSET_DP = 22
-        const val WIDGET_VERTICAL_GAP_DP = 12
-        const val WIDGET_EDIT_BAR_GAP_DP = 8
+        const val WIDGET_DEFAULT_TOP_DP = 0
+        // Widgets span two grid columns: same side inset and gap as the icon grid.
+        const val WIDGET_HORIZONTAL_GAP_DP = APP_GRID_COLUMN_SPACING_DP
+        const val WIDGET_SIDE_INSET_DP = 12
+        const val WIDGET_VERTICAL_GAP_DP = 0
         const val DEFAULT_LAYOUT_PREFERENCES = "launcher_default_layout"
         const val DEFAULT_LAYOUT_APPLIED_KEY = "applied"
         const val GOOGLE_FOLDER_NAME = "Google"
         const val PAGE_DOT_INACTIVE_ALPHA = 0.4f
         const val BOTTOM_PILL_FADE_MS = 160L
         const val SEARCH_PILL_RESTORE_DELAY_MS = 1000L
+        const val SEARCH_PILL_TEXT_RATIO = 1.25f
     }
 }

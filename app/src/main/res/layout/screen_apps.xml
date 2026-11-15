@@ -164,8 +164,8 @@
         android:layout_height="match_parent"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:paddingStart="22dp"
-        android:paddingEnd="22dp" />
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp" />
 
     <!-- Holds the widgets of the page being swiped in, so they slide with that page
          instead of popping in after the swipe settles. -->
@@ -175,8 +175,8 @@
         android:layout_height="match_parent"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:paddingStart="22dp"
-        android:paddingEnd="22dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
         android:visibility="invisible" />
 
     <FrameLayout
