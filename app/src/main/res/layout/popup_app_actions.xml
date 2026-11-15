@@ -116,7 +116,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:layout_weight="1"
-            android:text="Chỉnh sửa"
+            android:text="@string/edit_home_screen"
             android:textColor="#F3F9FF"
             android:textSize="14sp" />
     </LinearLayout>

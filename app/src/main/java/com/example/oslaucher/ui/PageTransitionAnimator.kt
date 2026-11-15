@@ -6,6 +6,11 @@ import android.view.View
 import android.view.animation.PathInterpolator
 
 internal object PageTransitionAnimator {
+    class TransitionLayerCache internal constructor(
+        val outgoingLayerType: Int,
+        val incomingLayerType: Int
+    )
+
     const val PREFERENCES_NAME = "launcher_settings"
     const val EFFECT_KEY = "page_transition_effect"
     const val DEFAULT = 0
@@ -13,6 +18,8 @@ internal object PageTransitionAnimator {
     const val FLIP = 2
     const val ZOOM = 3
     const val FADE = 4
+    const val SCREEN_DURATION = 300L
+    private val transitionInterpolator = PathInterpolator(0.2f, 0f, 0.2f, 1f)
 
     fun animate(
         context: Context,
@@ -21,9 +28,21 @@ internal object PageTransitionAnimator {
         direction: Int,
         effect: Int,
         duration: Long,
+        travelWidth: Float? = null,
         onEnd: () -> Unit
     ) {
-        animateProgress(context, outgoing, incoming, direction, effect, 0f, 1f, duration, onEnd)
+        animateProgress(
+            context,
+            outgoing,
+            incoming,
+            direction,
+            effect,
+            0f,
+            1f,
+            duration,
+            travelWidth,
+            onEnd
+        )
     }
 
     fun animateProgress(
@@ -35,14 +54,16 @@ internal object PageTransitionAnimator {
         startProgress: Float,
         endProgress: Float,
         duration: Long,
+        travelWidth: Float? = null,
         onEnd: () -> Unit
     ) {
         outgoing.animate().cancel()
         incoming.animate().cancel()
-        applyProgress(context, outgoing, incoming, direction, effect, startProgress)
+        val layerCache = enableTransitionLayerCache(outgoing, incoming)
+        applyProgress(context, outgoing, incoming, direction, effect, startProgress, travelWidth)
         val animator = ValueAnimator.ofFloat(startProgress, endProgress).apply {
             this.duration = duration
-            interpolator = PathInterpolator(0.22f, 1f, 0.36f, 1f)
+            interpolator = transitionInterpolator
             addUpdateListener {
                 applyProgress(
                     context,
@@ -50,18 +71,39 @@ internal object PageTransitionAnimator {
                     incoming,
                     direction,
                     effect,
-                    it.animatedValue as Float
+                    it.animatedValue as Float,
+                    travelWidth
                 )
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
                     reset(outgoing)
                     reset(incoming)
+                    restoreTransitionLayerCache(outgoing, incoming, layerCache)
                     onEnd()
                 }
             })
         }
         animator.start()
+    }
+
+    fun enableTransitionLayerCache(
+        outgoing: View,
+        incoming: View
+    ): TransitionLayerCache {
+        val cache = TransitionLayerCache(outgoing.layerType, incoming.layerType)
+        outgoing.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        incoming.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        return cache
+    }
+
+    fun restoreTransitionLayerCache(
+        outgoing: View,
+        incoming: View,
+        cache: TransitionLayerCache
+    ) {
+        outgoing.setLayerType(cache.outgoingLayerType, null)
+        incoming.setLayerType(cache.incomingLayerType, null)
     }
 
     fun applyProgress(
@@ -70,11 +112,13 @@ internal object PageTransitionAnimator {
         incoming: View,
         direction: Int,
         effect: Int,
-        progress: Float
+        progress: Float,
+        travelWidth: Float? = null
     ) {
         val amount = progress.coerceIn(-0.04f, 1.04f)
-        val width = (outgoing.width.takeIf { it > 0 }
-            ?: context.resources.displayMetrics.widthPixels).toFloat()
+        val width = travelWidth?.takeIf { it > 0f }
+            ?: (outgoing.width.takeIf { it > 0 }
+                ?: context.resources.displayMetrics.widthPixels).toFloat()
         reset(outgoing)
         reset(incoming)
         incoming.translationZ = outgoing.translationZ + 1f
@@ -84,39 +128,72 @@ internal object PageTransitionAnimator {
         when (effect) {
             ROTATE -> {
                 setCameraDistance(context, outgoing, incoming)
-                outgoing.pivotX = if (direction < 0) 0f else outgoing.width.toFloat()
-                incoming.pivotX = if (direction < 0) incoming.width.toFloat() else 0f
-                outgoing.rotationY = direction * 8f * amount
-                incoming.rotationY = -direction * 8f * (1f - amount)
-                outgoing.scaleX = 1f - 0.04f * amount
-                incoming.scaleX = 0.96f + 0.04f * amount
+                setEdgePivots(outgoing, incoming, direction)
+                outgoing.rotationY = direction * 90f * amount
+                incoming.rotationY = -direction * 90f * (1f - amount)
             }
 
             FLIP -> {
                 setCameraDistance(context, outgoing, incoming)
-                outgoing.rotationY = direction * 16f * amount
-                incoming.rotationY = -direction * 16f * (1f - amount)
+                val depth = kotlin.math.sin(amount * Math.PI).toFloat().coerceAtLeast(0f)
+                outgoing.rotationY = direction * 90f * amount
+                incoming.rotationY = -direction * 90f * (1f - amount)
+                outgoing.scaleX = 1f - 0.16f * depth
+                outgoing.scaleY = 1f - 0.16f * depth
+                incoming.scaleX = 1f - 0.16f * depth
+                incoming.scaleY = 1f - 0.16f * depth
+                outgoing.translationZ = -dp(context, 48f) * depth
+                incoming.translationZ = dp(context, 48f) * depth + 1f
             }
 
             ZOOM -> {
-                outgoing.scaleX = 1f - 0.06f * amount
-                outgoing.scaleY = 1f - 0.06f * amount
-                incoming.scaleX = 0.94f + 0.06f * amount
-                incoming.scaleY = 0.94f + 0.06f * amount
+                setCameraDistance(context, outgoing, incoming)
+                setEdgePivots(outgoing, incoming, direction)
+                val depth = kotlin.math.sin(amount * Math.PI).toFloat().coerceAtLeast(0f)
+                outgoing.rotationY = direction * 180f * amount
+                incoming.rotationY = -direction * 180f * (1f - amount)
+                outgoing.scaleX = 1f - 0.08f * depth
+                outgoing.scaleY = 1f - 0.08f * depth
+                incoming.scaleX = 1f - 0.08f * depth
+                incoming.scaleY = 1f - 0.08f * depth
             }
 
             FADE -> {
+                setCameraDistance(context, outgoing, incoming)
+                outgoing.pivotX = if (direction < 0) outgoing.width.toFloat() else 0f
+                incoming.pivotX = if (direction < 0) 0f else incoming.width.toFloat()
+                outgoing.rotationY = direction * 30f * amount
+                incoming.rotationY = -direction * 30f * (1f - amount)
+                outgoing.scaleX = 1f - 0.08f * amount
+                outgoing.scaleY = 1f - 0.08f * amount
+                incoming.scaleX = 0.92f + 0.08f * amount
+                incoming.scaleY = 0.92f + 0.08f * amount
                 outgoing.alpha = (1f - 0.18f * amount).coerceIn(0f, 1f)
                 incoming.alpha = (0.82f + 0.18f * amount).coerceIn(0f, 1f)
             }
         }
     }
 
+    private fun setEdgePivots(outgoing: View, incoming: View, direction: Int) {
+        outgoing.pivotX = if (direction < 0) outgoing.width.toFloat() else 0f
+        incoming.pivotX = if (direction < 0) 0f else incoming.width.toFloat()
+    }
+
     private fun setCameraDistance(context: Context, outgoing: View, incoming: View) {
-        val distance = context.resources.displayMetrics.density * 12000f
+        val maxDimension = maxOf(
+            outgoing.width,
+            outgoing.height,
+            incoming.width,
+            incoming.height,
+            1
+        )
+        val distance = maxDimension * 4f
         outgoing.cameraDistance = distance
         incoming.cameraDistance = distance
     }
+
+    private fun dp(context: Context, value: Float): Float =
+        value * context.resources.displayMetrics.density
 
     fun reset(view: View) {
         view.translationX = 0f

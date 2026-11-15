@@ -90,6 +90,7 @@
     <string name="cant_remove_app">アプリをアンインストールできません</string>
     <string name="drop_on_app_grid">アプリグリッド%1$dにドロップ</string>
     <string name="drop_apps_in_grid_only">アプリはアプリグリッド内にのみドロップできます。</string>
+    <string name="widget_drop_page_full">アプリの空きスロットがない画面にはウィジェットを配置できません。</string>
     <string name="drop_app_on_icon_or_dock">グリッドまたはDockのアイコンにアプリをドロップしてください。</string>
     <string name="select_two_apps">フォルダを作成するには2つ以上のアプリを選択してください。</string>
     <string name="folder">フォルダ</string>
@@ -146,6 +147,7 @@
     <string name="default_home_confirm_message">続行するとシステムの確認画面が開き、Oslaucherをデフォルトのホームアプリとして選択できます。この設定は後から変更できます。</string>
     <string name="default_home_set">Oslaucherがデフォルトのホームアプリに設定されました。</string>
     <string name="home_edit">編集</string>
+    <string name="edit_home_screen">ホーム画面を編集</string>
     <string name="home_edit_done">完了</string>
     <string name="home_edit_add_widget">ウィジェットを追加</string>
     <string name="home_edit_customize">カスタマイズ</string>

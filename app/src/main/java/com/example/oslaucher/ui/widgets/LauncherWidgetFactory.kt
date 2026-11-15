@@ -337,13 +337,13 @@ internal object LauncherWidgetFactory {
             setPadding(dp(context, 12), dp(context, 12), dp(context, 12), dp(context, 12))
             addView(BatteryRingView(context).apply {
                 batteryLevel = level
-                layoutParams = LinearLayout.LayoutParams(dp(context, 68), dp(context, 68))
+                layoutParams = LinearLayout.LayoutParams(dp(context, 58), dp(context, 58))
                 contentDescription = context.getString(R.string.battery_accessibility)
             })
             addView(TextView(context).apply {
                 text = level?.let { "$it%" } ?: "--%"
                 setTextColor(0xFFFFFFFF.toInt())
-                textSize = 29f
+                textSize = 25f
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT

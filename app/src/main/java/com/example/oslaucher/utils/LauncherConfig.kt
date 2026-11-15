@@ -34,8 +34,7 @@ object LauncherConfig {
             .coerceIn(ScreenGridActivity.MIN_GRID_ROWS, ScreenGridActivity.MAX_GRID_ROWS)
     }
 
-    fun pageTransitionEffect(context: Context, defaultHomeActive: Boolean): Int {
-        if (!defaultHomeActive) return PageTransitionAnimator.DEFAULT
+    fun pageTransitionEffect(context: Context): Int {
         return context.getSharedPreferences(PageTransitionAnimator.PREFERENCES_NAME, Context.MODE_PRIVATE)
             .getInt(PageTransitionAnimator.EFFECT_KEY, PageTransitionAnimator.DEFAULT)
             .coerceIn(PageTransitionAnimator.DEFAULT, PageTransitionAnimator.FADE)

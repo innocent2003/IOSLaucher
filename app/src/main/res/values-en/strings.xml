@@ -23,6 +23,13 @@
     <string name="screen_grid">Screen grid</string>
     <string name="page_transition">Page transition</string>
     <string name="app_library">App library</string>
+    <string name="apps_search_hint">Search</string>
+    <string name="apps_search_suggestions">Suggestions</string>
+    <string name="apps_search_results_title">Apps</string>
+    <string name="apps_search_more">Show more</string>
+    <string name="apps_search_less">Show less</string>
+    <string name="apps_search_no_results">No matching apps found.</string>
+    <string name="apps_search_launch_accessibility">Open %1$s</string>
     <string name="app_effects">App effects</string>
     <string name="notification_badges">Notification badges</string>
     <string name="customize_icons">Customize icons</string>
@@ -94,6 +101,7 @@
     <string name="folder_accessibility">%1$s, %2$d apps</string>
     <string name="selected_apps">%1$d selected</string>
     <string name="home_edit">Edit</string>
+    <string name="edit_home_screen">Edit home screen</string>
     <string name="home_edit_done">Done</string>
     <string name="home_edit_add_widget">Add Widget</string>
     <string name="home_edit_customize">Customize</string>
@@ -117,6 +125,7 @@
     <string name="drop_on_app_grid">Drop on app grid %1$d</string>
     <string name="drop_apps_in_grid_only">Apps can only be dropped in the app grid.</string>
     <string name="drop_app_on_icon_or_dock">Drop an app onto an icon in the grid or dock.</string>
+    <string name="widget_drop_page_full">Widgets cannot be dropped on a screen with no empty app slots.</string>
     <string name="select_two_apps">Select at least two apps to create a folder.</string>
     <string name="folder">Folder</string>
     <string name="create_folder">Create folder</string>

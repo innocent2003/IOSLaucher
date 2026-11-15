@@ -23,6 +23,13 @@
     <string name="screen_grid">Lưới màn hình</string>
     <string name="page_transition">Chuyển trang</string>
     <string name="app_library">Thư viện ứng dụng</string>
+    <string name="apps_search_hint">Tìm kiếm</string>
+    <string name="apps_search_suggestions">Gợi ý</string>
+    <string name="apps_search_results_title">Ứng dụng</string>
+    <string name="apps_search_more">Hiện thêm</string>
+    <string name="apps_search_less">Hiện ít hơn</string>
+    <string name="apps_search_no_results">Không tìm thấy ứng dụng phù hợp.</string>
+    <string name="apps_search_launch_accessibility">Mở %1$s</string>
     <string name="app_effects">Hiệu ứng ứng dụng</string>
     <string name="notification_badges">Huy hiệu thông báo</string>
     <string name="customize_icons">Tùy chỉnh biểu tượng</string>
@@ -94,6 +101,7 @@
     <string name="folder_accessibility">%1$s, %2$d ứng dụng</string>
     <string name="selected_apps">%1$d đã chọn</string>
     <string name="home_edit">Sửa</string>
+    <string name="edit_home_screen">Chỉnh sửa màn hình chính</string>
     <string name="home_edit_done">Xong</string>
     <string name="home_edit_add_widget">Thêm tiện ích</string>
     <string name="home_edit_customize">Tùy chỉnh</string>
@@ -117,6 +125,7 @@
     <string name="drop_on_app_grid">Thả vào lưới ứng dụng %1$d</string>
     <string name="drop_apps_in_grid_only">Chỉ có thể thả ứng dụng trong lưới ứng dụng.</string>
     <string name="drop_app_on_icon_or_dock">Thả ứng dụng lên một biểu tượng trong lưới hoặc dock.</string>
+    <string name="widget_drop_page_full">Không thể thả tiện ích vào màn hình đã kín ứng dụng.</string>
     <string name="select_two_apps">Chọn ít nhất hai ứng dụng để tạo thư mục.</string>
     <string name="folder">Thư mục</string>
     <string name="create_folder">Tạo thư mục</string>

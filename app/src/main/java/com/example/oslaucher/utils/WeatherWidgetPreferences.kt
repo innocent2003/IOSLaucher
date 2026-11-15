@@ -18,7 +18,7 @@ internal object WeatherWidgetPreferences {
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     fun temperatureUnit(context: Context): String =
-        preferences(context).getString(TEMPERATURE_UNIT_KEY, FAHRENHEIT) ?: FAHRENHEIT
+        preferences(context).getString(TEMPERATURE_UNIT_KEY, CELSIUS) ?: CELSIUS
 
     fun refreshIntervalHours(context: Context): Int =
         preferences(context).getInt(REFRESH_INTERVAL_KEY, DEFAULT_REFRESH_HOURS)
