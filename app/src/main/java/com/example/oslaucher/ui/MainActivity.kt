@@ -2611,9 +2611,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val activeGrid = pages.getChildAt(appPageIndex) as? GridView
         val sampleItem = activeGrid?.getChildAt(0)
         val sampleIcon = sampleItem?.findViewById<View>(R.id.app_icon_frame)
-        val iconSize = sampleIcon?.width?.takeIf { it > 0 } ?: IconMetrics.iconSizePx(this)
-        val iconTop = sampleIcon?.top?.takeIf { sampleIcon.width > 0 }
-            ?: ((rowHeight - iconSize - dp(18)) / 2).coerceAtLeast(0)
+        val measuredIconSize = sampleIcon?.width ?: 0
+        val iconSize = measuredIconSize.takeIf { it > 0 } ?: IconMetrics.iconSizePx(this)
+        val iconTop = if (sampleIcon != null && measuredIconSize > 0) {
+            sampleIcon.top
+        } else {
+            ((rowHeight - iconSize - dp(18)) / 2).coerceAtLeast(0)
+        }
         val horizontal = ((columnWidth - iconSize) / 2).coerceAtLeast(0)
         val vertical = iconTop.coerceAtLeast(0)
         if (frame.paddingLeft != horizontal || frame.paddingTop != vertical ||
@@ -2742,14 +2746,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 itemWidgetWidth.toInt(),
                 widgetHeight.toInt()
             )
-            val left = containerLocation[0] + container.paddingLeft + snapWidgetLeft(
+            val left = (containerLocation[0] + container.paddingLeft + snapWidgetLeft(
                 (placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f) * itemMaxLeft,
                 itemMaxLeft
-            )
-            val top = containerLocation[1] + container.paddingTop + snapWidgetTop(
+            )).toFloat()
+            val top = (containerLocation[1] + container.paddingTop + snapWidgetTop(
                 (placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f) * itemMaxTop,
                 itemMaxTop
-            )
+            )).toFloat()
             // Inset by a couple of pixels so a widget exactly covering two rows does not
             // also "touch" (and block) the row below it because of rounding.
             val widgetBounds = RectF(left, top, left + itemWidgetWidth, top + widgetHeight)
