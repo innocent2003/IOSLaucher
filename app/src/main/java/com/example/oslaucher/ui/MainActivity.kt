@@ -336,6 +336,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var launchedAsHome = false
     private var returningFromOwnScreen = false
     private var defaultHomeActive = false
+    private var settingsReturnScreen: Screen? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -395,7 +396,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     Screen.LOADING -> finish()
                     Screen.SETTINGS -> {
-                        if (launchedAsHome) showScreen(Screen.HOME, 1) else finish()
+                        val returnScreen = settingsReturnScreen
+                        settingsReturnScreen = null
+                        when {
+                            returnScreen != null -> showScreen(returnScreen, -1)
+                            launchedAsHome -> showScreen(Screen.HOME, 1)
+                            else -> finish()
+                        }
                     }
                 }
             }
@@ -409,6 +416,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         launchedAsHome = intent.categories?.contains(Intent.CATEGORY_HOME) == true
+        if (launchedAsHome) settingsReturnScreen = null
         if (launchedAsHome && currentScreen != Screen.HOME) {
             showScreen(Screen.HOME, 0)
         }
@@ -756,7 +764,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val returnedFromOwnScreen = returningFromOwnScreen
         if (returningFromOwnScreen) {
             returningFromOwnScreen = false
-        } else if (launchedAsHome && currentScreen == Screen.SETTINGS) {
+        } else if (launchedAsHome && currentScreen == Screen.SETTINGS &&
+            settingsReturnScreen == null
+        ) {
             showScreen(Screen.HOME, 0)
             return
         }
@@ -1142,6 +1152,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             Screen.LOADING -> Unit
             Screen.SETTINGS -> {
                 view.findViewById<View>(R.id.open_home).setOnClickListener {
+                    settingsReturnScreen = null
                     showScreen(Screen.HOME, 1)
                 }
                 view.findViewById<View>(R.id.default_home_screen_setting).setOnClickListener {
@@ -1753,8 +1764,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             if (isAppSearchVisible) closeAppSearch()
             if (isHomeEditMode) finishHomeEditMode()
             if (isAppSelectionMode) exitAppSelectionMode()
-            appPageIndex = 0
-            showScreen(Screen.HOME, 0)
+            // Tapping the launcher's own icon opens its main navigation page (settings hub).
+            settingsReturnScreen = currentScreen.takeIf {
+                it == Screen.HOME || it == Screen.HOME_SECOND || it == Screen.APPS
+            }
+            showScreen(Screen.SETTINGS, 1)
             return
         }
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
