@@ -90,6 +90,7 @@ import com.example.oslaucher.ui.fragments.HomeSecondFragment
 import com.example.oslaucher.ui.widgets.AppPagesLayout
 import com.example.oslaucher.ui.widgets.LauncherWidgetFactory
 import com.example.oslaucher.utils.AppIconUtils
+import com.example.oslaucher.utils.DefaultLayoutPlanner
 import com.example.oslaucher.utils.IconMetrics
 import com.example.oslaucher.utils.HiddenAppsPreferences
 import com.example.oslaucher.utils.LauncherConfig
@@ -1692,11 +1693,55 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             runOnUiThread {
                 installedApps = apps
                 isLoadingApps = false
+                applyDefaultLayoutIfNeeded(apps)
                 val callbacks = installedAppsCallbacks.toList()
                 installedAppsCallbacks.clear()
                 callbacks.forEach { callback -> callback(apps) }
             }
         }
+    }
+
+    /**
+     * On a fresh install, arrange the dock, a Google folder and the first page like the
+     * reference launcher. Runs once; existing users who already have a saved layout keep it.
+     */
+    private fun applyDefaultLayoutIfNeeded(apps: List<AppInfo>) {
+        val preferences = getSharedPreferences(DEFAULT_LAYOUT_PREFERENCES, MODE_PRIVATE)
+        if (preferences.getBoolean(DEFAULT_LAYOUT_APPLIED_KEY, false)) return
+        preferences.edit().putBoolean(DEFAULT_LAYOUT_APPLIED_KEY, true).apply()
+        val hasSavedLayout = appGridOrderPackages.isNotEmpty() || appFolders.isNotEmpty() ||
+            dockAppSlots.isNotEmpty() || dockFolderSlots.isNotEmpty() ||
+            dockEmptySlots.isNotEmpty() || dockRemovedAppPackages.isNotEmpty()
+        if (hasSavedLayout || apps.isEmpty()) return
+
+        val folderKey = FOLDER_PACKAGE_PREFIX + DefaultLayoutPlanner.GOOGLE_FOLDER_ID
+        val plan = DefaultLayoutPlanner.plan(this, apps, packageName, folderKey)
+        if (plan.googleFolderPackages.isNotEmpty()) {
+            appFolders += AppFolder(
+                DefaultLayoutPlanner.GOOGLE_FOLDER_ID,
+                GOOGLE_FOLDER_NAME,
+                plan.googleFolderPackages
+            )
+            saveAppFolders()
+        }
+        dockAppSlots.putAll(plan.dockSlots)
+        (0..3).filterNot { it in plan.dockSlots.values }.let { emptySlots ->
+            // Keep unfilled dock slots empty instead of pulling random apps into them.
+            if (plan.dockSlots.isNotEmpty()) dockEmptySlots.addAll(emptySlots)
+        }
+        saveDockAppSlots()
+        saveDockEmptySlots()
+
+        val dockPackages = plan.dockSlots.keys
+        val folderPackages = plan.googleFolderPackages.toSet()
+        val leading = plan.gridOrder
+        val remaining = apps.map { it.packageName }.filterNot {
+            it in leading || it in dockPackages || it in folderPackages ||
+                it in hiddenAppPackages
+        }
+        appGridOrderPackages.clear()
+        appGridOrderPackages.addAll(leading + remaining)
+        saveAppGridOrder()
     }
 
     override fun loadHomeScreenApps(onLoaded: (List<AppInfo>) -> Unit) {
@@ -2481,11 +2526,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val horizontalPadding = container?.let { it.paddingLeft + it.paddingRight }
             ?.takeIf { it > 0 } ?: dp(WIDGET_SIDE_INSET_DP * 2)
         val availableWidth = (containerWidth - horizontalPadding).coerceAtLeast(1)
-        return if (placement?.launcherWidgetType == LauncherWidgetType.WEATHER) {
-            availableWidth
-        } else {
-            ((availableWidth - dp(WIDGET_HORIZONTAL_GAP_DP)) / 2).coerceAtLeast(1)
-        }
+        // All widgets, weather included, are 2x2 tiles: two side by side per row.
+        return ((availableWidth - dp(WIDGET_HORIZONTAL_GAP_DP)) / 2).coerceAtLeast(1)
     }
 
     private fun appScreenWidgetWidthDp(
@@ -2652,29 +2694,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         widgetHeight: Int
     ): Pair<Float, Float> {
         val (maxLeft, maxTop) = widgetPositionMaxima(container, widgetWidth, widgetHeight)
-        val weatherWidget = pageWidgets.firstOrNull {
-            it.launcherWidgetType == LauncherWidgetType.WEATHER
-        }
-        val isWeather = placement.launcherWidgetType == LauncherWidgetType.WEATHER
-        val nonWeatherIndex = pageWidgets
-            .filterNot { it.launcherWidgetType == LauncherWidgetType.WEATHER }
-            .indexOf(placement)
-            .coerceAtLeast(0)
-        val left = when {
-            isWeather -> 0
-            else -> if (nonWeatherIndex % 2 == 0) 0 else maxLeft
-        }
-        val top = when {
-            isWeather -> dp(WIDGET_DEFAULT_TOP_DP) +
-                ((pageWidgets.size - 1).coerceAtLeast(0) + 1) / 2 *
-                (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))
-            weatherWidget != null ->
-                dp(WIDGET_DEFAULT_TOP_DP) + widgetHeight + dp(WIDGET_VERTICAL_GAP_DP) +
-                    (nonWeatherIndex / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))
-            else ->
-                dp(WIDGET_DEFAULT_TOP_DP) +
-                    (index / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))
-        }.coerceAtMost(maxTop)
+        val slot = pageWidgets.indexOf(placement).takeIf { it >= 0 } ?: index
+        val left = if (slot % 2 == 0) 0 else maxLeft
+        val top = (dp(WIDGET_DEFAULT_TOP_DP) +
+            (slot / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP)))
+            .coerceAtMost(maxTop)
         return (left.toFloat() / maxLeft.coerceAtLeast(1)) to
             (top.toFloat() / maxTop.coerceAtLeast(1))
     }
@@ -2710,8 +2734,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             val preferredY = (placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f)
             val preferredLeft = (preferredX * maxLeft).roundToInt()
             val preferredTop = (preferredY * maxTop).roundToInt()
-            val isFullWidth = placement.launcherWidgetType == LauncherWidgetType.WEATHER
-            val candidateLefts = if (isFullWidth || maxLeft == 0) {
+            val candidateLefts = if (maxLeft == 0) {
                 listOf(0)
             } else {
                 listOf(0, maxLeft)
@@ -5312,6 +5335,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val WIDGET_SIDE_INSET_DP = 22
         const val WIDGET_VERTICAL_GAP_DP = 12
         const val WIDGET_EDIT_BAR_GAP_DP = 8
+        const val DEFAULT_LAYOUT_PREFERENCES = "launcher_default_layout"
+        const val DEFAULT_LAYOUT_APPLIED_KEY = "applied"
+        const val GOOGLE_FOLDER_NAME = "Google"
         const val PAGE_DOT_INACTIVE_ALPHA = 0.4f
         const val BOTTOM_PILL_FADE_MS = 160L
     }

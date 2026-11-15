@@ -44,15 +44,21 @@ internal class LauncherLayoutRepository(context: Context) {
     fun loadHomeWidgets(): List<HomeWidgetPlacement> {
         val stored = appGridPreferences.getString(HOME_WIDGETS_KEY, null)
             ?: return listOf(
+                // First run: weather and calendar side by side at the top of the first page,
+                // like the reference launcher.
                 HomeWidgetPlacement(
                     appWidgetId = -1,
                     pageIndex = 0,
-                    launcherWidgetType = LauncherWidgetType.CLOCK
+                    launcherWidgetType = LauncherWidgetType.WEATHER,
+                    positionX = 0f,
+                    positionY = 0f
                 ),
                 HomeWidgetPlacement(
                     appWidgetId = -1,
                     pageIndex = 0,
-                    launcherWidgetType = LauncherWidgetType.BATTERY
+                    launcherWidgetType = LauncherWidgetType.CALENDAR,
+                    positionX = 1f,
+                    positionY = 0f
                 )
             ).also(::saveHomeWidgets)
         var migratedInstanceIds = false

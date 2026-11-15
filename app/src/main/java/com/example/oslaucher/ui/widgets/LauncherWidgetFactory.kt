@@ -63,6 +63,9 @@ internal object LauncherWidgetFactory {
             gravity = Gravity.CENTER
             orientation = LinearLayout.HORIZONTAL
         }
+        // Compact 2x2 tile like the reference: blue card with city, big temperature,
+        // condition and today's high/low; the caption sits under the card.
+        mainTemperature.textSize = 40f
         val root = LinearLayout(context).apply {
             gravity = Gravity.CENTER
             orientation = LinearLayout.VERTICAL
@@ -79,71 +82,36 @@ internal object LauncherWidgetFactory {
                         setStroke(dp(context, 1), color(context, R.color.weather_widget_border))
                     }
                     orientation = LinearLayout.VERTICAL
-                    setPadding(dp(context, 14), dp(context, 8), dp(context, 14), dp(context, 6))
+                    setPadding(dp(context, 14), dp(context, 12), dp(context, 14), dp(context, 12))
                     layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         0,
                         1f
                     )
-
-                    addView(
-                        LinearLayout(context).apply {
-                            gravity = Gravity.CENTER_VERTICAL
-                            orientation = LinearLayout.HORIZONTAL
-                            addView(weatherText(context, 13f, bold = true).apply {
-                                text = "Thanh Xuân"
-                                layoutParams = LinearLayout.LayoutParams(
-                                    0,
-                                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                                    1f
-                                )
-                            })
-                            addView(currentIcon)
-                            addView(condition)
-                        }
-                    )
-                    addView(
-                        LinearLayout(context).apply {
-                            gravity = Gravity.CENTER_VERTICAL
-                            orientation = LinearLayout.HORIZONTAL
-                            addView(mainTemperature.apply {
-                                layoutParams = LinearLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                                    ViewGroup.LayoutParams.WRAP_CONTENT
-                                )
-                            })
-                            addView(
-                                View(context).apply {
-                                    setBackgroundColor(color(context, R.color.weather_widget_divider))
-                                },
-                                LinearLayout.LayoutParams(0, 1, 1f)
-                            )
-                            addView(highLow)
-                        }
-                    )
+                    addView(weatherText(context, 14f, bold = true).apply {
+                        text = "Thanh Xuân"
+                        maxLines = 1
+                    })
+                    addView(mainTemperature)
                     addView(
                         View(context),
-                        LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            dp(context, 1)
-                        ).apply {
-                            topMargin = dp(context, 1)
-                            bottomMargin = dp(context, 3)
-                        }.also { it.height = dp(context, 1) }
+                        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
                     )
-                    addView(
-                        hourlyForecast,
-                        LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            0,
-                            1f
-                        )
-                    )
+                    addView(currentIcon.apply { textSize = 18f })
+                    addView(condition.apply {
+                        textSize = 12f
+                        maxLines = 1
+                    })
+                    addView(highLow.apply {
+                        textSize = 12f
+                        maxLines = 1
+                    })
                 }
             )
-            addView(weatherText(context, 9f, secondary = true).apply {
+            addView(weatherText(context, 12f).apply {
                 text = context.getString(R.string.weather_widget_caption)
-                setPadding(0, dp(context, 2), 0, 0)
+                setShadowLayer(3f, 0f, 1f, 0x66000000)
+                setPadding(0, dp(context, 4), 0, 0)
             })
         }
 
@@ -161,12 +129,7 @@ internal object LauncherWidgetFactory {
                         mainTemperature.text = "${data.temperature}$temperatureSymbol"
                         currentIcon.text = data.icon
                         condition.text = data.description
-                        highLow.text = context.getString(
-                            R.string.weather_widget_high_low,
-                            data.high,
-                            data.low,
-                            temperatureSymbol
-                        )
+                        highLow.text = "↑${data.high}°  ↓${data.low}°"
                         hourlyForecast.removeAllViews()
                         data.hours.forEach { hour ->
                             hourlyForecast.addView(
