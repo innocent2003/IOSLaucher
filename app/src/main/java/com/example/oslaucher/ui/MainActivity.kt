@@ -319,14 +319,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private val screenLayouts = mapOf(
         Screen.LOADING to R.layout.screen_loading,
-        Screen.SETTINGS to R.layout.activity_main,
         Screen.APPS to R.layout.screen_apps
     )
 
     private var currentScreen = Screen.LOADING
     private var lastHomeScreen = Screen.HOME
     private var isAlphabeticalLibrary = false
-    private var preloadedSettingsView: View? = null
     private var launchedAsHome = false
     private var returningFromOwnScreen = false
     private var defaultHomeActive = false
@@ -335,6 +333,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         launchedAsHome = intent?.categories?.contains(Intent.CATEGORY_HOME) == true
+        if (!launchedAsHome) {
+            startActivity(Intent(this, SettingsActivity::class.java))
+            finish()
+            return
+        }
         defaultHomeActive = LauncherConfig.isDefaultHome(this)
         hiddenAppPackages.addAll(HiddenAppsPreferences.packages(this))
 
@@ -349,7 +352,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         // HOME only needs the clock/widgets, so draw the launcher first and let the
         // repositories and layout warmup fill in behind it instead of gating the first frame.
-        showScreen(if (launchedAsHome) Screen.HOME else Screen.SETTINGS, 0)
+        showScreen(Screen.HOME, 0)
         initializeLauncherData()
     }
 
@@ -384,13 +387,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         )
                     }
                     Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
-                    Screen.HOME -> {
-                        if (!launchedAsHome) showScreen(Screen.SETTINGS, -1)
-                    }
+                    Screen.HOME -> Unit
                     Screen.LOADING -> finish()
-                    Screen.SETTINGS -> {
-                        if (launchedAsHome) showScreen(Screen.HOME, 1) else finish()
-                    }
                 }
             }
         })
@@ -750,12 +748,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val returnedFromOwnScreen = returningFromOwnScreen
         if (returningFromOwnScreen) {
             returningFromOwnScreen = false
-        } else if (launchedAsHome && currentScreen == Screen.SETTINGS) {
-            showScreen(Screen.HOME, 0)
-            return
         }
         if (homeRoleChanged && currentScreen != Screen.LOADING) {
-            preloadedSettingsView = null
             showScreen(currentScreen, 0)
             return
         }
@@ -795,7 +789,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         if (currentScreen == Screen.LOADING) return
-        preloadedSettingsView = null
         showScreen(currentScreen, 0)
     }
 
@@ -823,12 +816,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         } else {
             screenLayouts.getValue(screen)
         }
-        val newView = if (screen == Screen.SETTINGS) {
-            preloadedSettingsView.also { preloadedSettingsView = null }
-                ?: LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
-        } else {
-            LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
-        }
+        val newView = LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
         bindScreen(newView, screen)
 
         if (previousView != null && animationDirection != 0) {
@@ -961,7 +949,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             Screen.HOME -> HomeFragment()
             Screen.HOME_SECOND -> HomeSecondFragment()
             Screen.APPS -> null
-            Screen.LOADING, Screen.SETTINGS -> return null
+            Screen.LOADING -> return null
         }
         val incomingView = if (incomingFragment != null) {
             fragmentManager.beginTransaction()
@@ -1144,47 +1132,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         when (screen) {
             Screen.LOADING -> Unit
-            Screen.SETTINGS -> {
-                view.findViewById<View>(R.id.open_home).setOnClickListener {
-                    showScreen(Screen.HOME, 1)
-                }
-                view.findViewById<View>(R.id.default_home_screen_setting).setOnClickListener {
-                    requestDefaultHomeRole()
-                }
-                view.findViewById<View>(R.id.default_home_screen_label).setOnClickListener {
-                    requestDefaultHomeRole()
-                }
-                view.findViewById<View>(R.id.appearance_setting).setOnClickListener {
-                    startOwnScreen(AppearanceActivity::class.java)
-                }
-                view.findViewById<View>(R.id.general_setting).setOnClickListener {
-                    startOwnScreen(GeneralSettingsActivity::class.java)
-                }
-                view.findViewById<View>(R.id.hidden_apps_setting).setOnClickListener {
-                    startOwnScreen(HiddenAppsActivity::class.java)
-                }
-                view.findViewById<View>(R.id.language_setting).setOnClickListener {
-                    startOwnScreen(LanguageActivity::class.java)
-                }
-                view.findViewById<View>(R.id.screen_grid_setting).setOnClickListener {
-                    startOwnScreen(ScreenGridActivity::class.java)
-                }
-                view.findViewById<View>(R.id.page_transition_setting).setOnClickListener {
-                    startOwnScreen(PageTransitionActivity::class.java)
-                }
-                view.findViewById<View>(R.id.wallpaper_setting).setOnClickListener {
-                    startOwnScreen(WallpaperActivity::class.java)
-                }
-                view.findViewById<View>(R.id.weather_setting).setOnClickListener {
-                    startOwnScreen(WeatherSettingsActivity::class.java)
-                }
-                view.findViewById<View>(R.id.app_effects_setting).setOnClickListener {
-                    startOwnScreen(AppEffectsActivity::class.java)
-                }
-                view.findViewById<View>(R.id.change_app_icon_setting).setOnClickListener {
-                    startOwnScreen(ChangeAppIconActivity::class.java)
-                }
-            }
             Screen.HOME, Screen.HOME_SECOND -> Unit
             Screen.APPS -> {
                 appsWidgetContainer = null
@@ -1613,7 +1560,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             ContextThemeWrapper(this, R.style.Theme_Oslaucher_Settings)
         )
         val layouts = listOf(
-            mainInflater to R.layout.activity_main,
             mainInflater to R.layout.screen_home,
             mainInflater to R.layout.screen_home_second,
             mainInflater to R.layout.screen_apps,
@@ -1641,9 +1587,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
             val (inflater, layoutResId) = layouts[index]
             val view = inflater.inflate(layoutResId, screenContainer, false)
-            if (layoutResId == R.layout.activity_main && !launchedAsHome) {
-                preloadedSettingsView = view
-            }
             Looper.myQueue().addIdleHandler {
                 warmLayout(index + 1)
                 false
@@ -1723,7 +1666,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     override fun openApps() {
-        if (currentScreen != Screen.APPS && currentScreen != Screen.SETTINGS) {
+        if (currentScreen != Screen.APPS) {
             lastHomeScreen = currentScreen
         }
         isAlphabeticalLibrary = true
@@ -1731,7 +1674,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     override fun openSettings() {
-        showScreen(Screen.SETTINGS, -1)
+        startOwnScreen(SettingsActivity::class.java)
     }
 
     private fun showAppPage(pageIndex: Int) {

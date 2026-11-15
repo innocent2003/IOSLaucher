@@ -49,6 +49,10 @@
             android:exported="false"
             android:theme="@style/Theme.Oslaucher.Settings" />
         <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Oslaucher.Settings" />
+        <activity
             android:name=".ui.WeatherSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.Oslaucher.Settings" />
