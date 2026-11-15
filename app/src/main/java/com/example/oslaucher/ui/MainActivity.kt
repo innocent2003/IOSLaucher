@@ -1927,6 +1927,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun prepareIncomingPageWidgets(targetPage: Int) {
         val incoming = appsIncomingWidgetContainer ?: return
         val container = appsWidgetContainer ?: return
+        syncWidgetTopInset()
         widgetSwipeAnimator?.cancel()
         widgetSwipeAnimator = null
         container.visibility = View.VISIBLE
@@ -2533,8 +2534,34 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         return "${location[0]}:${location[1]}:${pages.width}:${pages.height}"
     }
 
+    /**
+     * Keeps widgets below the edit ("Sửa"/"Xong") and selection bars. Widget positions are
+     * measured from the widget layers' top padding, so reserving the bars' height there
+     * stops widgets from covering those buttons in edit mode.
+     */
+    private fun syncWidgetTopInset() {
+        val container = appsWidgetContainer ?: return
+        val root = container.parent as? View ?: return
+        val content = root.findViewById<View?>(R.id.apps_content)
+        var inset = 0
+        listOf(R.id.apps_edit_controls, R.id.apps_selection_bar).forEach { id ->
+            val bar = root.findViewById<View?>(id) ?: return@forEach
+            if (bar.visibility == View.GONE) return@forEach
+            val params = bar.layoutParams as? ViewGroup.MarginLayoutParams
+            inset += (params?.topMargin ?: 0) + (params?.height?.takeIf { it > 0 } ?: bar.height) +
+                (params?.bottomMargin ?: 0)
+        }
+        if (inset > 0) inset += (content?.paddingTop ?: 0) + dp(WIDGET_EDIT_BAR_GAP_DP)
+        listOfNotNull(container, appsIncomingWidgetContainer).forEach { layer ->
+            if (layer.paddingTop != inset) {
+                layer.setPadding(layer.paddingLeft, inset, layer.paddingRight, layer.paddingBottom)
+            }
+        }
+    }
+
     private fun widgetBlockedAppSlots(pageIndex: Int, gridRows: Int): Set<Int> {
         val container = appsWidgetContainer ?: return emptySet()
+        syncWidgetTopInset()
         val pages = appsPages ?: return emptySet()
         if (container.width <= 0 || container.height <= 0 ||
             pages.width <= 0 || pages.height <= 0
@@ -2771,6 +2798,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun renderHomeWidgetViews() {
         val container = appsWidgetContainer ?: return
+        syncWidgetTopInset()
         setWidgetLoading(true)
         val pages = appsPages
         if (container.width <= 0 || container.height <= 0 ||
@@ -5278,7 +5306,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val WIDGET_HORIZONTAL_GAP_DP = 14
         const val WIDGET_SIDE_INSET_DP = 22
         const val WIDGET_VERTICAL_GAP_DP = 12
-        const val DOCK_ICON_SIZE_DP = 62
+        const val DOCK_ICON_SIZE_DP = 66
+        const val WIDGET_EDIT_BAR_GAP_DP = 8
         const val PAGE_DOT_INACTIVE_ALPHA = 0.4f
         const val BOTTOM_PILL_FADE_MS = 160L
     }

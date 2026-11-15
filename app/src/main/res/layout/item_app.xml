@@ -13,8 +13,8 @@
 
     <FrameLayout
         android:id="@+id/app_icon_frame"
-        android:layout_width="62dp"
-        android:layout_height="62dp"
+        android:layout_width="68dp"
+        android:layout_height="68dp"
         android:clipChildren="false"
         android:clipToPadding="false">
 
@@ -48,7 +48,7 @@
         android:id="@+id/app_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
+        android:layout_marginTop="4dp"
         android:ellipsize="end"
         android:gravity="center"
         android:includeFontPadding="false"
@@ -58,5 +58,5 @@
         android:shadowRadius="3"
         android:singleLine="true"
         android:textColor="#FFFFFF"
-        android:textSize="12.5sp" />
+        android:textSize="10.5sp" />
 </LinearLayout>

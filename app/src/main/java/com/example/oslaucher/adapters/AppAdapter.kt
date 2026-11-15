@@ -26,8 +26,8 @@ class AppAdapter(
     private val onEmptySlotLongClick: (() -> Unit)? = null
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
-    private val iconMaxSize = (62 * context.resources.displayMetrics.density).toInt()
-    private val labelGap = (12 * context.resources.displayMetrics.density).toInt()
+    private val iconMaxSize = (68 * context.resources.displayMetrics.density).toInt()
+    private val labelGap = (8 * context.resources.displayMetrics.density).toInt()
     private var allApps: List<AppInfo?> = emptyList()
     private var visibleApps: List<AppInfo?> = emptyList()
 
