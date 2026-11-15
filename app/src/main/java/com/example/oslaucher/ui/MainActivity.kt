@@ -17,6 +17,7 @@ import android.os.Build
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RenderEffect
 import android.graphics.RectF
@@ -34,6 +35,7 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
@@ -58,7 +60,6 @@ import android.widget.PopupWindow
 import android.widget.RemoteViews
 import android.widget.TextView
 import android.widget.Toast
-import android.widget.ViewFlipper
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
@@ -87,8 +88,11 @@ import com.example.oslaucher.repositories.LauncherLayoutRepository
 import com.example.oslaucher.ui.fragments.HomeFragment
 import com.example.oslaucher.ui.fragments.HomeScreenActions
 import com.example.oslaucher.ui.fragments.HomeSecondFragment
+import com.example.oslaucher.ui.widgets.AppPagesLayout
 import com.example.oslaucher.ui.widgets.LauncherWidgetFactory
 import com.example.oslaucher.utils.AppIconUtils
+import com.example.oslaucher.utils.DefaultLayoutPlanner
+import com.example.oslaucher.utils.IconMetrics
 import com.example.oslaucher.utils.HiddenAppsPreferences
 import com.example.oslaucher.utils.LauncherConfig
 import com.example.oslaucher.utils.LauncherWallpaper
@@ -133,8 +137,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var installedApps: List<AppInfo>? = null
     private val installedAppsCallbacks = mutableListOf<(List<AppInfo>) -> Unit>()
     private var renderApps: ((List<AppInfo>) -> Unit)? = null
-    private var appsPages: ViewFlipper? = null
+    private var appsPages: AppPagesLayout? = null
     private var appsIndicator: LinearLayout? = null
+    private var appsSearchPill: View? = null
+    private var appsIncomingWidgetContainer: FrameLayout? = null
+    private var appsPageIndicatorShown = false
     private var appsGridRendered = false
     private var appPageIndex = 0
     private var appPageCount = 1
@@ -330,6 +337,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var launchedAsHome = false
     private var returningFromOwnScreen = false
     private var defaultHomeActive = false
+    private var settingsReturnScreen: Screen? = null
+    private val bottomPillHandler = Handler(Looper.getMainLooper())
+    private val restoreSearchPillRunnable = Runnable {
+        if (currentScreen == Screen.APPS && appPageSwipeTransition == null && !homeSwipeSettling) {
+            setPageIndicatorShown(false)
+        } else if (currentScreen == Screen.APPS) {
+            scheduleSearchPillRestore()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -389,7 +405,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     Screen.LOADING -> finish()
                     Screen.SETTINGS -> {
-                        if (launchedAsHome) showScreen(Screen.HOME, 1) else finish()
+                        val returnScreen = settingsReturnScreen
+                        settingsReturnScreen = null
+                        when {
+                            returnScreen != null -> showScreen(returnScreen, -1)
+                            launchedAsHome -> showScreen(Screen.HOME, 1)
+                            else -> finish()
+                        }
                     }
                 }
             }
@@ -403,6 +425,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         launchedAsHome = intent.categories?.contains(Intent.CATEGORY_HOME) == true
+        if (launchedAsHome) settingsReturnScreen = null
         if (launchedAsHome && currentScreen != Screen.HOME) {
             showScreen(Screen.HOME, 0)
         }
@@ -750,7 +773,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val returnedFromOwnScreen = returningFromOwnScreen
         if (returningFromOwnScreen) {
             returningFromOwnScreen = false
-        } else if (launchedAsHome && currentScreen == Screen.SETTINGS) {
+        } else if (launchedAsHome && currentScreen == Screen.SETTINGS &&
+            settingsReturnScreen == null
+        ) {
             showScreen(Screen.HOME, 0)
             return
         }
@@ -801,7 +826,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun showScreen(screen: Screen, animationDirection: Int = 0) {
         if (screen != Screen.APPS && isAppSearchVisible) closeAppSearch()
-        if (screen != Screen.APPS) appsWidgetContainer = null
+        if (screen != Screen.APPS) {
+            appsWidgetContainer = null
+            appsIncomingWidgetContainer = null
+        }
         if (screen != Screen.APPS && (isHomeEditMode || isAppSelectionMode)) {
             isHomeEditMode = false
             isAppSelectionMode = false
@@ -949,9 +977,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             else -> return null
         }
         if (toScreen == Screen.APPS) isAlphabeticalLibrary = false
-        if (fromScreen == Screen.APPS || toScreen == Screen.APPS) {
-            setWidgetLoading(true)
-        }
+        // The APPS widget layer lives inside the APPS screen root, so it already slides with
+        // that screen; hiding it here made the widgets blink out at the start of every swipe.
         val fragmentManager = supportFragmentManager
         val outgoingFragment = fragmentManager.findFragmentById(R.id.screen_container)
         val outgoingView = outgoingFragment?.view
@@ -1014,9 +1041,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val offset = resistedDistance.coerceIn(-transition.width, transition.width)
         val progress = (offset * transition.direction / transition.width)
             .coerceIn(0f, 1f)
-        if (transition.fromScreen == Screen.APPS) {
-            setWidgetSwipeProgress(transition.direction, transition.width, progress)
-        }
         PageTransitionAnimator.applyProgress(
             this,
             transition.outgoingView,
@@ -1075,15 +1099,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             homeSwipeSettling = false
         }
 
-        if (transition.fromScreen == Screen.APPS) {
-            animateWidgetSwipe(
-                transition.direction,
-                transition.width,
-                progress,
-                targetProgress,
-                duration
-            )
-        }
         PageTransitionAnimator.animateProgress(
             this,
             transition.outgoingView,
@@ -1146,6 +1161,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             Screen.LOADING -> Unit
             Screen.SETTINGS -> {
                 view.findViewById<View>(R.id.open_home).setOnClickListener {
+                    settingsReturnScreen = null
                     showScreen(Screen.HOME, 1)
                 }
                 view.findViewById<View>(R.id.default_home_screen_setting).setOnClickListener {
@@ -1188,12 +1204,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             Screen.HOME, Screen.HOME_SECOND -> Unit
             Screen.APPS -> {
                 appsWidgetContainer = null
+                appsIncomingWidgetContainer = null
                 if (isAlphabeticalLibrary) {
                     bindAlphabeticalAppLibrary(view)
                     return
                 }
                 bindAppsSearch(view)
-                val pages = view.findViewById<ViewFlipper>(R.id.apps_pages)
+                val pages = view.findViewById<AppPagesLayout>(R.id.apps_pages)
                 val pageIndicator = view.findViewById<LinearLayout>(R.id.apps_page_indicator)
                 val editControls = view.findViewById<LinearLayout>(R.id.apps_edit_controls)
                 val selectionBar = view.findViewById<LinearLayout>(R.id.apps_selection_bar)
@@ -1201,11 +1218,23 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 appsGridRendered = false
                 appsPages = pages
                 appsIndicator = pageIndicator
+                appsSearchPill = view.findViewById(R.id.apps_search_button)
+                (appsSearchPill as? TextView)?.setTextSize(
+                    TypedValue.COMPLEX_UNIT_PX,
+                    IconMetrics.labelTextSizePx(this) * SEARCH_PILL_TEXT_RATIO
+                )
+                appsPageIndicatorShown = false
                 appsWidgetContainer = view.findViewById(R.id.apps_widget_container)
+                appsIncomingWidgetContainer =
+                    view.findViewById(R.id.apps_widget_incoming_container)
                 setWidgetLoading(true)
                 if (!openAppsAtLastPage) appPageIndex = 0
                 val dock = view.findViewById<LinearLayout>(R.id.apps_dock)
                 appsDock = dock
+                val dockIconSize = IconMetrics.iconSizePx(this)
+                dock.layoutParams = dock.layoutParams.apply {
+                    height = IconMetrics.dockHeightPx(this@MainActivity)
+                }
                 val appLauncher: (AppInfo) -> Unit = { app ->
                     if (isHomeEditMode && !isAppSelectionMode) {
                         Unit
@@ -1239,7 +1268,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     if (isAppSelectionMode || isHomeEditMode) stopDragWiggle()
                     (pages.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
                         params.topMargin = dp(
-                            if (isAppSelectionMode || isHomeEditMode) 8 else 22
+                            if (isAppSelectionMode || isHomeEditMode) 8 else 14
                         )
                         pages.layoutParams = params
                     }
@@ -1422,7 +1451,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     appChunks.forEachIndexed { pageIndex, pageApps ->
                         val gridView = GridView(this).apply {
                             numColumns = 4
-                            horizontalSpacing = dp(6)
+                            horizontalSpacing = dp(APP_GRID_COLUMN_SPACING_DP)
                             verticalSpacing = dp(0)
                             stretchMode = GridView.STRETCH_COLUMN_WIDTH
                             isVerticalScrollBarEnabled = false
@@ -1452,13 +1481,20 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         }
                         pages.addView(gridView)
 
-                        val dot = TextView(this).apply {
-                            text = "•"
-                            textSize = 18f
-                            setPadding(dp(5), 0, dp(5), 0)
+                        val dot = View(this).apply {
+                            background = GradientDrawable().apply {
+                                shape = GradientDrawable.OVAL
+                                setColor(Color.WHITE)
+                            }
+                            alpha = PAGE_DOT_INACTIVE_ALPHA
                             setOnClickListener { showAppPage(pageIndex) }
                         }
-                        pageIndicator.addView(dot)
+                        pageIndicator.addView(
+                            dot,
+                            LinearLayout.LayoutParams(dp(7), dp(7)).apply {
+                                setMargins(dp(4), 0, dp(4), 0)
+                            }
+                        )
                     }
                     pages.displayedChild = appPageIndex
                     updateAppPageIndicator()
@@ -1494,7 +1530,6 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             setImageDrawable(AppIconUtils.getIcon(this@MainActivity, app))
                             contentDescription = app.name
                             scaleType = ImageView.ScaleType.FIT_CENTER
-                            setPadding(dp(6), dp(4), dp(6), dp(4))
                         }
                         val hoverGlow = View(this@MainActivity).apply {
                             id = R.id.app_hover_glow
@@ -1508,18 +1543,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             addView(
                                 icon,
                                 FrameLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                    dockIconSize,
+                                    dockIconSize,
+                                    Gravity.CENTER
                                 )
                             )
                             addView(
                                 hoverGlow,
                                 FrameLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
-                                ).apply {
-                                    setMargins(dp(4), dp(2), dp(4), dp(2))
-                                }
+                                    dockIconSize,
+                                    dockIconSize,
+                                    Gravity.CENTER
+                                )
                             )
                             addView(
                                 TextView(this@MainActivity).apply {
@@ -1682,11 +1717,55 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             runOnUiThread {
                 installedApps = apps
                 isLoadingApps = false
+                applyDefaultLayoutIfNeeded(apps)
                 val callbacks = installedAppsCallbacks.toList()
                 installedAppsCallbacks.clear()
                 callbacks.forEach { callback -> callback(apps) }
             }
         }
+    }
+
+    /**
+     * On a fresh install, arrange the dock, a Google folder and the first page like the
+     * reference launcher. Runs once; existing users who already have a saved layout keep it.
+     */
+    private fun applyDefaultLayoutIfNeeded(apps: List<AppInfo>) {
+        val preferences = getSharedPreferences(DEFAULT_LAYOUT_PREFERENCES, MODE_PRIVATE)
+        if (preferences.getBoolean(DEFAULT_LAYOUT_APPLIED_KEY, false)) return
+        preferences.edit().putBoolean(DEFAULT_LAYOUT_APPLIED_KEY, true).apply()
+        val hasSavedLayout = appGridOrderPackages.isNotEmpty() || appFolders.isNotEmpty() ||
+            dockAppSlots.isNotEmpty() || dockFolderSlots.isNotEmpty() ||
+            dockEmptySlots.isNotEmpty() || dockRemovedAppPackages.isNotEmpty()
+        if (hasSavedLayout || apps.isEmpty()) return
+
+        val folderKey = FOLDER_PACKAGE_PREFIX + DefaultLayoutPlanner.GOOGLE_FOLDER_ID
+        val plan = DefaultLayoutPlanner.plan(this, apps, packageName, folderKey)
+        if (plan.googleFolderPackages.isNotEmpty()) {
+            appFolders += AppFolder(
+                DefaultLayoutPlanner.GOOGLE_FOLDER_ID,
+                GOOGLE_FOLDER_NAME,
+                plan.googleFolderPackages
+            )
+            saveAppFolders()
+        }
+        dockAppSlots.putAll(plan.dockSlots)
+        (0..3).filterNot { it in plan.dockSlots.values }.let { emptySlots ->
+            // Keep unfilled dock slots empty instead of pulling random apps into them.
+            if (plan.dockSlots.isNotEmpty()) dockEmptySlots.addAll(emptySlots)
+        }
+        saveDockAppSlots()
+        saveDockEmptySlots()
+
+        val dockPackages = plan.dockSlots.keys
+        val folderPackages = plan.googleFolderPackages.toSet()
+        val leading = plan.gridOrder
+        val remaining = apps.map { it.packageName }.filterNot {
+            it in leading || it in dockPackages || it in folderPackages ||
+                it in hiddenAppPackages
+        }
+        appGridOrderPackages.clear()
+        appGridOrderPackages.addAll(leading + remaining)
+        saveAppGridOrder()
     }
 
     override fun loadHomeScreenApps(onLoaded: (List<AppInfo>) -> Unit) {
@@ -1698,8 +1777,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             if (isAppSearchVisible) closeAppSearch()
             if (isHomeEditMode) finishHomeEditMode()
             if (isAppSelectionMode) exitAppSelectionMode()
-            appPageIndex = 0
-            showScreen(Screen.HOME, 0)
+            // Tapping the launcher's own icon opens its main navigation page (settings hub).
+            settingsReturnScreen = currentScreen.takeIf {
+                it == Screen.HOME || it == Screen.HOME_SECOND || it == Screen.APPS
+            }
+            showScreen(Screen.SETTINGS, 1)
             return
         }
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
@@ -1743,7 +1825,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val outgoingView = pages.getChildAt(appPageIndex) ?: return
         val incomingView = pages.getChildAt(targetPage) ?: return
         val direction = if (targetPage > appPageIndex) -1 else 1
-        setWidgetLoading(true)
+        val width = screenContainer.width.takeIf { it > 0 }?.toFloat()
+            ?: resources.displayMetrics.widthPixels.toFloat()
+        prepareIncomingPageWidgets(targetPage)
+        setWidgetSwipeProgress(direction, width, 0f)
+        animateWidgetSwipe(direction, width, 0f, 1f, PageTransitionAnimator.SCREEN_DURATION)
+        setPageIndicatorShown(true)
         pages.displayedChild = targetPage
         appPageIndex = targetPage
         refreshSelectionWiggle()
@@ -1757,11 +1844,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             direction,
             getPageTransitionEffect(),
             PageTransitionAnimator.SCREEN_DURATION,
-            screenContainer.width.toFloat()
+            width
         ) {
             pages.displayedChild = targetPage
             appPageIndex = targetPage
-            updateAppPageIndicator()
+            finishWidgetPageSwipe()
+            updateAppPageIndicator(renderWidgets = false)
             homeSwipeSettling = false
         }
     }
@@ -1797,7 +1885,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         outgoingView.animate().cancel()
         incomingView.animate().cancel()
-        setWidgetLoading(true)
+        prepareIncomingPageWidgets(targetPage)
+        setWidgetSwipeProgress(direction, width, 0f)
+        setPageIndicatorShown(true)
         pages.displayedChild = targetPage
         outgoingView.visibility = View.VISIBLE
         incomingView.visibility = View.VISIBLE
@@ -1884,8 +1974,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             val targetPage = if (commit) transition.toPage else transition.fromPage
             appsPages?.displayedChild = targetPage
             if (commit) appPageIndex = targetPage
-            resetWidgetSwipe()
-            updateAppPageIndicator()
+            finishWidgetPageSwipe()
+            updateAppPageIndicator(renderWidgets = false)
             appPageSwipeTransition = null
             appPageSwipeLayerCache?.let {
                 PageTransitionAnimator.restoreTransitionLayerCache(
@@ -1903,6 +1993,42 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun setWidgetSwipeProgress(direction: Int, width: Float, progress: Float) {
         appsWidgetContainer?.translationX = direction * width * progress
+        appsIncomingWidgetContainer?.translationX = -direction * width * (1f - progress)
+    }
+
+    /**
+     * Lays out the widgets of [targetPage] in the incoming widget layer so they slide in
+     * together with that page's icons, instead of being hidden during the swipe and popping
+     * in once it settles.
+     */
+    private fun prepareIncomingPageWidgets(targetPage: Int) {
+        val incoming = appsIncomingWidgetContainer ?: return
+        val container = appsWidgetContainer ?: return
+        syncWidgetTopInset()
+        widgetSwipeAnimator?.cancel()
+        widgetSwipeAnimator = null
+        container.visibility = View.VISIBLE
+        if (homeWidgets.none { it.pageIndex == targetPage } ||
+            container.width <= 0 || container.height <= 0 ||
+            appsPages?.height?.let { it > 0 } != true
+        ) {
+            incoming.visibility = View.INVISIBLE
+            return
+        }
+        if (placePageWidgets(targetPage, incoming, container, mutableListOf())) {
+            layoutRepository.saveHomeWidgets(homeWidgets)
+        }
+        incoming.visibility = View.VISIBLE
+    }
+
+    private fun finishWidgetPageSwipe() {
+        resetWidgetSwipe()
+        if (currentScreen == Screen.APPS) {
+            // Re-home the widget frames synchronously so the settled page never shows a
+            // frame with the old widgets (or none) before the next render pass.
+            renderHomeWidgetViews()
+        }
+        appsIncomingWidgetContainer?.visibility = View.INVISIBLE
     }
 
     private fun animateWidgetSwipe(
@@ -1913,19 +2039,24 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         duration: Long
     ) {
         val container = appsWidgetContainer ?: return
+        val incoming = appsIncomingWidgetContainer
         widgetSwipeAnimator?.cancel()
         val previousLayerType = container.layerType
+        val previousIncomingLayerType = incoming?.layerType ?: View.LAYER_TYPE_NONE
         container.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        if (incoming?.visibility == View.VISIBLE) {
+            incoming.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        }
         widgetSwipeAnimator = ValueAnimator.ofFloat(startProgress, endProgress).apply {
             this.duration = duration
             interpolator = PathInterpolator(0.2f, 0f, 0.2f, 1f)
             addUpdateListener { animator ->
-                container.translationX =
-                    direction * width * (animator.animatedValue as Float)
+                setWidgetSwipeProgress(direction, width, animator.animatedValue as Float)
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
                     container.setLayerType(previousLayerType, null)
+                    incoming?.setLayerType(previousIncomingLayerType, null)
                 }
             })
             start()
@@ -1936,6 +2067,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         widgetSwipeAnimator?.cancel()
         widgetSwipeAnimator = null
         appsWidgetContainer?.translationX = 0f
+        appsIncomingWidgetContainer?.translationX = 0f
     }
 
     private fun moveAppPageWithSwipe(direction: Int) {
@@ -1955,8 +2087,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             ?: pages.width.takeIf { it > 0 }?.toFloat()
             ?: resources.displayMetrics.widthPixels.toFloat()
         val duration = PageTransitionAnimator.SCREEN_DURATION
-        setWidgetLoading(true)
+        prepareIncomingPageWidgets(targetPage)
+        setWidgetSwipeProgress(direction, width, 0f)
         animateWidgetSwipe(direction, width, 0f, 1f, duration)
+        setPageIndicatorShown(true)
 
         pages.displayedChild = targetPage
         outgoingView.visibility = View.VISIBLE
@@ -1974,23 +2108,55 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         ) {
             pages.displayedChild = targetPage
             appPageIndex = targetPage
-            resetWidgetSwipe()
-            updateAppPageIndicator()
+            finishWidgetPageSwipe()
+            updateAppPageIndicator(renderWidgets = false)
             homeSwipeSettling = false
             refreshSelectionWiggle()
         }
     }
 
-    private fun updateAppPageIndicator() {
+    private fun updateAppPageIndicator(renderWidgets: Boolean = true) {
         appsIndicator?.let { indicator ->
             for (index in 0 until indicator.childCount) {
-                val dot = indicator.getChildAt(index) as? TextView ?: continue
-                val selected = index == appPageIndex
-                dot.alpha = if (selected) 1f else 0.45f
-                dot.setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF9DB7D0.toInt())
+                val dot = indicator.getChildAt(index) ?: continue
+                dot.alpha = if (index == appPageIndex) 1f else PAGE_DOT_INACTIVE_ALPHA
             }
         }
-        scheduleHomeWidgetRendering()
+        // Like the reference home screen: page dots show while swiping, then about a second
+        // after the pages settle the same spot turns back into the "Search" pill, on any page.
+        scheduleSearchPillRestore()
+        if (renderWidgets) scheduleHomeWidgetRendering()
+    }
+
+    private fun scheduleSearchPillRestore() {
+        bottomPillHandler.removeCallbacks(restoreSearchPillRunnable)
+        if (appsPageIndicatorShown) {
+            bottomPillHandler.postDelayed(restoreSearchPillRunnable, SEARCH_PILL_RESTORE_DELAY_MS)
+        }
+    }
+
+    private fun setPageIndicatorShown(shown: Boolean, animate: Boolean = true) {
+        // Any new page movement keeps the dots up; the restore is re-armed when it settles.
+        if (shown) bottomPillHandler.removeCallbacks(restoreSearchPillRunnable)
+        val indicator = appsIndicator ?: return
+        val searchPill = appsSearchPill ?: return
+        if (appsPageIndicatorShown == shown) return
+        appsPageIndicatorShown = shown
+        val showing = if (shown) indicator else searchPill
+        val hiding = if (shown) searchPill else indicator
+        showing.animate().cancel()
+        hiding.animate().cancel()
+        showing.visibility = View.VISIBLE
+        if (!animate) {
+            showing.alpha = 1f
+            hiding.alpha = 0f
+            hiding.visibility = View.INVISIBLE
+            return
+        }
+        showing.animate().alpha(1f).setDuration(BOTTOM_PILL_FADE_MS).start()
+        hiding.animate().alpha(0f).setDuration(BOTTOM_PILL_FADE_MS).withEndAction {
+            if (hiding.alpha == 0f) hiding.visibility = View.INVISIBLE
+        }.start()
     }
 
     private fun scheduleHomeWidgetRendering() {
@@ -2396,11 +2562,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val horizontalPadding = container?.let { it.paddingLeft + it.paddingRight }
             ?.takeIf { it > 0 } ?: dp(WIDGET_SIDE_INSET_DP * 2)
         val availableWidth = (containerWidth - horizontalPadding).coerceAtLeast(1)
-        return if (placement?.launcherWidgetType == LauncherWidgetType.WEATHER) {
-            availableWidth
-        } else {
-            ((availableWidth - dp(WIDGET_HORIZONTAL_GAP_DP)) / 2).coerceAtLeast(1)
-        }
+        // All widgets, weather included, are 2x2 tiles: two side by side per row.
+        return ((availableWidth - dp(WIDGET_HORIZONTAL_GAP_DP)) / 2).coerceAtLeast(1)
     }
 
     private fun appScreenWidgetWidthDp(
@@ -2411,10 +2574,57 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             .roundToInt().coerceAtLeast(1)
 
     private fun appScreenWidgetHeightPx(): Int {
-        val pageHeight = appsPages?.height?.takeIf { it > 0 }
+        val rowHeight = appGridRowHeightPx().takeIf { it > 0 }
             ?: return dp(LAUNCHER_WIDGET_HEIGHT_DP)
-        val gridRows = LauncherConfig.gridRows(this, defaultHomeActive)
-        return (pageHeight * WIDGET_GRID_ROW_SPAN / gridRows).roundToInt().coerceAtLeast(1)
+        // Widgets are 2x2 tiles: exactly two icon rows tall, like the reference launcher.
+        return rowHeight * WIDGET_GRID_ROW_SPAN
+    }
+
+    /** Height of one icon row, computed exactly like AppAdapter sizes its cells. */
+    private fun appGridRowHeightPx(): Int {
+        val pageHeight = appsPages?.height?.takeIf { it > 0 } ?: return 0
+        val gridRows = LauncherConfig.gridRows(this, defaultHomeActive).coerceAtLeast(1)
+        return (pageHeight + if (isAppSelectionMode) dp(40) else 0) / gridRows
+    }
+
+    /** Snaps a widget's top offset to the icon rows so it lines up with the app grid. */
+    private fun snapWidgetTop(rawTop: Float, maxTop: Int): Int {
+        val rowHeight = appGridRowHeightPx()
+        if (rowHeight <= 0) return rawTop.roundToInt().coerceIn(0, maxTop.coerceAtLeast(0))
+        val rows = (rawTop / rowHeight).roundToInt()
+        var top = rows * rowHeight
+        while (top > maxTop && top >= rowHeight) top -= rowHeight
+        return top.coerceAtLeast(0)
+    }
+
+    private fun snapWidgetLeft(rawLeft: Float, maxLeft: Int): Int =
+        if (rawLeft * 2 >= maxLeft) maxLeft else 0
+
+    /**
+     * Insets a widget frame so its card lines up with the icons of the two columns and two
+     * rows it covers, and its caption sits on the label line of the second row.
+     */
+    private fun applyWidgetCellInsets(frame: View) {
+        val pages = appsPages ?: return
+        val rowHeight = appGridRowHeightPx().takeIf { it > 0 } ?: return
+        val columnWidth = (pages.width - dp(APP_GRID_COLUMN_SPACING_DP) * 3) / 4
+        val activeGrid = pages.getChildAt(appPageIndex) as? GridView
+        val sampleItem = activeGrid?.getChildAt(0)
+        val sampleIcon = sampleItem?.findViewById<View>(R.id.app_icon_frame)
+        val measuredIconSize = sampleIcon?.width ?: 0
+        val iconSize = measuredIconSize.takeIf { it > 0 } ?: IconMetrics.iconSizePx(this)
+        val iconTop = if (sampleIcon != null && measuredIconSize > 0) {
+            sampleIcon.top
+        } else {
+            ((rowHeight - iconSize - dp(18)) / 2).coerceAtLeast(0)
+        }
+        val horizontal = ((columnWidth - iconSize) / 2).coerceAtLeast(0)
+        val vertical = iconTop.coerceAtLeast(0)
+        if (frame.paddingLeft != horizontal || frame.paddingTop != vertical ||
+            frame.paddingRight != horizontal || frame.paddingBottom != vertical
+        ) {
+            frame.setPadding(horizontal, vertical, horizontal, vertical)
+        }
     }
 
     private fun appScreenWidgetHeightDp(): Int =
@@ -2448,14 +2658,42 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             .coerceAtLeast(0) to maxTop
     }
 
-    private fun widgetGridGeometryKey(pages: ViewFlipper): String {
+    private fun widgetGridGeometryKey(pages: View): String {
         val location = IntArray(2)
         pages.getLocationOnScreen(location)
         return "${location[0]}:${location[1]}:${pages.width}:${pages.height}"
     }
 
+    /**
+     * Keeps widgets below the edit ("Sửa"/"Xong") and selection bars. Widget positions are
+     * measured from the widget layers' top padding, so reserving the bars' height there
+     * stops widgets from covering those buttons in edit mode.
+     */
+    private fun syncWidgetTopInset() {
+        val container = appsWidgetContainer ?: return
+        val root = container.parent as? View ?: return
+        val content = root.findViewById<View?>(R.id.apps_content)
+        // Start the widget layer exactly where the icon grid starts (below the edit/selection
+        // bars when they are shown), so widget row 0 lines up with icon row 0.
+        var inset = content?.paddingTop ?: 0
+        listOf(R.id.apps_edit_controls, R.id.apps_selection_bar).forEach { id ->
+            val bar = root.findViewById<View?>(id) ?: return@forEach
+            if (bar.visibility == View.GONE) return@forEach
+            val params = bar.layoutParams as? ViewGroup.MarginLayoutParams
+            inset += (params?.topMargin ?: 0) + (params?.height?.takeIf { it > 0 } ?: bar.height) +
+                (params?.bottomMargin ?: 0)
+        }
+        inset += (appsPages?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
+        listOfNotNull(container, appsIncomingWidgetContainer).forEach { layer ->
+            if (layer.paddingTop != inset) {
+                layer.setPadding(layer.paddingLeft, inset, layer.paddingRight, layer.paddingBottom)
+            }
+        }
+    }
+
     private fun widgetBlockedAppSlots(pageIndex: Int, gridRows: Int): Set<Int> {
         val container = appsWidgetContainer ?: return emptySet()
+        syncWidgetTopInset()
         val pages = appsPages ?: return emptySet()
         if (container.width <= 0 || container.height <= 0 ||
             pages.width <= 0 || pages.height <= 0
@@ -2485,7 +2723,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 )
             }
         }
-        val columnSpacing = dp(6).toFloat()
+        val columnSpacing = dp(APP_GRID_COLUMN_SPACING_DP).toFloat()
         val gridCellWidth = (pages.width - columnSpacing * 3) / 4
         val gridCellHeight = (
             pages.height +
@@ -2508,11 +2746,18 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 itemWidgetWidth.toInt(),
                 widgetHeight.toInt()
             )
-            val left = containerLocation[0] + container.paddingLeft +
-                ((placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f) * itemMaxLeft)
-            val top = containerLocation[1] + container.paddingTop +
-                ((placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f) * itemMaxTop)
+            val left = (containerLocation[0] + container.paddingLeft + snapWidgetLeft(
+                (placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f) * itemMaxLeft,
+                itemMaxLeft
+            )).toFloat()
+            val top = (containerLocation[1] + container.paddingTop + snapWidgetTop(
+                (placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f) * itemMaxTop,
+                itemMaxTop
+            )).toFloat()
+            // Inset by a couple of pixels so a widget exactly covering two rows does not
+            // also "touch" (and block) the row below it because of rounding.
             val widgetBounds = RectF(left, top, left + itemWidgetWidth, top + widgetHeight)
+                .apply { inset(dp(2).toFloat(), dp(2).toFloat()) }
 
             repeat(gridRows) { row ->
                 repeat(4) { column ->
@@ -2541,29 +2786,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         widgetHeight: Int
     ): Pair<Float, Float> {
         val (maxLeft, maxTop) = widgetPositionMaxima(container, widgetWidth, widgetHeight)
-        val weatherWidget = pageWidgets.firstOrNull {
-            it.launcherWidgetType == LauncherWidgetType.WEATHER
-        }
-        val isWeather = placement.launcherWidgetType == LauncherWidgetType.WEATHER
-        val nonWeatherIndex = pageWidgets
-            .filterNot { it.launcherWidgetType == LauncherWidgetType.WEATHER }
-            .indexOf(placement)
-            .coerceAtLeast(0)
-        val left = when {
-            isWeather -> 0
-            else -> if (nonWeatherIndex % 2 == 0) 0 else maxLeft
-        }
-        val top = when {
-            isWeather -> dp(WIDGET_DEFAULT_TOP_DP) +
-                ((pageWidgets.size - 1).coerceAtLeast(0) + 1) / 2 *
-                (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))
-            weatherWidget != null ->
-                dp(WIDGET_DEFAULT_TOP_DP) + widgetHeight + dp(WIDGET_VERTICAL_GAP_DP) +
-                    (nonWeatherIndex / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))
-            else ->
-                dp(WIDGET_DEFAULT_TOP_DP) +
-                    (index / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP))
-        }.coerceAtMost(maxTop)
+        val slot = pageWidgets.indexOf(placement).takeIf { it >= 0 } ?: index
+        val left = if (slot % 2 == 0) 0 else maxLeft
+        val top = (dp(WIDGET_DEFAULT_TOP_DP) +
+            (slot / 2) * (widgetHeight + dp(WIDGET_VERTICAL_GAP_DP)))
+            .coerceAtMost(maxTop)
         return (left.toFloat() / maxLeft.coerceAtLeast(1)) to
             (top.toFloat() / maxTop.coerceAtLeast(1))
     }
@@ -2597,21 +2824,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             )
             val preferredX = (placement.positionX ?: defaultPosition.first).coerceIn(0f, 1f)
             val preferredY = (placement.positionY ?: defaultPosition.second).coerceIn(0f, 1f)
-            val preferredLeft = (preferredX * maxLeft).roundToInt()
-            val preferredTop = (preferredY * maxTop).roundToInt()
-            val isFullWidth = placement.launcherWidgetType == LauncherWidgetType.WEATHER
-            val candidateLefts = if (isFullWidth || maxLeft == 0) {
+            val preferredLeft = snapWidgetLeft(preferredX * maxLeft, maxLeft)
+            val preferredTop = snapWidgetTop(preferredY * maxTop, maxTop)
+            val candidateLefts = if (maxLeft == 0) {
                 listOf(0)
             } else {
                 listOf(0, maxLeft)
             }
+            val rowStep = appGridRowHeightPx().takeIf { it > 0 } ?: (widgetHeight + gap)
             val candidateTops = buildList {
                 var top = 0
-                while (top < maxTop) {
+                while (top <= maxTop) {
                     add(top)
-                    top += (widgetHeight + gap).coerceAtLeast(1)
+                    top += rowStep.coerceAtLeast(1)
                 }
-                if (isEmpty() || last() != maxTop) add(maxTop)
+                if (isEmpty()) add(0)
             }
 
             var resolvedPage = originalPage
@@ -2692,6 +2919,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun renderHomeWidgetViews() {
         val container = appsWidgetContainer ?: return
+        syncWidgetTopInset()
         setWidgetLoading(true)
         val pages = appsPages
         if (container.width <= 0 || container.height <= 0 ||
@@ -2743,18 +2971,52 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
             frame.visibility = View.GONE
         }
-        val pageWidgets = homeWidgets.filter { it.pageIndex == appPageIndex }
         val missingWidgets = mutableListOf<HomeWidgetPlacement>()
+        var savedDefaultPositions =
+            placePageWidgets(appPageIndex, container, container, missingWidgets)
+        if (missingWidgets.isNotEmpty()) {
+            homeWidgets.removeAll(missingWidgets.toSet())
+            savedDefaultPositions = true
+        }
+        val activeWidgetIds = homeWidgets.mapTo(mutableSetOf()) { it.instanceId }
+        widgetFrames.keys.filterNot(activeWidgetIds::contains).forEach { instanceId ->
+            widgetFrames.remove(instanceId)?.let { frame ->
+                stopSelectionWiggle(frame)
+                (frame.parent as? ViewGroup)?.removeView(frame)
+            }
+            launcherWidgetViews.remove(instanceId)
+        }
+        if (savedDefaultPositions) {
+            layoutRepository.saveHomeWidgets(homeWidgets)
+        }
+        container.visibility = View.VISIBLE
+        setWidgetLoading(false)
+        scheduleWeatherRefresh()
+    }
+
+    /**
+     * Places the widget frames of [pageIndex] into [target]. Sizes and positions are measured
+     * against [geometry] (the resting widget layer), so the same frames line up exactly whether
+     * they are shown in the resting layer or in the incoming layer during a page swipe.
+     * Returns true when default positions were assigned and need saving.
+     */
+    private fun placePageWidgets(
+        pageIndex: Int,
+        target: FrameLayout,
+        geometry: FrameLayout,
+        missingWidgets: MutableList<HomeWidgetPlacement>
+    ): Boolean {
+        val pageWidgets = homeWidgets.filter { it.pageIndex == pageIndex }
         var savedDefaultPositions = false
         val widgetHeight = appScreenWidgetHeightPx()
         pageWidgets.toList().forEachIndexed { index, placement ->
-            val widgetWidth = appScreenWidgetWidthPx(container, placement)
-            val (maxLeft, maxTop) = widgetPositionMaxima(container, widgetWidth, widgetHeight)
+            val widgetWidth = appScreenWidgetWidthPx(geometry, placement)
+            val (maxLeft, maxTop) = widgetPositionMaxima(geometry, widgetWidth, widgetHeight)
             val defaultPosition = defaultWidgetPosition(
                 index,
                 placement,
                 pageWidgets,
-                container,
+                geometry,
                 widgetWidth,
                 widgetHeight
             )
@@ -2798,7 +3060,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     return@forEachIndexed
                 }
 
-                val widgetWidthDp = appScreenWidgetWidthDp(container, positionedPlacement)
+                val widgetWidthDp = appScreenWidgetWidthDp(geometry, positionedPlacement)
                 val widgetHeightDp = appScreenWidgetHeightDp()
                 val optionSize = widgetWidthDp to widgetHeightDp
                 if (appWidgetOptionSizes[positionedPlacement.appWidgetId] != optionSize) {
@@ -2822,9 +3084,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 FrameLayout(this)
             }
             widgetFrame.tag = positionedPlacement
-            widgetFrame.background = if (
-                positionedPlacement.launcherWidgetType == LauncherWidgetType.WEATHER
-            ) null else getDrawable(R.drawable.bg_glass)
+            // Weather and calendar draw their own card plus a caption underneath.
+            widgetFrame.background = when (positionedPlacement.launcherWidgetType) {
+                LauncherWidgetType.WEATHER, LauncherWidgetType.CALENDAR -> null
+                else -> getDrawable(R.drawable.bg_glass)
+            }
             widgetFrame.clipChildren = false
             widgetFrame.clipToPadding = false
             if (widgetContent.parent !== widgetFrame) {
@@ -2875,16 +3139,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
             attachWidgetLongPress(widgetContent, positionedPlacement, widgetFrame)
             val layoutParams = FrameLayout.LayoutParams(
-                appScreenWidgetWidthPx(container, positionedPlacement),
+                appScreenWidgetWidthPx(geometry, positionedPlacement),
                 widgetHeight,
                 Gravity.TOP or Gravity.LEFT
             ).apply {
-                leftMargin = (positionX * maxLeft).roundToInt()
-                topMargin = (positionY * maxTop).roundToInt()
+                leftMargin = snapWidgetLeft(positionX * maxLeft, maxLeft)
+                topMargin = snapWidgetTop(positionY * maxTop, maxTop)
             }
-            if (widgetFrame.parent !== container) {
+            if (positionedPlacement.launcherWidgetType == LauncherWidgetType.WEATHER ||
+                positionedPlacement.launcherWidgetType == LauncherWidgetType.CALENDAR
+            ) {
+                applyWidgetCellInsets(widgetFrame)
+            }
+            if (widgetFrame.parent !== target) {
                 (widgetFrame.parent as? ViewGroup)?.removeView(widgetFrame)
-                container.addView(widgetFrame, layoutParams)
+                target.addView(widgetFrame, layoutParams)
             } else {
                 widgetFrame.layoutParams = layoutParams
             }
@@ -2892,24 +3161,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             if (isHomeEditMode) startSelectionWiggle(widgetFrame)
             else stopSelectionWiggle(widgetFrame)
         }
-        if (missingWidgets.isNotEmpty()) {
-            homeWidgets.removeAll(missingWidgets.toSet())
-            savedDefaultPositions = true
-        }
-        val activeWidgetIds = homeWidgets.mapTo(mutableSetOf()) { it.instanceId }
-        widgetFrames.keys.filterNot(activeWidgetIds::contains).forEach { instanceId ->
-            widgetFrames.remove(instanceId)?.let { frame ->
-                stopSelectionWiggle(frame)
-                (frame.parent as? ViewGroup)?.removeView(frame)
-            }
-            launcherWidgetViews.remove(instanceId)
-        }
-        if (savedDefaultPositions) {
-            layoutRepository.saveHomeWidgets(homeWidgets)
-        }
-        container.visibility = View.VISIBLE
-        setWidgetLoading(false)
-        scheduleWeatherRefresh()
+        return savedDefaultPositions
     }
 
     private fun invalidateLauncherWidgetViews(type: LauncherWidgetType) {
@@ -5163,6 +5415,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     override fun onDestroy() {
+        bottomPillHandler.removeCallbacks(restoreSearchPillRunnable)
         cancelDragPageChange()
         appLoadExecutor.shutdownNow()
         super.onDestroy()
@@ -5175,12 +5428,21 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val DRAG_PAGE_CHANGE_DELAY_MS = 500L
         const val FOLDER_PACKAGE_PREFIX = "launcher.folder:"
         const val LAUNCHER_WIDGET_HEIGHT_DP = 136
-        const val WIDGET_GRID_ROW_SPAN = 1.65f
+        const val WIDGET_GRID_ROW_SPAN = 2
+        const val APP_GRID_COLUMN_SPACING_DP = 6
         const val TAG = "MainActivity"
         const val WIDGET_REMOVE_BUTTON_TAG = "home_widget_remove_button"
-        const val WIDGET_DEFAULT_TOP_DP = 10
-        const val WIDGET_HORIZONTAL_GAP_DP = 14
-        const val WIDGET_SIDE_INSET_DP = 22
-        const val WIDGET_VERTICAL_GAP_DP = 12
+        const val WIDGET_DEFAULT_TOP_DP = 0
+        // Widgets span two grid columns: same side inset and gap as the icon grid.
+        const val WIDGET_HORIZONTAL_GAP_DP = APP_GRID_COLUMN_SPACING_DP
+        const val WIDGET_SIDE_INSET_DP = 12
+        const val WIDGET_VERTICAL_GAP_DP = 0
+        const val DEFAULT_LAYOUT_PREFERENCES = "launcher_default_layout"
+        const val DEFAULT_LAYOUT_APPLIED_KEY = "applied"
+        const val GOOGLE_FOLDER_NAME = "Google"
+        const val PAGE_DOT_INACTIVE_ALPHA = 0.4f
+        const val BOTTOM_PILL_FADE_MS = 160L
+        const val SEARCH_PILL_RESTORE_DELAY_MS = 1000L
+        const val SEARCH_PILL_TEXT_RATIO = 1.25f
     }
 }

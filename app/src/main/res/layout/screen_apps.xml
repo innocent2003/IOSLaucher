@@ -95,46 +95,67 @@
                 android:tint="#FFFFFF" />
         </LinearLayout>
 
-        <ViewFlipper
+        <com.example.oslaucher.ui.widgets.AppPagesLayout
             android:id="@+id/apps_pages"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginTop="22dp"
-            android:layout_weight="1" />
+            android:layout_marginTop="14dp"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false" />
 
-        <LinearLayout
-            android:id="@+id/apps_page_indicator"
+        <FrameLayout
+            android:id="@+id/apps_bottom_pill"
             android:layout_width="match_parent"
-            android:layout_height="20dp"
-            android:layout_marginTop="2dp"
-            android:gravity="center"
-            android:orientation="horizontal" />
+            android:layout_height="36dp"
+            android:layout_marginTop="6dp">
 
-        <TextView
-            android:id="@+id/apps_search_button"
-            android:layout_width="wrap_content"
-            android:layout_height="34dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="4dp"
-            android:background="@drawable/bg_glass"
-            android:drawableStart="@android:drawable/ic_menu_search"
-            android:drawablePadding="8dp"
-            android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:text="@string/apps_search_hint"
-            android:textColor="#EAF5FF"
-            android:textSize="14sp" />
+            <TextView
+                android:id="@+id/apps_search_button"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_search_pill"
+                android:drawableStart="@drawable/ic_search_small"
+                android:drawablePadding="6dp"
+                android:gravity="center_vertical"
+                android:paddingStart="14dp"
+                android:paddingEnd="16dp"
+                android:shadowColor="#40000000"
+                android:shadowDy="1"
+                android:shadowRadius="2"
+                android:text="@string/apps_search_hint"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/apps_page_indicator"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:background="@drawable/bg_search_pill"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:visibility="invisible" />
+        </FrameLayout>
 
         <LinearLayout
             android:id="@+id/apps_dock"
             android:layout_width="match_parent"
-            android:layout_height="78dp"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_glass"
+            android:layout_height="96dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="4dp"
+            android:layout_marginBottom="6dp"
+            android:background="@drawable/bg_dock"
             android:gravity="center"
             android:orientation="horizontal"
-            android:padding="8dp" />
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp" />
     </LinearLayout>
 
     <FrameLayout
@@ -143,8 +164,20 @@
         android:layout_height="match_parent"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:paddingStart="22dp"
-        android:paddingEnd="22dp" />
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp" />
+
+    <!-- Holds the widgets of the page being swiped in, so they slide with that page
+         instead of popping in after the swipe settles. -->
+    <FrameLayout
+        android:id="@+id/apps_widget_incoming_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:visibility="invisible" />
 
     <FrameLayout
         android:id="@+id/apps_search_overlay"

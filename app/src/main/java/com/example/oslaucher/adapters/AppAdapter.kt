@@ -3,6 +3,7 @@ package com.example.oslaucher.adapters
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +13,7 @@ import android.widget.TextView
 import com.example.oslaucher.R
 import com.example.oslaucher.models.AppInfo
 import com.example.oslaucher.utils.AppIconUtils
+import com.example.oslaucher.utils.IconMetrics
 
 class AppAdapter(
     context: Context,
@@ -26,7 +28,9 @@ class AppAdapter(
     private val onEmptySlotLongClick: (() -> Unit)? = null
 ) : BaseAdapter() {
     private val inflater = LayoutInflater.from(context)
-    private val iconMaxSize = (60 * context.resources.displayMetrics.density).toInt()
+    private val iconMaxSize = IconMetrics.iconSizePx(context)
+    private val labelTextSizePx = IconMetrics.labelTextSizePx(context)
+    private val labelGap = (6 * context.resources.displayMetrics.density).toInt()
     private var allApps: List<AppInfo?> = emptyList()
     private var visibleApps: List<AppInfo?> = emptyList()
 
@@ -59,32 +63,42 @@ class AppAdapter(
         getItem(position)?.packageName?.hashCode()?.toLong() ?: Long.MIN_VALUE + position
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-        val itemView = convertView ?: inflater.inflate(R.layout.item_app, parent, false)
+        val itemView = convertView ?: inflater.inflate(R.layout.item_app, parent, false).also {
+            val newHolder = ViewHolder(it)
+            // Pixel size (not sp) so the system font scale does not blow labels up.
+            newHolder.name.setTextSize(TypedValue.COMPLEX_UNIT_PX, labelTextSizePx)
+            it.tag = newHolder
+        }
+        val holder = itemView.tag as? ViewHolder ?: ViewHolder(itemView).also { itemView.tag = it }
         val rowHeight = parent.height.takeIf { it > 0 }
             ?.plus(if (isSelectionMode()) selectionBarHeight else 0)
             ?.div(gridRows)
         if (rowHeight != null) {
-            itemView.layoutParams = (itemView.layoutParams
-                ?: ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowHeight)).apply {
-                height = rowHeight
+            // Only touch layout params when the size really changes: re-assigning them on every
+            // bind requests a new layout pass, which used to run again on each page swipe.
+            val itemParams = itemView.layoutParams
+            if (itemParams == null) {
+                itemView.layoutParams =
+                    ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowHeight)
+            } else if (itemParams.height != rowHeight) {
+                itemParams.height = rowHeight
+                itemView.layoutParams = itemParams
             }
-            val iconSize = minOf(iconMaxSize, (rowHeight * 0.72f).toInt())
-            val icon = itemView.findViewById<ImageView>(R.id.app_icon)
-            icon.layoutParams = icon.layoutParams.apply {
-                width = iconSize
-                height = iconSize
-            }
-            val iconFrame = itemView.findViewById<View>(R.id.app_icon_frame)
-            iconFrame.layoutParams = iconFrame.layoutParams?.apply {
-                width = iconSize
-                height = iconSize
+            val labelSpace = holder.name.lineHeight + labelGap
+            val iconSize = minOf(iconMaxSize, rowHeight - labelSpace).coerceAtLeast(1)
+            holder.iconFrame.layoutParams?.let { params ->
+                if (params.width != iconSize || params.height != iconSize) {
+                    params.width = iconSize
+                    params.height = iconSize
+                    holder.iconFrame.layoutParams = params
+                }
             }
         }
         val app = getItem(position)
-        val icon = itemView.findViewById<ImageView>(R.id.app_icon)
-        val name = itemView.findViewById<TextView>(R.id.app_name)
-        val hoverGlow = itemView.findViewById<View>(R.id.app_hover_glow)
-        val iconFrame = itemView.findViewById<View>(R.id.app_icon_frame)
+        val icon = holder.icon
+        val name = holder.name
+        val hoverGlow = holder.hoverGlow
+        val iconFrame = holder.iconFrame
         hoverGlow.visibility = View.GONE
         iconFrame.scaleX = 1f
         iconFrame.scaleY = 1f
@@ -92,7 +106,7 @@ class AppAdapter(
             icon.setImageDrawable(null)
             name.text = ""
             itemView.contentDescription = null
-            itemView.findViewById<TextView>(R.id.app_selection_badge).visibility = View.GONE
+            holder.selectionBadge.visibility = View.GONE
             itemView.setOnClickListener { onEmptySlotClick?.invoke() }
             itemView.setOnLongClickListener {
                 onEmptySlotLongClick?.invoke()
@@ -106,7 +120,7 @@ class AppAdapter(
         name.text = app.name
         itemView.contentDescription = app.name
         val canSelect = canSelectApp(app)
-        val selectionBadge = itemView.findViewById<TextView>(R.id.app_selection_badge)
+        val selectionBadge = holder.selectionBadge
         if (isSelectionMode() && canSelect) {
             val selected = app.packageName in selectedPackages
             selectionBadge.visibility = View.VISIBLE
@@ -127,5 +141,13 @@ class AppAdapter(
             true
         }
         return itemView
+    }
+
+    private class ViewHolder(itemView: View) {
+        val icon: ImageView = itemView.findViewById(R.id.app_icon)
+        val name: TextView = itemView.findViewById(R.id.app_name)
+        val hoverGlow: View = itemView.findViewById(R.id.app_hover_glow)
+        val iconFrame: View = itemView.findViewById(R.id.app_icon_frame)
+        val selectionBadge: TextView = itemView.findViewById(R.id.app_selection_badge)
     }
 }
