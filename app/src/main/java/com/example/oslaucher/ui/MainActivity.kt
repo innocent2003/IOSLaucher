@@ -1321,6 +1321,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 val pageIndicator = view.findViewById<LinearLayout>(R.id.apps_page_indicator)
                 val editControls = view.findViewById<LinearLayout>(R.id.apps_edit_controls)
                 val selectionBar = view.findViewById<LinearLayout>(R.id.apps_selection_bar)
+                val modeBar = view.findViewById<View>(R.id.apps_mode_bar)
                 val selectionCount = view.findViewById<TextView>(R.id.apps_selection_count)
                 appsGridRendered = false
                 appsPages = pages
@@ -1605,8 +1606,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     pages.displayedChild = appPageIndex
                     updateAppPageIndicator()
+                    // Only one mode bar at a time, both in the same slot (apps_mode_bar).
                     selectionBar.visibility = if (isAppSelectionMode) View.VISIBLE else View.GONE
-                    editControls.visibility = if (isHomeEditMode) View.VISIBLE else View.GONE
+                    editControls.visibility =
+                        if (isHomeEditMode && !isAppSelectionMode) View.VISIBLE else View.GONE
+                    modeBar.visibility =
+                        if (isAppSelectionMode || isHomeEditMode) View.VISIBLE else View.GONE
                     selectionCount.text = getString(
                         R.string.selected_apps,
                         selectedAppPackages.size
@@ -2418,10 +2423,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
 
         popupView.findViewById<View>(R.id.app_action_select).setOnClickListener {
-            isAppSelectionMode = true
-            selectedAppPackages.clear()
-            selectedAppPackages.add(app.packageName)
-            installedApps?.let { renderApps?.invoke(it) }
+            enterAppSelectionMode(app.packageName)
             popupWindow.dismiss()
         }
 
@@ -2792,13 +2794,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         // Start the widget layer exactly where the icon grid starts (below the edit/selection
         // bars when they are shown), so widget row 0 lines up with icon row 0.
         var inset = content?.paddingTop ?: 0
-        listOf(R.id.apps_edit_controls, R.id.apps_selection_bar).forEach { id ->
-            val bar = root.findViewById<View?>(id) ?: return@forEach
-            if (bar.visibility == View.GONE) return@forEach
-            val params = bar.layoutParams as? ViewGroup.MarginLayoutParams
-            inset += (params?.topMargin ?: 0) + (params?.height?.takeIf { it > 0 } ?: bar.height) +
-                (params?.bottomMargin ?: 0)
-        }
+        root.findViewById<View?>(R.id.apps_mode_bar)
+            ?.takeIf { it.visibility != View.GONE }
+            ?.let { bar ->
+                val params = bar.layoutParams as? ViewGroup.MarginLayoutParams
+                inset += (params?.topMargin ?: 0) +
+                    (params?.height?.takeIf { it > 0 } ?: bar.height) +
+                    (params?.bottomMargin ?: 0)
+            }
         inset += (appsPages?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
         listOfNotNull(container, appsIncomingWidgetContainer).forEach { layer ->
             if (layer.paddingTop != inset) {
@@ -3432,9 +3435,23 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         updateDragShadowFromScreen(dragLastRawX, dragLastRawY)
     }
 
+    /**
+     * Edit mode (Sửa/Xong) and app selection mode (✕ / n đã chọn / folder) are exclusive:
+     * entering one leaves the other, so their bars swap in place instead of stacking.
+     */
     private fun enterHomeEditMode() {
-        if (isHomeEditMode) return
+        if (isHomeEditMode && !isAppSelectionMode) return
         isHomeEditMode = true
+        isAppSelectionMode = false
+        selectedAppPackages.clear()
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun enterAppSelectionMode(packageName: String) {
+        isHomeEditMode = false
+        isAppSelectionMode = true
+        selectedAppPackages.clear()
+        selectedAppPackages.add(packageName)
         installedApps?.let { renderApps?.invoke(it) }
     }
 
@@ -5231,12 +5248,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     finishAppDrag()
                     movedApp
                         ?.takeUnless { it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) }
-                        ?.let { app ->
-                            isAppSelectionMode = true
-                            selectedAppPackages.clear()
-                            selectedAppPackages.add(app.packageName)
-                            installedApps?.let { renderApps?.invoke(it) }
-                        }
+                        ?.let { app -> enterAppSelectionMode(app.packageName) }
                     recycleVelocityTracker()
                 }
                 MotionEvent.ACTION_CANCEL -> {

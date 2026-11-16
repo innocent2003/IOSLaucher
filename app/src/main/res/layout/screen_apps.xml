@@ -15,11 +15,19 @@
         android:paddingEnd="12dp"
         android:paddingBottom="8dp">
 
+        <!-- One slot for the mode bars: edit (Sửa/Xong) and selection (✕ / count / folder)
+             replace each other here instead of stacking. -->
+        <FrameLayout
+            android:id="@+id/apps_mode_bar"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_marginTop="8dp"
+            android:visibility="gone">
+
         <LinearLayout
             android:id="@+id/apps_edit_controls"
             android:layout_width="match_parent"
             android:layout_height="40dp"
-            android:layout_marginTop="8dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:visibility="gone">
@@ -94,6 +102,7 @@
                 android:src="@drawable/ic_folder_add"
                 android:tint="#FFFFFF" />
         </LinearLayout>
+        </FrameLayout>
 
         <com.example.oslaucher.ui.widgets.AppPagesLayout
             android:id="@+id/apps_pages"
