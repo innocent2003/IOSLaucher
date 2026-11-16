@@ -53,6 +53,9 @@ class HomeSecondFragment : HomeScreenFragment() {
 
         val folders = view.findViewById<GridLayout>(R.id.home_app_folders)
         folders.visibility = View.VISIBLE
+        // A re-used page already shows its folders; rebuilding them (and reading every app's
+        // install time) on each swipe was what made swiping into this page stutter.
+        if (isReusedView && folders.childCount > 0) return
         (activity as? HomeScreenActions)?.loadHomeScreenApps { apps ->
             if (isAdded && this.view?.findViewById<GridLayout>(R.id.home_app_folders) === folders) {
                 renderFolders(folders, apps)
@@ -61,6 +64,9 @@ class HomeSecondFragment : HomeScreenFragment() {
     }
 
     private fun renderFolders(folders: GridLayout, apps: List<AppInfo>) {
+        // Capture the activity (not this fragment) in click handlers: the built page outlives
+        // this fragment instance when it is re-used.
+        val actions = activity as? HomeScreenActions
         folders.removeAllViews()
         if (apps.isEmpty()) {
             folders.rowCount = 1
@@ -118,7 +124,7 @@ class HomeSecondFragment : HomeScreenFragment() {
                     categoryApps.size
                 )
                 setOnClickListener {
-                    (activity as? HomeScreenActions)
+                    actions
                         ?.openHomeScreenFolder(category, categoryApps)
                 }
             }
@@ -128,13 +134,13 @@ class HomeSecondFragment : HomeScreenFragment() {
                 background = requireContext().getDrawable(R.drawable.bg_glass)
                 setPadding(dp(8), dp(8), dp(8), dp(8))
                 setOnClickListener {
-                    (activity as? HomeScreenActions)
+                    actions
                         ?.openHomeScreenFolder(category, categoryApps)
                 }
             }
             categoryApps.take(4).forEachIndexed { appIndex, app ->
                 iconGrid.addView(
-                    createAppIcon(app),
+                    createAppIcon(app, actions),
                     GridLayout.LayoutParams(
                         GridLayout.spec(appIndex / 2, 1f),
                         GridLayout.spec(appIndex % 2, 1f)
@@ -160,7 +166,7 @@ class HomeSecondFragment : HomeScreenFragment() {
                 maxLines = 1
                 setPadding(0, dp(6), 0, 0)
                 setOnClickListener {
-                    (activity as? HomeScreenActions)
+                    actions
                         ?.openHomeScreenFolder(category, categoryApps)
                 }
             })
@@ -184,7 +190,7 @@ class HomeSecondFragment : HomeScreenFragment() {
         }
     }
 
-    private fun createAppIcon(app: AppInfo): ImageView =
+    private fun createAppIcon(app: AppInfo, actions: HomeScreenActions?): ImageView =
         ImageView(requireContext()).apply {
             setImageDrawable(AppIconUtils.getIcon(requireContext(), app))
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -192,7 +198,7 @@ class HomeSecondFragment : HomeScreenFragment() {
             isClickable = true
             isFocusable = true
             setOnClickListener {
-                (activity as? HomeScreenActions)?.launchHomeScreenApp(app.packageName)
+                actions?.launchHomeScreenApp(app.packageName)
             }
         }
 

@@ -43,7 +43,6 @@ abstract class HomeScreenFragment : Fragment() {
 
     private var receiverRegistered = false
     private var weatherRequestInProgress = false
-    private var renderedCalendarDay: String? = null
     private val updatesReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) =
             view?.let(::updateWidgets) ?: Unit
@@ -53,10 +52,42 @@ abstract class HomeScreenFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = inflater.inflate(layoutResId, container, false)
+    ): View {
+        // Re-use the page built last time: inflating it, decoding the wallpaper, building the
+        // calendar and loading weather on every swipe made the start of each swipe stutter.
+        val actions = activity as? HomeScreenActions
+        actions?.cachedHomeScreenView(layoutResId)
+            ?.takeIf { it.parent == null }
+            ?.let {
+                isReusedView = true
+                return it
+            }
+        isReusedView = false
+        return inflater.inflate(layoutResId, container, false).also {
+            actions?.storeHomeScreenView(layoutResId, it)
+        }
+    }
+
+    /** True when [onCreateView] handed back an already built page instead of a new one. */
+    protected var isReusedView = false
+        private set
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        if (!isReusedView) setUpRoot(view)
+        view.findViewById<View>(R.id.home_settings).setOnClickListener {
+            (activity as? HomeScreenActions)?.openSettings()
+        }
+        view.findViewById<View?>(R.id.home_weather_widget)?.setOnClickListener {
+            refreshWeather(force = true)
+        }
+        view.findViewById<View?>(R.id.home_calendar_widget)?.setOnClickListener {
+            openCalendar()
+        }
+        updateWidgets(view)
+    }
+
+    private fun setUpRoot(view: View) {
         view.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo)
         view.findViewById<View>(R.id.main)?.let { root ->
             val baseLeft = root.paddingLeft
@@ -87,16 +118,6 @@ abstract class HomeScreenFragment : Fragment() {
                 }
             root.post { ViewCompat.requestApplyInsets(root) }
         }
-        view.findViewById<View>(R.id.home_settings).setOnClickListener {
-            (activity as? HomeScreenActions)?.openSettings()
-        }
-        view.findViewById<View?>(R.id.home_weather_widget)?.setOnClickListener {
-            refreshWeather()
-        }
-        view.findViewById<View?>(R.id.home_calendar_widget)?.setOnClickListener {
-            openCalendar()
-        }
-        updateWidgets(view)
     }
 
     override fun onStart() {
@@ -169,10 +190,11 @@ abstract class HomeScreenFragment : Fragment() {
         val calendar = Calendar.getInstance().apply { time = now }
         val dayKey = "${calendar.get(Calendar.YEAR)}-${calendar.get(Calendar.MONTH)}-" +
             calendar.get(Calendar.DAY_OF_MONTH)
-        // updateWidgets runs on every battery/time tick broadcast; rebuilding 49 cells makes
-        // GridLayout re-solve its constraints and drop frames, so only redraw when the day changes.
-        if (dayKey == renderedCalendarDay && grid.childCount > 0) return
-        renderedCalendarDay = dayKey
+        // updateWidgets runs on every battery/time tick broadcast and on every re-used page;
+        // rebuilding 49 cells drops frames, so only redraw when the day changes. The day is
+        // kept on the grid itself so it survives the page being re-used by a new fragment.
+        if (grid.tag == dayKey && grid.childCount > 0) return
+        grid.tag = dayKey
         monthView.text = SimpleDateFormat("MMMM yyyy", locale).format(now)
             .uppercase(locale)
 
@@ -244,10 +266,16 @@ abstract class HomeScreenFragment : Fragment() {
     }
 
     @SuppressLint("StringFormatMatches")
-    private fun refreshWeather() {
+    private fun refreshWeather(force: Boolean = false) {
         if (weatherRequestInProgress) return
         val root = view ?: return
         val condition = root.findViewById<TextView?>(R.id.home_weather_condition) ?: return
+        val weatherWidget = root.findViewById<View?>(R.id.home_weather_widget)
+        val loadedAt = weatherWidget?.getTag(R.id.home_weather_widget) as? Long
+        // Each swipe back to this page used to hit the network and blank the widget again.
+        if (!force && loadedAt != null &&
+            System.currentTimeMillis() - loadedAt < WEATHER_REFRESH_INTERVAL_MS
+        ) return
         val temperatureUnit = WeatherWidgetPreferences.temperatureUnit(requireContext())
         val temperatureSymbol = if (temperatureUnit == WeatherWidgetPreferences.CELSIUS) {
             "°C"
@@ -280,6 +308,8 @@ abstract class HomeScreenFragment : Fragment() {
                 val currentCondition = currentView.findViewById<TextView?>(R.id.home_weather_condition)
                 val range = currentView.findViewById<TextView?>(R.id.home_weather_range)
                 result.onSuccess { weather ->
+                    currentView.findViewById<View?>(R.id.home_weather_widget)
+                        ?.setTag(R.id.home_weather_widget, System.currentTimeMillis())
                     temperature?.text = "${weather.temperature.toInt()}$temperatureSymbol"
                     icon?.text = weather.icon
                     currentCondition?.text =
@@ -388,5 +418,6 @@ abstract class HomeScreenFragment : Fragment() {
 
     private companion object {
         const val TAG = "HomeScreenFragment"
+        const val WEATHER_REFRESH_INTERVAL_MS = 15 * 60 * 1000L
     }
 }

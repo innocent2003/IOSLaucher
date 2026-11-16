@@ -277,6 +277,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
                 installedApps = null
+                homeScreenViewCache.clear()
                 requestInstalledApps { apps ->
                     if (currentScreen == Screen.APPS) {
                         renderApps?.invoke(apps)
@@ -340,6 +341,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var defaultHomeActive = false
     private var settingsReturnScreen: Screen? = null
     private var cachedAppsScreen: View? = null
+    /** Built home pages (screen 1 / screen 2) kept for re-use across swipes. */
+    private val homeScreenViewCache = mutableMapOf<Int, View>()
     private var appsScreenNeedsRender = false
     private val bottomPillHandler = Handler(Looper.getMainLooper())
     private val restoreSearchPillRunnable = Runnable {
@@ -827,6 +830,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         cachedAppsScreen = null
+        homeScreenViewCache.clear()
         if (currentScreen == Screen.LOADING) return
         preloadedSettingsView = null
         showScreen(currentScreen, 0)
@@ -951,6 +955,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun invalidateCachedAppsScreen() {
         if (cachedAppsScreen?.parent == null) cachedAppsScreen = null
         appsScreenNeedsRender = false
+        homeScreenViewCache.clear()
     }
 
     private fun showHomeFragment(screen: Screen, animationDirection: Int) {
@@ -1199,10 +1204,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 .findViewById<View>(R.id.main)
                 ?.let(LauncherWallpaper::applyTo)
         }
-        // The kept (detached) icon screen must get the new wallpaper too.
-        cachedAppsScreen?.takeIf { it.parent == null }
-            ?.findViewById<View>(R.id.main)
-            ?.let(LauncherWallpaper::applyTo)
+        // The kept (detached) screens must get the new wallpaper too.
+        (listOfNotNull(cachedAppsScreen) + homeScreenViewCache.values)
+            .filter { it.parent == null }
+            .forEach { it.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo) }
     }
 
     private fun bindScreen(view: View, screen: Screen) {
@@ -1846,6 +1851,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         appGridOrderPackages.clear()
         appGridOrderPackages.addAll(leading + remaining)
         saveAppGridOrder()
+    }
+
+    override fun cachedHomeScreenView(layoutResId: Int): View? =
+        homeScreenViewCache[layoutResId]
+
+    override fun storeHomeScreenView(layoutResId: Int, view: View) {
+        homeScreenViewCache[layoutResId] = view
     }
 
     override fun loadHomeScreenApps(onLoaded: (List<AppInfo>) -> Unit) {
