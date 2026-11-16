@@ -405,7 +405,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             if (lastHomeScreen == Screen.HOME) 1 else -1
                         )
                     }
-                    Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
+                    // Screen 1 lies to the left of screen 2: slide like a swipe to the right.
+                    Screen.HOME_SECOND -> showScreen(Screen.HOME, 1)
                     Screen.HOME -> {
                         if (!launchedAsHome) showScreen(Screen.SETTINGS, -1)
                     }
@@ -857,8 +858,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             return
         }
         val previousFragment = supportFragmentManager.findFragmentById(R.id.screen_container)
-        val previousView = previousFragment?.view
-            ?: screenContainer.childCount.takeIf { it > 0 }?.let(screenContainer::getChildAt)
+        val previousView = previousFragment?.view ?: currentPlainScreenView()
         val layoutResId = if (screen == Screen.APPS && isAlphabeticalLibrary) {
             R.layout.screen_app_library
         } else {
@@ -961,11 +961,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun showHomeFragment(screen: Screen, animationDirection: Int) {
         val fragmentManager = supportFragmentManager
         val previousFragment = fragmentManager.findFragmentById(R.id.screen_container)
-        val previousView = if (previousFragment == null) {
-            screenContainer.getChildAt(0)
-        } else {
-            null
-        }
+        val previousView = if (previousFragment == null) currentPlainScreenView() else null
         val fragment = when (screen) {
             Screen.HOME -> HomeFragment()
             Screen.HOME_SECOND -> HomeSecondFragment()
@@ -1048,7 +1044,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val fragmentManager = supportFragmentManager
         val outgoingFragment = fragmentManager.findFragmentById(R.id.screen_container)
         val outgoingView = outgoingFragment?.view
-            ?: screenContainer.childCount.takeIf { it > 0 }?.let(screenContainer::getChildAt)
+            ?: currentPlainScreenView()
             ?: return null
         val incomingFragment = when (toScreen) {
             Screen.HOME -> HomeFragment()
@@ -1139,6 +1135,17 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         fun finishTransition() {
             if (transition.fromScreen == Screen.APPS) resetWidgetSwipe()
+            if (commit && transition.fromScreen == Screen.APPS) {
+                // Same clean-up showScreen() does when leaving the icon screen.
+                if (isAppSearchVisible) closeAppSearch()
+                if (isHomeEditMode || isAppSelectionMode) {
+                    isHomeEditMode = false
+                    isAppSelectionMode = false
+                    selectedAppPackages.clear()
+                    stopDragWiggle()
+                    appsScreenNeedsRender = true
+                }
+            }
             if (commit) {
                 currentScreen = transition.toScreen
                 showSystemBars()
@@ -1210,7 +1217,22 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             .forEach { it.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo) }
     }
 
+    /**
+     * The screen view currently shown when it is not a fragment (icon screen, settings…).
+     * The old lookup used getChildAt(childCount), which is always null, so swiping from the
+     * icon screen to screen 1/2 never started the finger-following swipe and fell back to a
+     * rebuilt page with a reversed animation.
+     */
+    private fun currentPlainScreenView(): View? {
+        for (index in screenContainer.childCount - 1 downTo 0) {
+            val child = screenContainer.getChildAt(index)
+            if (child.getTag(R.id.screen_container) == true) return child
+        }
+        return null
+    }
+
     private fun bindScreen(view: View, screen: Screen) {
+        view.setTag(R.id.screen_container, true)
         view.findViewById<View>(R.id.main)?.let { root ->
             val baseLeft = root.paddingLeft
             val baseTop = root.paddingTop
@@ -2165,9 +2187,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun moveAppPageWithSwipe(direction: Int) {
         val targetPage = appPageIndex + if (direction < 0) 1 else -1
         if (targetPage !in 0 until appPageCount) {
+            // Animate in the direction of the finger: swiping left (-1) slides the icon screen
+            // out to the left towards screen 2, swiping right (+1) towards screen 1.
             showScreen(
                 if (direction < 0) Screen.HOME_SECOND else Screen.HOME,
-                if (direction < 0) 1 else -1
+                direction
             )
             return
         }
