@@ -73,6 +73,18 @@ abstract class HomeScreenFragment : Fragment() {
                 )
                 insets
             }
+            // Apply the current system-bar insets right away: waiting for the posted inset pass
+            // made the page jump down by the status bar height mid-swipe.
+            ViewCompat.getRootWindowInsets(requireActivity().window.decorView)
+                ?.getInsets(WindowInsetsCompat.Type.systemBars())
+                ?.let { bars ->
+                    root.setPadding(
+                        baseLeft + bars.left,
+                        baseTop + bars.top,
+                        baseRight + bars.right,
+                        baseBottom + bars.bottom
+                    )
+                }
             root.post { ViewCompat.requestApplyInsets(root) }
         }
         view.findViewById<View>(R.id.home_settings).setOnClickListener {

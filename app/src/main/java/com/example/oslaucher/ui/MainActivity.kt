@@ -131,6 +131,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var wallpaperReceiverRegistered = false
     private val wallpaperChangedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            LauncherWallpaper.invalidateCache()
             refreshWallpaperViews()
         }
     }
@@ -1220,6 +1221,16 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 )
                 insets
             }
+            ViewCompat.getRootWindowInsets(window.decorView)
+                ?.getInsets(WindowInsetsCompat.Type.systemBars())
+                ?.let { bars ->
+                    root.setPadding(
+                        baseLeft + bars.left,
+                        baseTop + bars.top,
+                        baseRight + bars.right,
+                        baseBottom + bars.bottom
+                    )
+                }
             root.post { ViewCompat.requestApplyInsets(root) }
         }
         if (screen == Screen.APPS) {
@@ -5460,6 +5471,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     override fun onStart() {
         super.onStart()
+        LauncherWallpaper.invalidateSystemCache()
         appWidgetHost.startListening()
         val filter = IntentFilter().apply {
             addAction(LauncherWallpaper.ACTION_CHANGED)
