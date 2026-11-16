@@ -1,96 +1,28 @@
 package com.example.oslaucher.utils
 
 import android.Manifest
-import android.app.WallpaperManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
-import android.util.Log
 import android.view.View
 import androidx.core.content.ContextCompat
-import java.io.IOException
 
 object LauncherWallpaper {
     const val ACTION_CHANGED = "com.example.oslaucher.action.WALLPAPER_CHANGED"
 
+    /**
+     * Launcher screens are transparent: the window shows the phone's system wallpaper
+     * (android:windowShowWallpaper), so the launcher always matches the wallpaper set on the
+     * device — including one chosen in our wallpaper screen, which is applied system-wide.
+     * No storage permission and no bitmap decoding are needed, and swipes stay light because
+     * pages no longer carry a full-screen wallpaper bitmap.
+     */
     fun applyTo(view: View): Boolean {
-        return try {
-            val usesSavedWallpaper = LauncherConfig.usesSavedWallpaper(view.context)
-            val preferences = view.context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-            val selectedUri =
-                if (usesSavedWallpaper) preferences.getString(URI_KEY, null)?.let(Uri::parse) else null
-            val sourceKey = when {
-                selectedUri != null -> "uri:$selectedUri"
-                usesSavedWallpaper && preferences.contains(RESOURCE_KEY) ->
-                    "res:${preferences.getInt(RESOURCE_KEY, 0)}"
-                usesSavedWallpaper -> "res:$DEFAULT_WALLPAPER_RESOURCE"
-                hasWallpaperPermission(view.context) -> "system"
-                else -> "res:$DEFAULT_WALLPAPER_RESOURCE"
-            }
-            // Decoding the wallpaper (often a full-size photo) on every screen creation made
-            // the first frames of each swipe stutter, so reuse the last decoded drawable.
-            val cached = synchronized(this) { cachedDrawable.takeIf { cachedKey == sourceKey } }
-            if (cached != null) {
-                view.background = CenterCropDrawable(copyDrawable(cached, view))
-                return true
-            }
-            val selectedWallpaper = try {
-                when {
-                    selectedUri != null -> {
-                        try {
-                            view.context.contentResolver.openInputStream(selectedUri)?.use {
-                                Drawable.createFromStream(it, null)
-                            }.also { drawable ->
-                                if (drawable == null) {
-                                    Log.w(TAG, "Could not read the saved wallpaper URI: $selectedUri")
-                                }
-                            }
-                        } catch (exception: SecurityException) {
-                            Log.w(TAG, "Permission denied to read the saved wallpaper URI: $selectedUri", exception)
-                            null
-                        }
-                    }
-                    usesSavedWallpaper && preferences.contains(RESOURCE_KEY) ->
-                        view.context.getDrawable(preferences.getInt(RESOURCE_KEY, 0))
-                    usesSavedWallpaper -> {
-                        saveResource(view.context, DEFAULT_WALLPAPER_RESOURCE)
-                        view.context.getDrawable(DEFAULT_WALLPAPER_RESOURCE)
-                    }
-                    else -> null
-                }
-            } catch (exception: IOException) {
-                Log.w(TAG, "Could not open the saved wallpaper URI: $selectedUri", exception)
-                null
-            }
-            // Only call WallpaperManager if the required permission is already granted.
-            // Calling it without permission causes an expensive Binder IPC SecurityException
-            // on every invocation (e.g. on each swipe / onResume). When it is not granted we
-            // fall back to the bundled wallpaper so the launcher never waits on a prompt.
-            val wallpaper = selectedWallpaper ?: run {
-                if (hasWallpaperPermission(view.context)) {
-                    try {
-                        WallpaperManager.getInstance(view.context).drawable
-                    } catch (exception: SecurityException) {
-                        Log.w(TAG, "Permission denied to read device wallpaper", exception)
-                        null
-                    }
-                } else {
-                    null
-                }
-            } ?: view.context.getDrawable(DEFAULT_WALLPAPER_RESOURCE) ?: return false
-            synchronized(this) {
-                cachedKey = sourceKey
-                cachedDrawable = wallpaper
-            }
-            view.background = CenterCropDrawable(copyDrawable(wallpaper, view))
-            true
-        } catch (exception: SecurityException) {
-            Log.w(TAG, "Permission is required to read the saved or device wallpaper", exception)
-            false
-        }
+        if (view.background != null) view.background = null
+        return true
     }
 
     /** Returns true if the app currently holds the permission needed to read the device wallpaper. */
@@ -161,12 +93,6 @@ object LauncherWallpaper {
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
             .getString(URI_KEY, null)
             ?.let(Uri::parse)
-
-    private fun copyDrawable(drawable: Drawable, view: View): Drawable =
-        drawable.constantState
-            ?.newDrawable(view.resources)
-            ?.mutate()
-            ?: drawable.mutate()
 
     private var cachedKey: String? = null
     private var cachedDrawable: Drawable? = null
