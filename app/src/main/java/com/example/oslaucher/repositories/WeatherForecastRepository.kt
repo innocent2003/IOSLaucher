@@ -3,6 +3,7 @@ package com.example.oslaucher.repositories
 import android.content.Context
 import com.example.oslaucher.R
 import com.example.oslaucher.utils.WeatherWidgetPreferences
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
@@ -26,6 +27,8 @@ internal data class WeatherForecast(
 
 internal class WeatherForecastRepository(context: Context) {
     private val appContext = context.applicationContext
+    private val preferences =
+        appContext.getSharedPreferences(CACHE_PREFERENCES, Context.MODE_PRIVATE)
 
     @Throws(IOException::class, JSONException::class)
     fun load(temperatureUnit: String): WeatherForecast {
@@ -89,11 +92,66 @@ internal class WeatherForecastRepository(context: Context) {
                 description = description.replaceFirstChar { it.uppercase(locale) },
                 icon = weatherIcon(current.getInt("weather_code")),
                 hours = hours
-            )
+            ).also { saveCached(temperatureUnit, it) }
         } finally {
             connection.disconnect()
         }
     }
+
+    /**
+     * Last forecast saved in SharedPreferences, so a newly created weather widget can show
+     * real data instantly instead of "--" while the network request is running.
+     */
+    fun cached(temperatureUnit: String): WeatherForecast? {
+        val stored = preferences.getString(cacheKey(temperatureUnit), null) ?: return null
+        return try {
+            val json = JSONObject(stored)
+            val jsonHours = json.optJSONArray(KEY_HOURS)
+            WeatherForecast(
+                temperature = json.getInt(KEY_TEMPERATURE),
+                high = json.getInt(KEY_HIGH),
+                low = json.getInt(KEY_LOW),
+                description = json.getString(KEY_DESCRIPTION),
+                icon = json.getString(KEY_ICON),
+                hours = buildList {
+                    for (index in 0 until (jsonHours?.length() ?: 0)) {
+                        val hour = jsonHours!!.getJSONObject(index)
+                        add(
+                            WeatherHour(
+                                hour.getString(KEY_TIME),
+                                hour.getInt(KEY_TEMPERATURE),
+                                hour.getString(KEY_ICON)
+                            )
+                        )
+                    }
+                }
+            )
+        } catch (_: JSONException) {
+            null
+        }
+    }
+
+    private fun saveCached(temperatureUnit: String, forecast: WeatherForecast) {
+        val hours = JSONArray()
+        forecast.hours.forEach { hour ->
+            hours.put(
+                JSONObject()
+                    .put(KEY_TIME, hour.time)
+                    .put(KEY_TEMPERATURE, hour.temperature)
+                    .put(KEY_ICON, hour.icon)
+            )
+        }
+        val json = JSONObject()
+            .put(KEY_TEMPERATURE, forecast.temperature)
+            .put(KEY_HIGH, forecast.high)
+            .put(KEY_LOW, forecast.low)
+            .put(KEY_DESCRIPTION, forecast.description)
+            .put(KEY_ICON, forecast.icon)
+            .put(KEY_HOURS, hours)
+        preferences.edit().putString(cacheKey(temperatureUnit), json.toString()).apply()
+    }
+
+    private fun cacheKey(temperatureUnit: String) = "forecast_$temperatureUnit"
 
     private fun weatherDescription(code: Int): Int = when (code) {
         0 -> R.string.weather_clear
@@ -120,5 +178,13 @@ internal class WeatherForecastRepository(context: Context) {
 
     private companion object {
         const val HOURS_TO_SHOW = 6
+        const val CACHE_PREFERENCES = "weather_forecast_cache"
+        const val KEY_TEMPERATURE = "temperature"
+        const val KEY_HIGH = "high"
+        const val KEY_LOW = "low"
+        const val KEY_DESCRIPTION = "description"
+        const val KEY_ICON = "icon"
+        const val KEY_HOURS = "hours"
+        const val KEY_TIME = "time"
     }
 }

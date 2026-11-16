@@ -17,6 +17,7 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.example.oslaucher.R
 import com.example.oslaucher.models.LauncherWidgetType
+import com.example.oslaucher.repositories.WeatherForecast
 import com.example.oslaucher.repositories.WeatherForecastRepository
 import com.example.oslaucher.utils.IconMetrics
 import com.example.oslaucher.utils.WeatherWidgetPreferences
@@ -60,10 +61,6 @@ internal object LauncherWidgetFactory {
         }
         val highLow = weatherText(context, 10f, secondary = true).apply {
             text = "…"
-        }
-        val hourlyForecast = LinearLayout(context).apply {
-            gravity = Gravity.CENTER
-            orientation = LinearLayout.HORIZONTAL
         }
         // Compact 2x2 tile like the reference: dark glass card with city, big temperature,
         // a small condition icon, the condition text and "H:.. L:..". Caption under the card.
@@ -110,6 +107,15 @@ internal object LauncherWidgetFactory {
             addView(widgetCaption(context, context.getString(R.string.weather_widget_caption)))
         }
 
+        var hasForecast = false
+        fun show(data: WeatherForecast) {
+            hasForecast = true
+            mainTemperature.text = "${data.temperature}$temperatureSymbol"
+            currentIcon.text = data.icon
+            condition.text = data.description
+            highLow.text = "H:${data.high}$temperatureSymbol L:${data.low}$temperatureSymbol"
+        }
+
         fun refresh() {
             Thread {
                 val forecast = try {
@@ -120,40 +126,14 @@ internal object LauncherWidgetFactory {
                     Result.failure(exception)
                 }
                 Handler(Looper.getMainLooper()).post {
-                    forecast.onSuccess { data ->
-                        mainTemperature.text = "${data.temperature}$temperatureSymbol"
-                        currentIcon.text = data.icon
-                        condition.text = data.description
-                        highLow.text = "H:${data.high}$temperatureSymbol " +
-                            "L:${data.low}$temperatureSymbol"
-                        hourlyForecast.removeAllViews()
-                        data.hours.forEach { hour ->
-                            hourlyForecast.addView(
-                                LinearLayout(context).apply {
-                                    gravity = Gravity.CENTER
-                                    orientation = LinearLayout.VERTICAL
-                                    addView(weatherText(context, 9f, secondary = true).apply {
-                                        text = hour.time
-                                    })
-                                    addView(weatherText(context, 17f).apply {
-                                        text = hour.icon
-                                        contentDescription =
-                                            context.getString(R.string.weather_accessibility)
-                                    })
-                                    addView(weatherText(context, 10f, bold = true).apply {
-                                        text = "${hour.temperature}$temperatureSymbol"
-                                    })
-                                },
-                                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-                            )
-                        }
-                    }.onFailure { error ->
+                    forecast.onSuccess(::show).onFailure { error ->
                         Log.w(TAG, "Unable to load launcher weather widget", error)
+                        // Keep showing the last saved forecast when offline.
+                        if (hasForecast) return@onFailure
                         mainTemperature.text = "--$temperatureSymbol"
                         currentIcon.text = "☁"
                         condition.text = context.getString(R.string.weather_unavailable)
                         highLow.text = context.getString(R.string.weather_widget_retry)
-                        hourlyForecast.removeAllViews()
                     }
                 }
             }.apply {
@@ -162,6 +142,8 @@ internal object LauncherWidgetFactory {
             }
         }
 
+        // Show the forecast saved last time right away, then refresh it in the background.
+        repository.cached(temperatureUnit)?.let(::show)
         root.setOnClickListener { onSettingsClick() }
         refresh()
         return root

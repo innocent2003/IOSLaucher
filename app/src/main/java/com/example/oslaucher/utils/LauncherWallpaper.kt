@@ -22,6 +22,21 @@ object LauncherWallpaper {
             val preferences = view.context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
             val selectedUri =
                 if (usesSavedWallpaper) preferences.getString(URI_KEY, null)?.let(Uri::parse) else null
+            val sourceKey = when {
+                selectedUri != null -> "uri:$selectedUri"
+                usesSavedWallpaper && preferences.contains(RESOURCE_KEY) ->
+                    "res:${preferences.getInt(RESOURCE_KEY, 0)}"
+                usesSavedWallpaper -> "res:$DEFAULT_WALLPAPER_RESOURCE"
+                hasWallpaperPermission(view.context) -> "system"
+                else -> "res:$DEFAULT_WALLPAPER_RESOURCE"
+            }
+            // Decoding the wallpaper (often a full-size photo) on every screen creation made
+            // the first frames of each swipe stutter, so reuse the last decoded drawable.
+            val cached = synchronized(this) { cachedDrawable.takeIf { cachedKey == sourceKey } }
+            if (cached != null) {
+                view.background = CenterCropDrawable(copyDrawable(cached, view))
+                return true
+            }
             val selectedWallpaper = try {
                 when {
                     selectedUri != null -> {
@@ -66,6 +81,10 @@ object LauncherWallpaper {
                     null
                 }
             } ?: view.context.getDrawable(DEFAULT_WALLPAPER_RESOURCE) ?: return false
+            synchronized(this) {
+                cachedKey = sourceKey
+                cachedDrawable = wallpaper
+            }
             view.background = CenterCropDrawable(copyDrawable(wallpaper, view))
             true
         } catch (exception: SecurityException) {
@@ -94,13 +113,29 @@ object LauncherWallpaper {
         return prefs.contains(URI_KEY) || prefs.contains(RESOURCE_KEY)
     }
 
+    /** Forget the decoded wallpaper; call whenever the chosen or system wallpaper changes. */
+    fun invalidateCache() = synchronized(this) {
+        cachedKey = null
+        cachedDrawable = null
+    }
+
+    /** The system wallpaper can change while the launcher is stopped; drop it on return. */
+    fun invalidateSystemCache() = synchronized(this) {
+        if (cachedKey == "system") {
+            cachedKey = null
+            cachedDrawable = null
+        }
+    }
+
     fun notifyChanged(context: Context) {
+        invalidateCache()
         context.sendBroadcast(
             Intent(ACTION_CHANGED).setPackage(context.packageName)
         )
     }
 
     fun saveResource(context: Context, resourceId: Int) {
+        invalidateCache()
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
             .edit()
             .putInt(RESOURCE_KEY, resourceId)
@@ -109,6 +144,7 @@ object LauncherWallpaper {
     }
 
     fun saveUri(context: Context, uri: Uri) {
+        invalidateCache()
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(URI_KEY, uri.toString())
@@ -131,6 +167,9 @@ object LauncherWallpaper {
             ?.newDrawable(view.resources)
             ?.mutate()
             ?: drawable.mutate()
+
+    private var cachedKey: String? = null
+    private var cachedDrawable: Drawable? = null
 
     private const val PREFERENCES_NAME = "launcher_wallpaper_preferences"
     private const val RESOURCE_KEY = "wallpaper_resource"

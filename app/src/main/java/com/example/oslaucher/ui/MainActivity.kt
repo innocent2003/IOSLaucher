@@ -131,6 +131,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var wallpaperReceiverRegistered = false
     private val wallpaperChangedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            LauncherWallpaper.invalidateCache()
             refreshWallpaperViews()
         }
     }
@@ -276,6 +277,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
                 installedApps = null
+                homeScreenViewCache.clear()
                 requestInstalledApps { apps ->
                     if (currentScreen == Screen.APPS) {
                         renderApps?.invoke(apps)
@@ -338,6 +340,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var returningFromOwnScreen = false
     private var defaultHomeActive = false
     private var settingsReturnScreen: Screen? = null
+    private var cachedAppsScreen: View? = null
+    /** Built home pages (screen 1 / screen 2) kept for re-use across swipes. */
+    private val homeScreenViewCache = mutableMapOf<Int, View>()
+    private var appsScreenNeedsRender = false
     private val bottomPillHandler = Handler(Looper.getMainLooper())
     private val restoreSearchPillRunnable = Runnable {
         if (currentScreen == Screen.APPS && appPageSwipeTransition == null && !homeSwipeSettling) {
@@ -399,7 +405,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                             if (lastHomeScreen == Screen.HOME) 1 else -1
                         )
                     }
-                    Screen.HOME_SECOND -> showScreen(Screen.HOME, -1)
+                    // Screen 1 lies to the left of screen 2: slide like a swipe to the right.
+                    Screen.HOME_SECOND -> showScreen(Screen.HOME, 1)
                     Screen.HOME -> {
                         if (!launchedAsHome) showScreen(Screen.SETTINGS, -1)
                     }
@@ -771,6 +778,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val homeRoleChanged = defaultHomeNowActive != defaultHomeActive
         defaultHomeActive = defaultHomeNowActive
         val returnedFromOwnScreen = returningFromOwnScreen
+        if (hiddenAppsChanged || homeRoleChanged || returnedFromOwnScreen) {
+            // Settings screens can change grid rows, icons, wallpaper or hidden apps.
+            invalidateCachedAppsScreen()
+        }
         if (returningFromOwnScreen) {
             returningFromOwnScreen = false
         } else if (launchedAsHome && currentScreen == Screen.SETTINGS &&
@@ -819,6 +830,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        cachedAppsScreen = null
+        homeScreenViewCache.clear()
         if (currentScreen == Screen.LOADING) return
         preloadedSettingsView = null
         showScreen(currentScreen, 0)
@@ -835,6 +848,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             isAppSelectionMode = false
             selectedAppPackages.clear()
             stopDragWiggle()
+            appsScreenNeedsRender = true
         }
         currentScreen = screen
         showSystemBars()
@@ -844,24 +858,33 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             return
         }
         val previousFragment = supportFragmentManager.findFragmentById(R.id.screen_container)
-        val previousView = previousFragment?.view
-            ?: screenContainer.childCount.takeIf { it > 0 }?.let(screenContainer::getChildAt)
+        val previousView = previousFragment?.view ?: currentPlainScreenView()
         val layoutResId = if (screen == Screen.APPS && isAlphabeticalLibrary) {
             R.layout.screen_app_library
         } else {
             screenLayouts.getValue(screen)
         }
+        val reusedAppsScreen = if (screen == Screen.APPS && !isAlphabeticalLibrary) {
+            reusableAppsScreen()
+        } else {
+            null
+        }
         val newView = if (screen == Screen.SETTINGS) {
             preloadedSettingsView.also { preloadedSettingsView = null }
                 ?: LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
         } else {
-            LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
+            reusedAppsScreen
+                ?: LayoutInflater.from(this).inflate(layoutResId, screenContainer, false)
         }
-        bindScreen(newView, screen)
+        if (reusedAppsScreen == null) bindScreen(newView, screen)
+        if (screen == Screen.APPS && !isAlphabeticalLibrary && reusedAppsScreen == null) {
+            cachedAppsScreen = newView
+        }
 
         if (previousView != null && animationDirection != 0) {
             screenContainer.addView(newView)
             ViewCompat.requestApplyInsets(newView)
+            if (reusedAppsScreen != null) onAppsScreenReattached(reusedAppsScreen)
             PageTransitionAnimator.animate(
                 this,
                 previousView,
@@ -890,16 +913,55 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         screenContainer.removeAllViews()
         screenContainer.addView(newView)
         ViewCompat.requestApplyInsets(newView)
+        if (reusedAppsScreen != null) onAppsScreenReattached(reusedAppsScreen)
+    }
+
+    /**
+     * The icon screen (all pages, dock and widgets) is kept in memory after it is left, so
+     * swiping back from the home pages re-attaches the ready view instead of inflating and
+     * rebuilding every page and widget from scratch. Returns it when it can be reused.
+     */
+    private fun reusableAppsScreen(): View? {
+        val cached = cachedAppsScreen ?: return null
+        if (cached.parent != null || !appsGridRendered || renderApps == null) return null
+        return cached
+    }
+
+    private fun onAppsScreenReattached(view: View) {
+        appsWidgetContainer = view.findViewById(R.id.apps_widget_container)
+        appsIncomingWidgetContainer = view.findViewById(R.id.apps_widget_incoming_container)
+        PageTransitionAnimator.reset(view)
+        val showLastPage = openAppsAtLastPage
+        openAppsAtLastPage = false
+        if (appsScreenNeedsRender) {
+            // Edit/selection state was cleared while away: rebuild once to drop its badges.
+            appsScreenNeedsRender = false
+            if (!showLastPage) appPageIndex = 0 else appPageIndex = appPageCount - 1
+            installedApps?.let { renderApps?.invoke(it) }
+            return
+        }
+        appPageIndex = if (showLastPage) (appPageCount - 1).coerceAtLeast(0) else 0
+        appsPages?.let { pages ->
+            for (index in 0 until pages.childCount) PageTransitionAnimator.reset(pages.getChildAt(index))
+            pages.displayedChild = appPageIndex
+        }
+        resetWidgetSwipe()
+        appsIncomingWidgetContainer?.visibility = View.INVISIBLE
+        updateAppPageIndicator(renderWidgets = false)
+        renderHomeWidgetViews()
+    }
+
+    /** Drops the kept icon screen so the next visit rebuilds it (settings/apps changed). */
+    private fun invalidateCachedAppsScreen() {
+        if (cachedAppsScreen?.parent == null) cachedAppsScreen = null
+        appsScreenNeedsRender = false
+        homeScreenViewCache.clear()
     }
 
     private fun showHomeFragment(screen: Screen, animationDirection: Int) {
         val fragmentManager = supportFragmentManager
         val previousFragment = fragmentManager.findFragmentById(R.id.screen_container)
-        val previousView = if (previousFragment == null) {
-            screenContainer.getChildAt(0)
-        } else {
-            null
-        }
+        val previousView = if (previousFragment == null) currentPlainScreenView() else null
         val fragment = when (screen) {
             Screen.HOME -> HomeFragment()
             Screen.HOME_SECOND -> HomeSecondFragment()
@@ -982,7 +1044,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         val fragmentManager = supportFragmentManager
         val outgoingFragment = fragmentManager.findFragmentById(R.id.screen_container)
         val outgoingView = outgoingFragment?.view
-            ?: screenContainer.childCount.takeIf { it > 0 }?.let(screenContainer::getChildAt)
+            ?: currentPlainScreenView()
             ?: return null
         val incomingFragment = when (toScreen) {
             Screen.HOME -> HomeFragment()
@@ -1001,10 +1063,15 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         } else {
             openAppsAtLastPage =
                 fromScreen == Screen.HOME_SECOND
-            val view = LayoutInflater.from(this)
+            val reused = reusableAppsScreen()
+            val view = reused ?: LayoutInflater.from(this)
                 .inflate(screenLayouts.getValue(toScreen), screenContainer, false)
-                .also { bindScreen(it, toScreen) }
+                .also {
+                    bindScreen(it, toScreen)
+                    cachedAppsScreen = it
+                }
             screenContainer.addView(view)
+            if (reused != null) onAppsScreenReattached(reused)
             view
         }
         val width = screenContainer.width.takeIf { it > 0 }?.toFloat()
@@ -1068,6 +1135,17 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         fun finishTransition() {
             if (transition.fromScreen == Screen.APPS) resetWidgetSwipe()
+            if (commit && transition.fromScreen == Screen.APPS) {
+                // Same clean-up showScreen() does when leaving the icon screen.
+                if (isAppSearchVisible) closeAppSearch()
+                if (isHomeEditMode || isAppSelectionMode) {
+                    isHomeEditMode = false
+                    isAppSelectionMode = false
+                    selectedAppPackages.clear()
+                    stopDragWiggle()
+                    appsScreenNeedsRender = true
+                }
+            }
             if (commit) {
                 currentScreen = transition.toScreen
                 showSystemBars()
@@ -1133,9 +1211,28 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 .findViewById<View>(R.id.main)
                 ?.let(LauncherWallpaper::applyTo)
         }
+        // The kept (detached) screens must get the new wallpaper too.
+        (listOfNotNull(cachedAppsScreen) + homeScreenViewCache.values)
+            .filter { it.parent == null }
+            .forEach { it.findViewById<View>(R.id.main)?.let(LauncherWallpaper::applyTo) }
+    }
+
+    /**
+     * The screen view currently shown when it is not a fragment (icon screen, settings…).
+     * The old lookup used getChildAt(childCount), which is always null, so swiping from the
+     * icon screen to screen 1/2 never started the finger-following swipe and fell back to a
+     * rebuilt page with a reversed animation.
+     */
+    private fun currentPlainScreenView(): View? {
+        for (index in screenContainer.childCount - 1 downTo 0) {
+            val child = screenContainer.getChildAt(index)
+            if (child.getTag(R.id.screen_container) == true) return child
+        }
+        return null
     }
 
     private fun bindScreen(view: View, screen: Screen) {
+        view.setTag(R.id.screen_container, true)
         view.findViewById<View>(R.id.main)?.let { root ->
             val baseLeft = root.paddingLeft
             val baseTop = root.paddingTop
@@ -1151,6 +1248,16 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 )
                 insets
             }
+            ViewCompat.getRootWindowInsets(window.decorView)
+                ?.getInsets(WindowInsetsCompat.Type.systemBars())
+                ?.let { bars ->
+                    root.setPadding(
+                        baseLeft + bars.left,
+                        baseTop + bars.top,
+                        baseRight + bars.right,
+                        baseBottom + bars.bottom
+                    )
+                }
             root.post { ViewCompat.requestApplyInsets(root) }
         }
         if (screen == Screen.APPS) {
@@ -1768,6 +1875,13 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         saveAppGridOrder()
     }
 
+    override fun cachedHomeScreenView(layoutResId: Int): View? =
+        homeScreenViewCache[layoutResId]
+
+    override fun storeHomeScreenView(layoutResId: Int, view: View) {
+        homeScreenViewCache[layoutResId] = view
+    }
+
     override fun loadHomeScreenApps(onLoaded: (List<AppInfo>) -> Unit) {
         requestInstalledApps(onLoaded)
     }
@@ -2073,9 +2187,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun moveAppPageWithSwipe(direction: Int) {
         val targetPage = appPageIndex + if (direction < 0) 1 else -1
         if (targetPage !in 0 until appPageCount) {
+            // Animate in the direction of the finger: swiping left (-1) slides the icon screen
+            // out to the left towards screen 2, swiping right (+1) towards screen 1.
             showScreen(
                 if (direction < 0) Screen.HOME_SECOND else Screen.HOME,
-                if (direction < 0) 1 else -1
+                direction
             )
             return
         }
@@ -5391,6 +5507,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     override fun onStart() {
         super.onStart()
+        LauncherWallpaper.invalidateSystemCache()
         appWidgetHost.startListening()
         val filter = IntentFilter().apply {
             addAction(LauncherWallpaper.ACTION_CHANGED)
