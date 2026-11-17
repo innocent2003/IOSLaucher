@@ -5153,28 +5153,45 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         state.root.removeView(state.label)
     }
 
+    /**
+     * Folder tile: a translucent rounded square (same corner radius as app icons) showing up
+     * to 9 of its apps in a 3 x 3 grid, like the reference launcher.
+     */
     private fun createFolderIcon(apps: List<AppInfo>): Drawable {
         val size = (96 * resources.displayMetrics.density).toInt().coerceAtLeast(1)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFD9C8FF.toInt() }
-        canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.2f, size * 0.2f, paint)
-
-        val iconSize = size * 0.34f
-        val inset = size * 0.12f
-        val positions = listOf(
-            inset to inset,
-            (size - inset - iconSize) to inset,
-            inset to (size - inset - iconSize),
-            (size - inset - iconSize) to (size - inset - iconSize)
+        val radius = size * FOLDER_CORNER_RATIO
+        val bounds = RectF(0f, 0f, size.toFloat(), size.toFloat())
+        canvas.drawRoundRect(bounds, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = FOLDER_FILL_COLOR
+        })
+        val strokeWidth = resources.displayMetrics.density
+        canvas.drawRoundRect(
+            RectF(strokeWidth / 2, strokeWidth / 2, size - strokeWidth / 2, size - strokeWidth / 2),
+            radius,
+            radius,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                this.strokeWidth = strokeWidth
+                color = FOLDER_STROKE_COLOR
+            }
         )
-        apps.take(4).forEachIndexed { index, app ->
-            val (left, top) = positions[index]
-            val icon = AppIconUtils.getIcon(this, app)
-                .constantState
-                ?.newDrawable(resources)
-                ?.mutate() ?: AppIconUtils.getIcon(this, app).mutate()
-            icon.setBounds(left.toInt(), top.toInt(), (left + iconSize).toInt(), (top + iconSize).toInt())
+
+        val padding = size * 0.13f
+        val gap = size * 0.055f
+        val cell = (size - padding * 2 - gap * 2) / 3f
+        apps.take(9).forEachIndexed { index, app ->
+            val left = padding + (index % 3) * (cell + gap)
+            val top = padding + (index / 3) * (cell + gap)
+            val source = AppIconUtils.getIcon(this, app)
+            val icon = source.constantState?.newDrawable(resources)?.mutate() ?: source.mutate()
+            icon.setBounds(
+                left.roundToInt(),
+                top.roundToInt(),
+                (left + cell).roundToInt(),
+                (top + cell).roundToInt()
+            )
             icon.draw(canvas)
         }
         return BitmapDrawable(resources, bitmap)
@@ -5566,6 +5583,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val WIDGET_HORIZONTAL_GAP_DP = APP_GRID_COLUMN_SPACING_DP
         const val WIDGET_SIDE_INSET_DP = 12
         const val WIDGET_VERTICAL_GAP_DP = 0
+        const val FOLDER_CORNER_RATIO = 0.225f
+        const val FOLDER_FILL_COLOR = 0x59D8DCE2
+        const val FOLDER_STROKE_COLOR = 0x33FFFFFF
         const val DEFAULT_LAYOUT_PREFERENCES = "launcher_default_layout"
         const val DEFAULT_LAYOUT_APPLIED_KEY = "applied"
         const val GOOGLE_FOLDER_NAME = "Google"
