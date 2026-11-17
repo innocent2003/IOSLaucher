@@ -1,6 +1,5 @@
 package com.example.oslaucher.ui.fragments
 
-import android.annotation.SuppressLint
 import android.Manifest
 import android.content.ContentUris
 import android.content.pm.PackageManager
@@ -31,15 +30,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import com.example.oslaucher.R
-import com.example.oslaucher.models.Weather
 import com.example.oslaucher.utils.LauncherWallpaper
-import com.example.oslaucher.utils.WeatherWidgetPreferences
 import com.example.oslaucher.ui.widgets.BatteryRingView
-import org.json.JSONException
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -49,7 +41,6 @@ abstract class HomeScreenFragment : Fragment() {
     protected abstract val layoutResId: Int
 
     private var receiverRegistered = false
-    private var weatherRequestInProgress = false
     private val updatesReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) =
             view?.let(::updateWidgets) ?: Unit
@@ -84,9 +75,6 @@ abstract class HomeScreenFragment : Fragment() {
         if (!isReusedView) setUpRoot(view)
         view.findViewById<View?>(R.id.home_settings)?.setOnClickListener {
             (activity as? HomeScreenActions)?.openSettings()
-        }
-        view.findViewById<View?>(R.id.home_weather_widget)?.setOnClickListener {
-            refreshWeather(force = true)
         }
         view.findViewById<View?>(R.id.home_calendar_widget)?.setOnClickListener {
             openCalendar()
@@ -149,9 +137,6 @@ abstract class HomeScreenFragment : Fragment() {
         )
         receiverRegistered = true
         view?.let(::updateWidgets)
-        if (view?.findViewById<View?>(R.id.home_weather_widget) != null) {
-            refreshWeather()
-        }
     }
 
     override fun onResume() {
@@ -342,141 +327,6 @@ abstract class HomeScreenFragment : Fragment() {
         )
     }
 
-    @SuppressLint("StringFormatMatches")
-    private fun refreshWeather(force: Boolean = false) {
-        if (weatherRequestInProgress) return
-        val root = view ?: return
-        val condition = root.findViewById<TextView?>(R.id.home_weather_condition) ?: return
-        val weatherWidget = root.findViewById<View?>(R.id.home_weather_widget)
-        val loadedAt = weatherWidget?.getTag(R.id.home_weather_widget) as? Long
-        // Each swipe back to this page used to hit the network and blank the widget again.
-        if (!force && loadedAt != null &&
-            System.currentTimeMillis() - loadedAt < WEATHER_REFRESH_INTERVAL_MS
-        ) return
-        val temperatureUnit = WeatherWidgetPreferences.temperatureUnit(requireContext())
-        val temperatureSymbol = if (temperatureUnit == WeatherWidgetPreferences.CELSIUS) {
-            "°C"
-        } else {
-            "°F"
-        }
-        weatherRequestInProgress = true
-        condition.text = condition.context.getString(R.string.weather_updating)
-        root.findViewById<TextView?>(R.id.home_weather_temperature)?.text = "--$temperatureSymbol"
-        root.findViewById<TextView?>(R.id.home_weather_range)?.text = getString(
-            R.string.weather_range,
-            "--",
-            "--",
-            temperatureSymbol
-        )
-
-        Thread {
-            val result = try {
-                Result.success(loadWeather(temperatureUnit))
-            } catch (error: IOException) {
-                Result.failure(error)
-            } catch (error: JSONException) {
-                Result.failure(error)
-            }
-            Handler(Looper.getMainLooper()).post {
-                weatherRequestInProgress = false
-                val currentView = view ?: return@post
-                val temperature = currentView.findViewById<TextView?>(R.id.home_weather_temperature)
-                val icon = currentView.findViewById<TextView?>(R.id.home_weather_icon)
-                val currentCondition = currentView.findViewById<TextView?>(R.id.home_weather_condition)
-                val range = currentView.findViewById<TextView?>(R.id.home_weather_range)
-                result.onSuccess { weather ->
-                    currentView.findViewById<View?>(R.id.home_weather_widget)
-                        ?.setTag(R.id.home_weather_widget, System.currentTimeMillis())
-                    temperature?.text = "${weather.temperature.toInt()}$temperatureSymbol"
-                    icon?.text = weather.icon
-                    currentCondition?.text =
-                        currentView.context.getString(weather.descriptionResId)
-                    range?.text = currentView.context.getString(
-                        R.string.weather_range,
-                        weather.high.toInt(),
-                        weather.low.toInt(),
-                        temperatureSymbol
-                    )
-                }.onFailure { error ->
-                    Log.w(TAG, "Unable to load weather", error)
-                    currentCondition?.text =
-                        currentView.context.getString(R.string.weather_unavailable)
-                    range?.text = currentView.context.getString(R.string.weather_retry)
-                }
-            }
-        }.apply {
-            name = "weather-widget-loader"
-            start()
-        }
-    }
-
-    private fun loadWeather(temperatureUnit: String): Weather {
-        require(
-            temperatureUnit == WeatherWidgetPreferences.CELSIUS ||
-                temperatureUnit == WeatherWidgetPreferences.FAHRENHEIT
-        )
-        val apiTemperatureUnit = if (temperatureUnit == WeatherWidgetPreferences.CELSIUS) {
-            "celsius"
-        } else {
-            "fahrenheit"
-        }
-        val url = URL(
-            "https://api.open-meteo.com/v1/forecast" +
-                "?latitude=20.9947&longitude=105.8066" +
-                "&current=temperature_2m,weather_code" +
-                "&daily=temperature_2m_max,temperature_2m_min" +
-                "&temperature_unit=$apiTemperatureUnit" +
-                "&timezone=Asia%2FBangkok&forecast_days=1"
-        )
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            connectTimeout = 8000
-            readTimeout = 8000
-            requestMethod = "GET"
-        }
-        try {
-            if (connection.responseCode !in 200..299) {
-                throw IOException("Weather service returned HTTP ${connection.responseCode}")
-            }
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(response)
-            val current = json.getJSONObject("current")
-            val daily = json.getJSONObject("daily")
-            val weatherCode = current.getInt("weather_code")
-            return Weather(
-                temperature = current.getDouble("temperature_2m"),
-                high = daily.getJSONArray("temperature_2m_max").getDouble(0),
-                low = daily.getJSONArray("temperature_2m_min").getDouble(0),
-                descriptionResId = weatherDescription(weatherCode),
-                icon = weatherIcon(weatherCode)
-            )
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun weatherDescription(code: Int): Int = when (code) {
-        0 -> R.string.weather_clear
-        1, 2 -> R.string.weather_partly_cloudy
-        3 -> R.string.weather_cloudy
-        45, 48 -> R.string.weather_fog
-        in 51..57 -> R.string.weather_drizzle
-        in 61..67, in 80..82 -> R.string.weather_rain
-        in 71..77, 85, 86 -> R.string.weather_snow
-        in 95..99 -> R.string.weather_thunderstorm
-        else -> R.string.weather_current
-    }
-
-    private fun weatherIcon(code: Int): String = when (code) {
-        0 -> "☀"
-        1, 2 -> "🌤"
-        3 -> "☁"
-        45, 48 -> "🌫"
-        in 51..67, in 80..82 -> "🌧"
-        in 71..77, 85, 86 -> "❄"
-        in 95..99 -> "⛈"
-        else -> "☁"
-    }
-
     private fun openCalendar() {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALENDAR)
         if (intent.resolveActivity(requireContext().packageManager) != null) {
@@ -495,6 +345,5 @@ abstract class HomeScreenFragment : Fragment() {
 
     private companion object {
         const val TAG = "HomeScreenFragment"
-        const val WEATHER_REFRESH_INTERVAL_MS = 15 * 60 * 1000L
     }
 }
