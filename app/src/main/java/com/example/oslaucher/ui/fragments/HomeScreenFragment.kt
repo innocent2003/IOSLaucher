@@ -1,6 +1,13 @@
 package com.example.oslaucher.ui.fragments
 
 import android.annotation.SuppressLint
+import android.Manifest
+import android.content.ContentUris
+import android.content.pm.PackageManager
+import android.graphics.Typeface
+import android.provider.CalendarContract
+import android.util.TypedValue
+import androidx.activity.result.contract.ActivityResultContracts
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -75,7 +82,7 @@ abstract class HomeScreenFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         if (!isReusedView) setUpRoot(view)
-        view.findViewById<View>(R.id.home_settings).setOnClickListener {
+        view.findViewById<View?>(R.id.home_settings)?.setOnClickListener {
             (activity as? HomeScreenActions)?.openSettings()
         }
         view.findViewById<View?>(R.id.home_weather_widget)?.setOnClickListener {
@@ -83,6 +90,11 @@ abstract class HomeScreenFragment : Fragment() {
         }
         view.findViewById<View?>(R.id.home_calendar_widget)?.setOnClickListener {
             openCalendar()
+        }
+        // Tapping "today" asks once for calendar access so today's events can be shown.
+        view.findViewById<View?>(R.id.home_calendar_today)?.setOnClickListener {
+            if (hasCalendarPermission()) openCalendar()
+            else calendarPermissionLauncher.launch(Manifest.permission.READ_CALENDAR)
         }
         updateWidgets(view)
     }
@@ -191,34 +203,31 @@ abstract class HomeScreenFragment : Fragment() {
         val dayKey = "${calendar.get(Calendar.YEAR)}-${calendar.get(Calendar.MONTH)}-" +
             calendar.get(Calendar.DAY_OF_MONTH)
         // updateWidgets runs on every battery/time tick broadcast and on every re-used page;
-        // rebuilding 49 cells drops frames, so only redraw when the day changes. The day is
+        // rebuilding the cells drops frames, so only redraw when the day changes. The day is
         // kept on the grid itself so it survives the page being re-used by a new fragment.
         if (grid.tag == dayKey && grid.childCount > 0) return
         grid.tag = dayKey
-        monthView.text = SimpleDateFormat("MMMM yyyy", locale).format(now)
-            .uppercase(locale)
 
-        grid.removeAllViews()
-        val weekdayFormatter = SimpleDateFormat("EE", locale)
-        val weekday = Calendar.getInstance().apply {
-            set(1970, Calendar.JANUARY, 5)
-        }
-        repeat(7) { column ->
-            addCalendarCell(
-                grid,
-                weekdayFormatter.format(weekday.time).uppercase(locale),
-                0,
-                column,
-                false
-            )
-            weekday.add(Calendar.DAY_OF_MONTH, 1)
-        }
+        // Left side: "THỨ BA" / "17" / today's events.
+        root.findViewById<TextView?>(R.id.home_calendar_weekday)?.text =
+            SimpleDateFormat("EEEE", locale).format(now).uppercase(locale)
+        root.findViewById<TextView?>(R.id.home_calendar_day)?.text =
+            calendar.get(Calendar.DAY_OF_MONTH).toString()
+        updateTodayEvents(root)
 
+        // Right side: "THÁNG 11", M T W T F S S and the days, today in a red circle.
+        monthView.text = SimpleDateFormat("LLLL", locale).format(now).uppercase(locale)
         val firstDay = calendar.clone() as Calendar
         firstDay.set(Calendar.DAY_OF_MONTH, 1)
         val offset = (firstDay.get(Calendar.DAY_OF_WEEK) + 5) % 7
         val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-        for (index in 0 until 42) {
+        val weekRows = (offset + daysInMonth + 6) / 7
+        grid.removeAllViews()
+        grid.rowCount = weekRows + 1
+        listOf("M", "T", "W", "T", "F", "S", "S").forEachIndexed { column, label ->
+            addCalendarCell(grid, label, 0, column, false)
+        }
+        for (index in 0 until weekRows * 7) {
             val day = index - offset + 1
             val validDay = day in 1..daysInMonth
             val isToday = validDay && day == calendar.get(Calendar.DAY_OF_MONTH)
@@ -230,7 +239,73 @@ abstract class HomeScreenFragment : Fragment() {
                 isToday
             )
         }
+    }
 
+    private fun hasCalendarPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.READ_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+
+    private val calendarPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            view?.let(::updateTodayEvents)
+        }
+
+    /** Shows today's first event (and how many more), read in the background. */
+    private fun updateTodayEvents(root: View) {
+        val eventsView = root.findViewById<TextView?>(R.id.home_calendar_events) ?: return
+        if (!hasCalendarPermission()) {
+            eventsView.text = getString(R.string.calendar_tap_for_events)
+            return
+        }
+        val resolver = requireContext().applicationContext.contentResolver
+        val noEvents = getString(R.string.calendar_no_events_today)
+        Thread {
+            val titles = try {
+                val start = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val end = (start.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, 1) }
+                val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().also {
+                    ContentUris.appendId(it, start.timeInMillis)
+                    ContentUris.appendId(it, end.timeInMillis)
+                }.build()
+                resolver.query(
+                    uri,
+                    arrayOf(CalendarContract.Instances.TITLE),
+                    null,
+                    null,
+                    "${CalendarContract.Instances.BEGIN} ASC"
+                )?.use { cursor ->
+                    buildList {
+                        while (cursor.moveToNext()) {
+                            cursor.getString(0)?.takeIf { it.isNotBlank() }?.let(::add)
+                        }
+                    }
+                }.orEmpty()
+            } catch (error: SecurityException) {
+                Log.w(TAG, "Calendar permission revoked", error)
+                emptyList()
+            }
+            Handler(Looper.getMainLooper()).post {
+                eventsView.text = when (titles.size) {
+                    0 -> noEvents
+                    1 -> titles.first()
+                    else -> eventsView.context.getString(
+                        R.string.calendar_more_events,
+                        titles.first(),
+                        titles.size - 1
+                    )
+                }
+            }
+        }.apply {
+            name = "calendar-events-loader"
+            start()
+        }
     }
 
     private fun addCalendarCell(
@@ -243,26 +318,28 @@ abstract class HomeScreenFragment : Fragment() {
         val cell = TextView(requireContext()).apply {
             this.text = text
             gravity = Gravity.CENTER
-            textSize = if (row == 0) 9f else 10f
-            setTextColor(if (row == 0) 0xFFBFC8D2.toInt() else Color.WHITE)
+            includeFontPadding = false
+            // dp, not sp: a large system font must not overflow the fixed-height card.
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, 10.5f)
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.WHITE)
             if (isToday) {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(0xFFE74C5B.toInt())
+                    setColor(0xFFC0392B.toInt())
                 }
             }
         }
-        // Use weight=1f on both axes so GridLayout can distribute space freely without
-        // generating the 'constraints are inconsistent' warning that appears when fixed
-        // heights exceed the available space (skips frames on every calendar redraw).
-        val params = GridLayout.LayoutParams(
-            GridLayout.spec(row, 1f),
-            GridLayout.spec(column, 1f)
-        ).apply {
-            width = 0
-            height = 0
-        }
-        grid.addView(cell, params)
+        grid.addView(
+            cell,
+            GridLayout.LayoutParams(
+                GridLayout.spec(row, 1f),
+                GridLayout.spec(column, 1f)
+            ).apply {
+                width = 0
+                height = 0
+            }
+        )
     }
 
     @SuppressLint("StringFormatMatches")
