@@ -138,6 +138,8 @@ class HomeFragment : HomeScreenFragment() {
         val rating = adView.findViewById<TextView>(R.id.home_ad_rating)
         val cta = adView.findViewById<Button>(R.id.home_ad_cta)
 
+        // Clip the ad image to the rounded media background.
+        media.clipToOutline = true
         adView.mediaView = media
         adView.headlineView = headline
         adView.starRatingView = rating

@@ -20,8 +20,10 @@ object LauncherWallpaper {
      * No storage permission and no bitmap decoding are needed, and swipes stay light because
      * pages no longer carry a full-screen wallpaper bitmap.
      */
+    @Suppress("UNUSED_PARAMETER")
     fun applyTo(view: View): Boolean {
-        if (view.background != null) view.background = null
+        // Nothing to paint: the window already shows the system wallpaper. Screens keep
+        // their own background (e.g. the translucent black scrim of screen 1).
         return true
     }
 
