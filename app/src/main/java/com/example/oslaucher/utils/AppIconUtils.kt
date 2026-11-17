@@ -30,7 +30,7 @@ object AppIconUtils {
             stream.use { input ->
                 Drawable.createFromStream(input, null)
                     ?: throw IOException("Unable to decode custom icon")
-            }.also { drawable ->
+            }.let { IconShapeUtils.normalize(context, it) }.also { drawable ->
                 // Cache successful loads to avoid repeated disk I/O on every redraw
                 iconCache.put(iconUri, drawable)
             }
