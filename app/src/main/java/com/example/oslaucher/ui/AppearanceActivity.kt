@@ -22,7 +22,7 @@ import com.example.oslaucher.R
 
 class AppearanceActivity : AppCompatActivity() {
     private lateinit var preferences: SharedPreferences
-    private var selectedMode = LIGHT_MODE
+    private var selectedMode = DARK_MODE
     private var autoEnabled = true
     private var systemEnabled = false
 
@@ -48,7 +48,8 @@ class AppearanceActivity : AppCompatActivity() {
         }
 
         preferences = getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-        selectedMode = preferences.getInt(MODE_KEY, LIGHT_MODE).coerceIn(LIGHT_MODE, DARK_MODE)
+        // Dark is the default until the user picks another mode.
+        selectedMode = preferences.getInt(MODE_KEY, DARK_MODE).coerceIn(LIGHT_MODE, DARK_MODE)
         autoEnabled = preferences.getBoolean(AUTO_KEY, true)
         systemEnabled = preferences.getBoolean(SYSTEM_KEY, false)
 

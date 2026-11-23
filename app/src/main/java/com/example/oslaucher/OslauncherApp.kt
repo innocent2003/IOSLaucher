@@ -29,7 +29,8 @@ class OslauncherApp : Application() {
             val nightMode = when {
                 prefs.getBoolean(SYSTEM_KEY, false) ->
                     AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-                prefs.getInt(MODE_KEY, LIGHT_MODE) == DARK_MODE ->
+                // Dark is the default until the user picks another mode.
+                prefs.getInt(MODE_KEY, DARK_MODE) == DARK_MODE ->
                     AppCompatDelegate.MODE_NIGHT_YES
                 else -> AppCompatDelegate.MODE_NIGHT_NO
             }
