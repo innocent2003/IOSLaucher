@@ -2409,16 +2409,23 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     private fun showAppOptions(app: AppInfo, anchor: View) {
         val popupView = LayoutInflater.from(this).inflate(R.layout.popup_app_actions, null)
+        // Full-screen layer: dims everything, shows a lit copy of the pressed icon on top of
+        // the dim, and the menu card next to it. Tapping the dimmed area closes it.
+        val overlay = FrameLayout(this).apply {
+            setBackgroundColor(APP_MENU_SCRIM_COLOR)
+            isClickable = true
+            alpha = 0f
+        }
         val popupWindow = PopupWindow(
-            popupView,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
+            overlay,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
             true
         )
         popupWindow.setBackgroundDrawable(ColorDrawable(0x00000000))
-        popupWindow.isOutsideTouchable = true
+        popupWindow.isClippingEnabled = false
         popupWindow.isFocusable = true
-        popupWindow.elevation = 18f
+        overlay.setOnClickListener { popupWindow.dismiss() }
         appOptionsPopup = popupWindow
         popupWindow.setOnDismissListener {
             if (appOptionsPopup === popupWindow) {
@@ -2476,13 +2483,94 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             popupWindow.dismiss()
         }
 
-        val anchorLocation = IntArray(2)
-        anchor.getLocationOnScreen(anchorLocation)
-        val screenWidth = resources.displayMetrics.widthPixels
-        val popupWidth = popupView.measuredWidth.takeIf { it > 0 } ?: dp(220)
-        val x = (anchorLocation[0] + anchor.width / 2 - popupWidth / 2).coerceIn(0, screenWidth - popupWidth)
-        val y = (anchorLocation[1] + anchor.height / 2).coerceAtLeast(0)
-        popupWindow.showAtLocation(anchor, Gravity.NO_GRAVITY, x, y)
+        // Lit copy of the pressed icon (and its label), drawn above the dim with a soft halo.
+        val sourceIcon = anchor.findViewById<ImageView?>(R.id.app_icon) ?: (anchor as? ImageView)
+        val sourceLabel = anchor.findViewById<TextView?>(R.id.app_name)
+        val iconWidth = sourceIcon?.width?.takeIf { it > 0 } ?: anchor.width
+        val iconHeight = sourceIcon?.height?.takeIf { it > 0 } ?: anchor.height
+        val haloSize = (maxOf(iconWidth, iconHeight) * 1.7f).roundToInt()
+        val halo = View(this).apply {
+            background = GradientDrawable().apply {
+                gradientType = GradientDrawable.RADIAL_GRADIENT
+                gradientRadius = haloSize / 2f
+                colors = intArrayOf(0x66FFFFFF, 0x00FFFFFF)
+            }
+        }
+        val iconCopy = ImageView(this).apply {
+            val drawable = sourceIcon?.drawable ?: AppIconUtils.getIcon(this@MainActivity, app)
+            setImageDrawable(drawable.constantState?.newDrawable(resources)?.mutate() ?: drawable)
+            scaleType = sourceIcon?.scaleType ?: ImageView.ScaleType.FIT_CENTER
+            sourceIcon?.let { setPadding(it.paddingLeft, it.paddingTop, it.paddingRight, it.paddingBottom) }
+            isClickable = true
+            setOnClickListener {
+                popupWindow.dismiss()
+                launchHomeScreenApp(app.packageName)
+            }
+        }
+        val labelCopy = sourceLabel?.takeIf { it.text.isNotEmpty() }?.let { label ->
+            TextView(this).apply {
+                text = label.text
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(0xFFFFFFFF.toInt())
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, label.textSize)
+                setShadowLayer(4f, 0f, 1f, 0x99000000.toInt())
+            }
+        }
+        overlay.addView(halo, FrameLayout.LayoutParams(haloSize, haloSize))
+        overlay.addView(iconCopy, FrameLayout.LayoutParams(iconWidth, iconHeight))
+        val labelWidth = sourceLabel?.width?.takeIf { it > 0 } ?: ViewGroup.LayoutParams.WRAP_CONTENT
+        labelCopy?.let {
+            overlay.addView(it, FrameLayout.LayoutParams(labelWidth, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        overlay.addView(
+            popupView,
+            FrameLayout.LayoutParams(dp(240), ViewGroup.LayoutParams.WRAP_CONTENT)
+        )
+
+        overlay.addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
+            override fun onLayoutChange(
+                v: View, left: Int, top: Int, right: Int, bottom: Int,
+                oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
+            ) {
+                overlay.removeOnLayoutChangeListener(this)
+                val origin = IntArray(2).also(overlay::getLocationOnScreen)
+                val iconLocation = IntArray(2).also { (sourceIcon ?: anchor).getLocationOnScreen(it) }
+                val iconX = (iconLocation[0] - origin[0]).toFloat()
+                val iconY = (iconLocation[1] - origin[1]).toFloat()
+                iconCopy.translationX = iconX
+                iconCopy.translationY = iconY
+                halo.translationX = iconX + iconWidth / 2f - haloSize / 2f
+                halo.translationY = iconY + iconHeight / 2f - haloSize / 2f
+                var bottomOfPressed = iconY + iconHeight
+                if (labelCopy != null && sourceLabel != null) {
+                    val labelLocation = IntArray(2).also(sourceLabel::getLocationOnScreen)
+                    labelCopy.translationX = (labelLocation[0] - origin[0]).toFloat()
+                    labelCopy.translationY = (labelLocation[1] - origin[1]).toFloat()
+                    bottomOfPressed = labelCopy.translationY + labelCopy.height
+                }
+                // Menu below the icon when it fits, otherwise above it; centred and kept on screen.
+                val margin = dp(12)
+                val gap = dp(10)
+                val menuWidth = popupView.width
+                val menuHeight = popupView.height
+                popupView.translationX = (iconX + iconWidth / 2f - menuWidth / 2f)
+                    .coerceIn(margin.toFloat(), (overlay.width - menuWidth - margin).toFloat())
+                val below = bottomOfPressed + gap
+                popupView.translationY = if (below + menuHeight <= overlay.height - margin) {
+                    below
+                } else {
+                    (iconY - gap - menuHeight).coerceAtLeast(margin.toFloat())
+                }
+            }
+        })
+
+        popupWindow.showAtLocation(anchor, Gravity.NO_GRAVITY, 0, 0)
+        overlay.animate().alpha(1f).setDuration(120L).start()
+        iconCopy.scaleX = 1f
+        iconCopy.scaleY = 1f
+        iconCopy.animate().scaleX(1.08f).scaleY(1.08f).setDuration(160L).start()
     }
 
     private fun showHomeEditMenu(anchor: View) {
@@ -5617,6 +5705,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val WIDGET_HORIZONTAL_GAP_DP = APP_GRID_COLUMN_SPACING_DP
         const val WIDGET_SIDE_INSET_DP = 12
         const val WIDGET_VERTICAL_GAP_DP = 0
+        val APP_MENU_SCRIM_COLOR: Int = 0x99000000.toInt()
         const val FOLDER_CORNER_RATIO = 0.225f
         const val FOLDER_FILL_COLOR = 0x59D8DCE2
         const val FOLDER_STROKE_COLOR = 0x33FFFFFF
