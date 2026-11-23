@@ -10,11 +10,7 @@ class OslauncherApp : Application() {
     override fun onCreate() {
         super.onCreate()
         applyNightMode(this)
-        // Initialise AdMob off the main thread so it never delays the first launcher frame.
-        Thread { MobileAds.initialize(this) }.apply {
-            name = "admob-init"
-            start()
-        }
+        MobileAds.initialize(this)
     }
 
     companion object {
