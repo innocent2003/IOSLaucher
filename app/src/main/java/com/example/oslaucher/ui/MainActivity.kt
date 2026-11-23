@@ -91,6 +91,7 @@ import com.example.oslaucher.ui.fragments.HomeSecondFragment
 import com.example.oslaucher.ui.widgets.AppPagesLayout
 import com.example.oslaucher.ui.widgets.LauncherWidgetFactory
 import com.example.oslaucher.utils.AppIconUtils
+import com.example.oslaucher.utils.CalendarIconUtils
 import com.example.oslaucher.utils.DefaultLayoutPlanner
 import com.example.oslaucher.utils.IconMetrics
 import com.example.oslaucher.utils.HiddenAppsPreferences
@@ -341,6 +342,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var defaultHomeActive = false
     private var settingsReturnScreen: Screen? = null
     private var cachedAppsScreen: View? = null
+    /** Day the calendar app icon was last drawn for; re-render icons when it changes. */
+    private var calendarIconDayKey: String? = null
+    private var dayChangedReceiverRegistered = false
+    private val dayChangedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) = refreshCalendarIconIfDayChanged()
+    }
     /** Built home pages (screen 1 / screen 2) kept for re-use across swipes. */
     private val homeScreenViewCache = mutableMapOf<Int, View>()
     private var appsScreenNeedsRender = false
@@ -1879,6 +1886,16 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         appGridOrderPackages.clear()
         appGridOrderPackages.addAll(leading + remaining)
         saveAppGridOrder()
+    }
+
+    /** Redraws icons (grid, dock, folders, home pages) once the date has changed. */
+    private fun refreshCalendarIconIfDayChanged() {
+        val dayKey = CalendarIconUtils.dayKey(this)
+        val previous = calendarIconDayKey
+        calendarIconDayKey = dayKey
+        if (previous == null || previous == dayKey) return
+        homeScreenViewCache.entries.removeAll { it.value.parent == null }
+        installedApps?.let { renderApps?.invoke(it) }
     }
 
     override fun cachedHomeScreenView(layoutResId: Int): View? =
@@ -5550,9 +5567,25 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         wallpaperReceiverRegistered = true
+        ContextCompat.registerReceiver(
+            this,
+            dayChangedReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_DATE_CHANGED)
+                addAction(Intent.ACTION_TIME_CHANGED)
+                addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        dayChangedReceiverRegistered = true
+        refreshCalendarIconIfDayChanged()
     }
 
     override fun onStop() {
+        if (dayChangedReceiverRegistered) {
+            unregisterReceiver(dayChangedReceiver)
+            dayChangedReceiverRegistered = false
+        }
         if (wallpaperReceiverRegistered) {
             unregisterReceiver(wallpaperChangedReceiver)
             wallpaperReceiverRegistered = false
