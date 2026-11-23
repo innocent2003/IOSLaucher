@@ -1708,6 +1708,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     refreshSelectionWiggle()
                     appsGridRendered = true
+                    view.findViewById<View?>(R.id.apps_loading)?.visibility = View.GONE
                 }
 
                 view.findViewById<View>(R.id.apps_selection_cancel).setOnClickListener {

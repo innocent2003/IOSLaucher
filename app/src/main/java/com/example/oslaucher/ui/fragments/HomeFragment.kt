@@ -73,7 +73,7 @@ class HomeFragment : HomeScreenFragment() {
         grid.removeAllViews()
         val context = grid.context
         val iconSize = IconMetrics.iconSizePx(context)
-        val cellPadding = (6 * resources.displayMetrics.density).toInt()
+        val cellPadding = (6 * grid.resources.displayMetrics.density).toInt()
         apps.forEachIndexed { index, app ->
             val icon = ImageView(context).apply {
                 setImageDrawable(AppIconUtils.getIcon(context, app))
@@ -149,7 +149,11 @@ class HomeFragment : HomeScreenFragment() {
         nativeAd.mediaContent?.let { media.mediaContent = it }
         val stars = nativeAd.starRating
         rating.visibility = if (stars != null && stars > 0) View.VISIBLE else View.GONE
-        rating.text = stars?.let { String.format(resources.configuration.locales[0], "%.1f ★", it) }
+        // Use the view's resources, never the fragment's: the ad usually arrives a few seconds
+        // later, when the user may already have swiped away and this fragment is detached
+        // (fragment.resources then throws and crashed the launcher).
+        val locale = adView.resources.configuration.locales[0]
+        rating.text = stars?.let { String.format(locale, "%.1f ★", it) }
         cta.visibility = if (nativeAd.callToAction.isNullOrBlank()) View.INVISIBLE else View.VISIBLE
         cta.text = nativeAd.callToAction
 

@@ -150,10 +150,13 @@ class HomeSecondFragment : HomeScreenFragment() {
         cta.visibility = if (nativeAd.callToAction.isNullOrBlank()) View.GONE else View.VISIBLE
 
         adView.setNativeAd(nativeAd)
-        (adBlock ?: view?.findViewById(R.id.home_library_ad))?.visibility = View.VISIBLE
+        // The ad block is the ad view's parent; do not go through the fragment, which may be
+        // detached by the time the ad arrives.
+        (adView.parent as? View)?.visibility = View.VISIBLE
     }
 
     private fun renderFolders(folders: GridLayout, apps: List<AppInfo>) {
+        view?.findViewById<View?>(R.id.home_folders_loading)?.visibility = View.GONE
         // Capture the activity (not this fragment) in click handlers: the built page outlives
         // this fragment instance when it is re-used.
         val actions = activity as? HomeScreenActions

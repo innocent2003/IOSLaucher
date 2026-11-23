@@ -166,6 +166,15 @@
             android:paddingEnd="10dp" />
     </LinearLayout>
 
+    <!-- Shown until the installed apps are loaded and the grid is built. -->
+    <ProgressBar
+        android:id="@+id/apps_loading"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="center"
+        android:indeterminateTint="#FFFFFF" />
+
     <FrameLayout
         android:id="@+id/apps_widget_container"
         android:layout_width="match_parent"
