@@ -177,4 +177,9 @@
     <string name="wallpaper_applied">Home screen wallpaper set.</string>
     <string name="wallpaper_cannot_apply_detail">Could not set wallpaper: %1$s</string>
     <string name="wallpaper_no_permission">This device does not allow setting wallpaper.</string>
+    <string name="ad_badge">AD</string>
+    <string name="calendar_no_events_today">No events today</string>
+    <string name="calendar_tap_for_events">Tap to show today\'s events</string>
+    <string name="calendar_more_events">%1$s and %2$d more</string>
+    <string name="ad_caption">Ad</string>
 </resources>

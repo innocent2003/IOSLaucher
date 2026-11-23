@@ -18,7 +18,9 @@ object AppIconUtils {
 
     fun getIcon(context: Context, app: AppInfo): Drawable {
         val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-        val iconUri = preferences.getString(iconKey(app.packageName), null) ?: return app.icon
+        // A custom icon chosen by the user wins; otherwise the calendar app gets its live icon.
+        val iconUri = preferences.getString(iconKey(app.packageName), null)
+            ?: return CalendarIconUtils.iconFor(context, app.packageName) ?: app.icon
 
         // Return cached drawable if available
         iconCache.get(iconUri)?.let { return it }
@@ -30,7 +32,7 @@ object AppIconUtils {
             stream.use { input ->
                 Drawable.createFromStream(input, null)
                     ?: throw IOException("Unable to decode custom icon")
-            }.also { drawable ->
+            }.let { IconShapeUtils.normalize(context, it) }.also { drawable ->
                 // Cache successful loads to avoid repeated disk I/O on every redraw
                 iconCache.put(iconUri, drawable)
             }

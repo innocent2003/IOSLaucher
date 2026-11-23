@@ -1,5 +1,6 @@
 package com.example.oslaucher.utils
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -9,7 +10,14 @@ import java.util.Locale
 
 
 object InstalledAppUtils {
-    fun queryLaunchableApps(packageManager: PackageManager): List<AppInfo> {
+    /**
+     * @param context when given, icons are redrawn to the launcher's uniform rounded shape
+     *   (skip it when only names/packages are needed, e.g. refreshing the cache).
+     */
+    fun queryLaunchableApps(
+        packageManager: PackageManager,
+        context: Context? = null
+    ): List<AppInfo> {
         val launchIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val collator = Collator.getInstance(Locale.getDefault())
 
@@ -58,14 +66,25 @@ object InstalledAppUtils {
             AppInfo(
                 packageName = appInfo.packageName,
                 name = packageManager.getApplicationLabel(appInfo).toString(),
-                icon = packageManager.getApplicationIcon(appInfo)
+                icon = packageManager.getApplicationIcon(appInfo).let { icon ->
+                    context?.let { IconShapeUtils.normalize(it, icon) } ?: icon
+                }
             )
         }
     }
 
-    fun loadCachedApp(packageManager: PackageManager, packageName: String, name: String): AppInfo? {
+    fun loadCachedApp(
+        context: Context,
+        packageManager: PackageManager,
+        packageName: String,
+        name: String
+    ): AppInfo? {
         return try {
-            AppInfo(packageName, name, packageManager.getApplicationIcon(packageName))
+            AppInfo(
+                packageName,
+                name,
+                IconShapeUtils.normalize(context, packageManager.getApplicationIcon(packageName))
+            )
         } catch (_: PackageManager.NameNotFoundException) {
             null
         }

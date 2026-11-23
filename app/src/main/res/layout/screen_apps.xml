@@ -2,8 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/main"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/bg_wallpaper">
+    android:layout_height="match_parent">
 
     <LinearLayout
         android:id="@+id/apps_content"
@@ -15,11 +14,19 @@
         android:paddingEnd="12dp"
         android:paddingBottom="8dp">
 
+        <!-- One slot for the mode bars: edit (Sửa/Xong) and selection (✕ / count / folder)
+             replace each other here instead of stacking. -->
+        <FrameLayout
+            android:id="@+id/apps_mode_bar"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_marginTop="8dp"
+            android:visibility="gone">
+
         <LinearLayout
             android:id="@+id/apps_edit_controls"
             android:layout_width="match_parent"
             android:layout_height="40dp"
-            android:layout_marginTop="8dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:visibility="gone">
@@ -94,6 +101,7 @@
                 android:src="@drawable/ic_folder_add"
                 android:tint="#FFFFFF" />
         </LinearLayout>
+        </FrameLayout>
 
         <com.example.oslaucher.ui.widgets.AppPagesLayout
             android:id="@+id/apps_pages"
@@ -157,6 +165,15 @@
             android:paddingStart="10dp"
             android:paddingEnd="10dp" />
     </LinearLayout>
+
+    <!-- Shown until the installed apps are loaded and the grid is built. -->
+    <ProgressBar
+        android:id="@+id/apps_loading"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="center"
+        android:indeterminateTint="#FFFFFF" />
 
     <FrameLayout
         android:id="@+id/apps_widget_container"

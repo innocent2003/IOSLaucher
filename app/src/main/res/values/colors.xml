@@ -27,4 +27,6 @@
     <color name="weather_widget_divider">#55FFFFFF</color>
     <color name="weather_widget_text_primary">#FFFFFFFF</color>
     <color name="weather_widget_text_secondary">#E6FFFFFF</color>
+    <!-- Translucent black over the wallpaper on screen 1, as in the design. -->
+    <color name="home_screen_scrim">#99000000</color>
 </resources>

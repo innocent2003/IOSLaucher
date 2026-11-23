@@ -91,6 +91,7 @@ import com.example.oslaucher.ui.fragments.HomeSecondFragment
 import com.example.oslaucher.ui.widgets.AppPagesLayout
 import com.example.oslaucher.ui.widgets.LauncherWidgetFactory
 import com.example.oslaucher.utils.AppIconUtils
+import com.example.oslaucher.utils.CalendarIconUtils
 import com.example.oslaucher.utils.DefaultLayoutPlanner
 import com.example.oslaucher.utils.IconMetrics
 import com.example.oslaucher.utils.HiddenAppsPreferences
@@ -341,6 +342,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var defaultHomeActive = false
     private var settingsReturnScreen: Screen? = null
     private var cachedAppsScreen: View? = null
+    /** Day the calendar app icon was last drawn for; re-render icons when it changes. */
+    private var calendarIconDayKey: String? = null
+    private var dayChangedReceiverRegistered = false
+    private val dayChangedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) = refreshCalendarIconIfDayChanged()
+    }
     /** Built home pages (screen 1 / screen 2) kept for re-use across swipes. */
     private val homeScreenViewCache = mutableMapOf<Int, View>()
     private var appsScreenNeedsRender = false
@@ -1321,6 +1328,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 val pageIndicator = view.findViewById<LinearLayout>(R.id.apps_page_indicator)
                 val editControls = view.findViewById<LinearLayout>(R.id.apps_edit_controls)
                 val selectionBar = view.findViewById<LinearLayout>(R.id.apps_selection_bar)
+                val modeBar = view.findViewById<View>(R.id.apps_mode_bar)
                 val selectionCount = view.findViewById<TextView>(R.id.apps_selection_count)
                 appsGridRendered = false
                 appsPages = pages
@@ -1605,8 +1613,12 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     pages.displayedChild = appPageIndex
                     updateAppPageIndicator()
+                    // Only one mode bar at a time, both in the same slot (apps_mode_bar).
                     selectionBar.visibility = if (isAppSelectionMode) View.VISIBLE else View.GONE
-                    editControls.visibility = if (isHomeEditMode) View.VISIBLE else View.GONE
+                    editControls.visibility =
+                        if (isHomeEditMode && !isAppSelectionMode) View.VISIBLE else View.GONE
+                    modeBar.visibility =
+                        if (isAppSelectionMode || isHomeEditMode) View.VISIBLE else View.GONE
                     selectionCount.text = getString(
                         R.string.selected_apps,
                         selectedAppPackages.size
@@ -1703,6 +1715,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     }
                     refreshSelectionWiggle()
                     appsGridRendered = true
+                    view.findViewById<View?>(R.id.apps_loading)?.visibility = View.GONE
                 }
 
                 view.findViewById<View>(R.id.apps_selection_cancel).setOnClickListener {
@@ -1873,6 +1886,16 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         appGridOrderPackages.clear()
         appGridOrderPackages.addAll(leading + remaining)
         saveAppGridOrder()
+    }
+
+    /** Redraws icons (grid, dock, folders, home pages) once the date has changed. */
+    private fun refreshCalendarIconIfDayChanged() {
+        val dayKey = CalendarIconUtils.dayKey(this)
+        val previous = calendarIconDayKey
+        calendarIconDayKey = dayKey
+        if (previous == null || previous == dayKey) return
+        homeScreenViewCache.entries.removeAll { it.value.parent == null }
+        installedApps?.let { renderApps?.invoke(it) }
     }
 
     override fun cachedHomeScreenView(layoutResId: Int): View? =
@@ -2418,10 +2441,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }
 
         popupView.findViewById<View>(R.id.app_action_select).setOnClickListener {
-            isAppSelectionMode = true
-            selectedAppPackages.clear()
-            selectedAppPackages.add(app.packageName)
-            installedApps?.let { renderApps?.invoke(it) }
+            enterAppSelectionMode(app.packageName)
             popupWindow.dismiss()
         }
 
@@ -2792,13 +2812,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         // Start the widget layer exactly where the icon grid starts (below the edit/selection
         // bars when they are shown), so widget row 0 lines up with icon row 0.
         var inset = content?.paddingTop ?: 0
-        listOf(R.id.apps_edit_controls, R.id.apps_selection_bar).forEach { id ->
-            val bar = root.findViewById<View?>(id) ?: return@forEach
-            if (bar.visibility == View.GONE) return@forEach
-            val params = bar.layoutParams as? ViewGroup.MarginLayoutParams
-            inset += (params?.topMargin ?: 0) + (params?.height?.takeIf { it > 0 } ?: bar.height) +
-                (params?.bottomMargin ?: 0)
-        }
+        root.findViewById<View?>(R.id.apps_mode_bar)
+            ?.takeIf { it.visibility != View.GONE }
+            ?.let { bar ->
+                val params = bar.layoutParams as? ViewGroup.MarginLayoutParams
+                inset += (params?.topMargin ?: 0) +
+                    (params?.height?.takeIf { it > 0 } ?: bar.height) +
+                    (params?.bottomMargin ?: 0)
+            }
         inset += (appsPages?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
         listOfNotNull(container, appsIncomingWidgetContainer).forEach { layer ->
             if (layer.paddingTop != inset) {
@@ -3432,9 +3453,23 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         updateDragShadowFromScreen(dragLastRawX, dragLastRawY)
     }
 
+    /**
+     * Edit mode (Sửa/Xong) and app selection mode (✕ / n đã chọn / folder) are exclusive:
+     * entering one leaves the other, so their bars swap in place instead of stacking.
+     */
     private fun enterHomeEditMode() {
-        if (isHomeEditMode) return
+        if (isHomeEditMode && !isAppSelectionMode) return
         isHomeEditMode = true
+        isAppSelectionMode = false
+        selectedAppPackages.clear()
+        installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    private fun enterAppSelectionMode(packageName: String) {
+        isHomeEditMode = false
+        isAppSelectionMode = true
+        selectedAppPackages.clear()
+        selectedAppPackages.add(packageName)
         installedApps?.let { renderApps?.invoke(it) }
     }
 
@@ -5136,28 +5171,45 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         state.root.removeView(state.label)
     }
 
+    /**
+     * Folder tile: a translucent rounded square (same corner radius as app icons) showing up
+     * to 9 of its apps in a 3 x 3 grid, like the reference launcher.
+     */
     private fun createFolderIcon(apps: List<AppInfo>): Drawable {
         val size = (96 * resources.displayMetrics.density).toInt().coerceAtLeast(1)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFD9C8FF.toInt() }
-        canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), size * 0.2f, size * 0.2f, paint)
-
-        val iconSize = size * 0.34f
-        val inset = size * 0.12f
-        val positions = listOf(
-            inset to inset,
-            (size - inset - iconSize) to inset,
-            inset to (size - inset - iconSize),
-            (size - inset - iconSize) to (size - inset - iconSize)
+        val radius = size * FOLDER_CORNER_RATIO
+        val bounds = RectF(0f, 0f, size.toFloat(), size.toFloat())
+        canvas.drawRoundRect(bounds, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = FOLDER_FILL_COLOR
+        })
+        val strokeWidth = resources.displayMetrics.density
+        canvas.drawRoundRect(
+            RectF(strokeWidth / 2, strokeWidth / 2, size - strokeWidth / 2, size - strokeWidth / 2),
+            radius,
+            radius,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                this.strokeWidth = strokeWidth
+                color = FOLDER_STROKE_COLOR
+            }
         )
-        apps.take(4).forEachIndexed { index, app ->
-            val (left, top) = positions[index]
-            val icon = AppIconUtils.getIcon(this, app)
-                .constantState
-                ?.newDrawable(resources)
-                ?.mutate() ?: AppIconUtils.getIcon(this, app).mutate()
-            icon.setBounds(left.toInt(), top.toInt(), (left + iconSize).toInt(), (top + iconSize).toInt())
+
+        val padding = size * 0.13f
+        val gap = size * 0.055f
+        val cell = (size - padding * 2 - gap * 2) / 3f
+        apps.take(9).forEachIndexed { index, app ->
+            val left = padding + (index % 3) * (cell + gap)
+            val top = padding + (index / 3) * (cell + gap)
+            val source = AppIconUtils.getIcon(this, app)
+            val icon = source.constantState?.newDrawable(resources)?.mutate() ?: source.mutate()
+            icon.setBounds(
+                left.roundToInt(),
+                top.roundToInt(),
+                (left + cell).roundToInt(),
+                (top + cell).roundToInt()
+            )
             icon.draw(canvas)
         }
         return BitmapDrawable(resources, bitmap)
@@ -5231,12 +5283,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                     finishAppDrag()
                     movedApp
                         ?.takeUnless { it.packageName.startsWith(FOLDER_PACKAGE_PREFIX) }
-                        ?.let { app ->
-                            isAppSelectionMode = true
-                            selectedAppPackages.clear()
-                            selectedAppPackages.add(app.packageName)
-                            installedApps?.let { renderApps?.invoke(it) }
-                        }
+                        ?.let { app -> enterAppSelectionMode(app.packageName) }
                     recycleVelocityTracker()
                 }
                 MotionEvent.ACTION_CANCEL -> {
@@ -5520,9 +5567,25 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         wallpaperReceiverRegistered = true
+        ContextCompat.registerReceiver(
+            this,
+            dayChangedReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_DATE_CHANGED)
+                addAction(Intent.ACTION_TIME_CHANGED)
+                addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        dayChangedReceiverRegistered = true
+        refreshCalendarIconIfDayChanged()
     }
 
     override fun onStop() {
+        if (dayChangedReceiverRegistered) {
+            unregisterReceiver(dayChangedReceiver)
+            dayChangedReceiverRegistered = false
+        }
         if (wallpaperReceiverRegistered) {
             unregisterReceiver(wallpaperChangedReceiver)
             wallpaperReceiverRegistered = false
@@ -5554,6 +5617,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val WIDGET_HORIZONTAL_GAP_DP = APP_GRID_COLUMN_SPACING_DP
         const val WIDGET_SIDE_INSET_DP = 12
         const val WIDGET_VERTICAL_GAP_DP = 0
+        const val FOLDER_CORNER_RATIO = 0.225f
+        const val FOLDER_FILL_COLOR = 0x59D8DCE2
+        const val FOLDER_STROKE_COLOR = 0x33FFFFFF
         const val DEFAULT_LAYOUT_PREFERENCES = "launcher_default_layout"
         const val DEFAULT_LAYOUT_APPLIED_KEY = "applied"
         const val GOOGLE_FOLDER_NAME = "Google"

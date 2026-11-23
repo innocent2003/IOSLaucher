@@ -23,11 +23,16 @@ class AnalogClockView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val diameter = min(width, height) - dp(16f)
+        // Keep the face inside the view's padding (so a card can give it breathing room),
+        // plus the original 8dp inset when no padding is set.
+        val contentWidth = width - paddingLeft - paddingRight
+        val contentHeight = height - paddingTop - paddingBottom
+        val inset = if (paddingLeft + paddingTop + paddingRight + paddingBottom == 0) dp(16f) else 0f
+        val diameter = min(contentWidth, contentHeight) - inset
         if (diameter <= 0f) return
 
-        val centerX = width / 2f
-        val centerY = height / 2f
+        val centerX = paddingLeft + contentWidth / 2f
+        val centerY = paddingTop + contentHeight / 2f
         val radius = diameter / 2f
 
         paint.color = 0xFFF8F8F5.toInt()

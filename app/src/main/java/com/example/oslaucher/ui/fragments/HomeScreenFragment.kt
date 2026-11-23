@@ -1,6 +1,12 @@
 package com.example.oslaucher.ui.fragments
 
-import android.annotation.SuppressLint
+import android.Manifest
+import android.content.ContentUris
+import android.content.pm.PackageManager
+import android.graphics.Typeface
+import android.provider.CalendarContract
+import android.util.TypedValue
+import androidx.activity.result.contract.ActivityResultContracts
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -24,15 +30,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import com.example.oslaucher.R
-import com.example.oslaucher.models.Weather
 import com.example.oslaucher.utils.LauncherWallpaper
-import com.example.oslaucher.utils.WeatherWidgetPreferences
 import com.example.oslaucher.ui.widgets.BatteryRingView
-import org.json.JSONException
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -42,7 +41,6 @@ abstract class HomeScreenFragment : Fragment() {
     protected abstract val layoutResId: Int
 
     private var receiverRegistered = false
-    private var weatherRequestInProgress = false
     private val updatesReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) =
             view?.let(::updateWidgets) ?: Unit
@@ -75,14 +73,16 @@ abstract class HomeScreenFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         if (!isReusedView) setUpRoot(view)
-        view.findViewById<View>(R.id.home_settings).setOnClickListener {
+        view.findViewById<View?>(R.id.home_settings)?.setOnClickListener {
             (activity as? HomeScreenActions)?.openSettings()
-        }
-        view.findViewById<View?>(R.id.home_weather_widget)?.setOnClickListener {
-            refreshWeather(force = true)
         }
         view.findViewById<View?>(R.id.home_calendar_widget)?.setOnClickListener {
             openCalendar()
+        }
+        // Tapping "today" asks once for calendar access so today's events can be shown.
+        view.findViewById<View?>(R.id.home_calendar_today)?.setOnClickListener {
+            if (hasCalendarPermission()) openCalendar()
+            else calendarPermissionLauncher.launch(Manifest.permission.READ_CALENDAR)
         }
         updateWidgets(view)
     }
@@ -137,9 +137,6 @@ abstract class HomeScreenFragment : Fragment() {
         )
         receiverRegistered = true
         view?.let(::updateWidgets)
-        if (view?.findViewById<View?>(R.id.home_weather_widget) != null) {
-            refreshWeather()
-        }
     }
 
     override fun onResume() {
@@ -191,34 +188,31 @@ abstract class HomeScreenFragment : Fragment() {
         val dayKey = "${calendar.get(Calendar.YEAR)}-${calendar.get(Calendar.MONTH)}-" +
             calendar.get(Calendar.DAY_OF_MONTH)
         // updateWidgets runs on every battery/time tick broadcast and on every re-used page;
-        // rebuilding 49 cells drops frames, so only redraw when the day changes. The day is
+        // rebuilding the cells drops frames, so only redraw when the day changes. The day is
         // kept on the grid itself so it survives the page being re-used by a new fragment.
         if (grid.tag == dayKey && grid.childCount > 0) return
         grid.tag = dayKey
-        monthView.text = SimpleDateFormat("MMMM yyyy", locale).format(now)
-            .uppercase(locale)
 
-        grid.removeAllViews()
-        val weekdayFormatter = SimpleDateFormat("EE", locale)
-        val weekday = Calendar.getInstance().apply {
-            set(1970, Calendar.JANUARY, 5)
-        }
-        repeat(7) { column ->
-            addCalendarCell(
-                grid,
-                weekdayFormatter.format(weekday.time).uppercase(locale),
-                0,
-                column,
-                false
-            )
-            weekday.add(Calendar.DAY_OF_MONTH, 1)
-        }
+        // Left side: "THỨ BA" / "17" / today's events.
+        root.findViewById<TextView?>(R.id.home_calendar_weekday)?.text =
+            SimpleDateFormat("EEEE", locale).format(now).uppercase(locale)
+        root.findViewById<TextView?>(R.id.home_calendar_day)?.text =
+            calendar.get(Calendar.DAY_OF_MONTH).toString()
+        updateTodayEvents(root)
 
+        // Right side: "THÁNG 11", M T W T F S S and the days, today in a red circle.
+        monthView.text = SimpleDateFormat("LLLL", locale).format(now).uppercase(locale)
         val firstDay = calendar.clone() as Calendar
         firstDay.set(Calendar.DAY_OF_MONTH, 1)
         val offset = (firstDay.get(Calendar.DAY_OF_WEEK) + 5) % 7
         val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-        for (index in 0 until 42) {
+        val weekRows = (offset + daysInMonth + 6) / 7
+        grid.removeAllViews()
+        grid.rowCount = weekRows + 1
+        listOf("M", "T", "W", "T", "F", "S", "S").forEachIndexed { column, label ->
+            addCalendarCell(grid, label, 0, column, false)
+        }
+        for (index in 0 until weekRows * 7) {
             val day = index - offset + 1
             val validDay = day in 1..daysInMonth
             val isToday = validDay && day == calendar.get(Calendar.DAY_OF_MONTH)
@@ -230,7 +224,73 @@ abstract class HomeScreenFragment : Fragment() {
                 isToday
             )
         }
+    }
 
+    private fun hasCalendarPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.READ_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+
+    private val calendarPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            view?.let(::updateTodayEvents)
+        }
+
+    /** Shows today's first event (and how many more), read in the background. */
+    private fun updateTodayEvents(root: View) {
+        val eventsView = root.findViewById<TextView?>(R.id.home_calendar_events) ?: return
+        if (!hasCalendarPermission()) {
+            eventsView.text = getString(R.string.calendar_tap_for_events)
+            return
+        }
+        val resolver = requireContext().applicationContext.contentResolver
+        val noEvents = getString(R.string.calendar_no_events_today)
+        Thread {
+            val titles = try {
+                val start = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val end = (start.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, 1) }
+                val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().also {
+                    ContentUris.appendId(it, start.timeInMillis)
+                    ContentUris.appendId(it, end.timeInMillis)
+                }.build()
+                resolver.query(
+                    uri,
+                    arrayOf(CalendarContract.Instances.TITLE),
+                    null,
+                    null,
+                    "${CalendarContract.Instances.BEGIN} ASC"
+                )?.use { cursor ->
+                    buildList {
+                        while (cursor.moveToNext()) {
+                            cursor.getString(0)?.takeIf { it.isNotBlank() }?.let(::add)
+                        }
+                    }
+                }.orEmpty()
+            } catch (error: SecurityException) {
+                Log.w(TAG, "Calendar permission revoked", error)
+                emptyList()
+            }
+            Handler(Looper.getMainLooper()).post {
+                eventsView.text = when (titles.size) {
+                    0 -> noEvents
+                    1 -> titles.first()
+                    else -> eventsView.context.getString(
+                        R.string.calendar_more_events,
+                        titles.first(),
+                        titles.size - 1
+                    )
+                }
+            }
+        }.apply {
+            name = "calendar-events-loader"
+            start()
+        }
     }
 
     private fun addCalendarCell(
@@ -243,161 +303,28 @@ abstract class HomeScreenFragment : Fragment() {
         val cell = TextView(requireContext()).apply {
             this.text = text
             gravity = Gravity.CENTER
-            textSize = if (row == 0) 9f else 10f
-            setTextColor(if (row == 0) 0xFFBFC8D2.toInt() else Color.WHITE)
+            includeFontPadding = false
+            // dp, not sp: a large system font must not overflow the fixed-height card.
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, 10.5f)
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.WHITE)
             if (isToday) {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(0xFFE74C5B.toInt())
+                    setColor(0xFFC0392B.toInt())
                 }
             }
         }
-        // Use weight=1f on both axes so GridLayout can distribute space freely without
-        // generating the 'constraints are inconsistent' warning that appears when fixed
-        // heights exceed the available space (skips frames on every calendar redraw).
-        val params = GridLayout.LayoutParams(
-            GridLayout.spec(row, 1f),
-            GridLayout.spec(column, 1f)
-        ).apply {
-            width = 0
-            height = 0
-        }
-        grid.addView(cell, params)
-    }
-
-    @SuppressLint("StringFormatMatches")
-    private fun refreshWeather(force: Boolean = false) {
-        if (weatherRequestInProgress) return
-        val root = view ?: return
-        val condition = root.findViewById<TextView?>(R.id.home_weather_condition) ?: return
-        val weatherWidget = root.findViewById<View?>(R.id.home_weather_widget)
-        val loadedAt = weatherWidget?.getTag(R.id.home_weather_widget) as? Long
-        // Each swipe back to this page used to hit the network and blank the widget again.
-        if (!force && loadedAt != null &&
-            System.currentTimeMillis() - loadedAt < WEATHER_REFRESH_INTERVAL_MS
-        ) return
-        val temperatureUnit = WeatherWidgetPreferences.temperatureUnit(requireContext())
-        val temperatureSymbol = if (temperatureUnit == WeatherWidgetPreferences.CELSIUS) {
-            "°C"
-        } else {
-            "°F"
-        }
-        weatherRequestInProgress = true
-        condition.text = condition.context.getString(R.string.weather_updating)
-        root.findViewById<TextView?>(R.id.home_weather_temperature)?.text = "--$temperatureSymbol"
-        root.findViewById<TextView?>(R.id.home_weather_range)?.text = getString(
-            R.string.weather_range,
-            "--",
-            "--",
-            temperatureSymbol
-        )
-
-        Thread {
-            val result = try {
-                Result.success(loadWeather(temperatureUnit))
-            } catch (error: IOException) {
-                Result.failure(error)
-            } catch (error: JSONException) {
-                Result.failure(error)
+        grid.addView(
+            cell,
+            GridLayout.LayoutParams(
+                GridLayout.spec(row, 1f),
+                GridLayout.spec(column, 1f)
+            ).apply {
+                width = 0
+                height = 0
             }
-            Handler(Looper.getMainLooper()).post {
-                weatherRequestInProgress = false
-                val currentView = view ?: return@post
-                val temperature = currentView.findViewById<TextView?>(R.id.home_weather_temperature)
-                val icon = currentView.findViewById<TextView?>(R.id.home_weather_icon)
-                val currentCondition = currentView.findViewById<TextView?>(R.id.home_weather_condition)
-                val range = currentView.findViewById<TextView?>(R.id.home_weather_range)
-                result.onSuccess { weather ->
-                    currentView.findViewById<View?>(R.id.home_weather_widget)
-                        ?.setTag(R.id.home_weather_widget, System.currentTimeMillis())
-                    temperature?.text = "${weather.temperature.toInt()}$temperatureSymbol"
-                    icon?.text = weather.icon
-                    currentCondition?.text =
-                        currentView.context.getString(weather.descriptionResId)
-                    range?.text = currentView.context.getString(
-                        R.string.weather_range,
-                        weather.high.toInt(),
-                        weather.low.toInt(),
-                        temperatureSymbol
-                    )
-                }.onFailure { error ->
-                    Log.w(TAG, "Unable to load weather", error)
-                    currentCondition?.text =
-                        currentView.context.getString(R.string.weather_unavailable)
-                    range?.text = currentView.context.getString(R.string.weather_retry)
-                }
-            }
-        }.apply {
-            name = "weather-widget-loader"
-            start()
-        }
-    }
-
-    private fun loadWeather(temperatureUnit: String): Weather {
-        require(
-            temperatureUnit == WeatherWidgetPreferences.CELSIUS ||
-                temperatureUnit == WeatherWidgetPreferences.FAHRENHEIT
         )
-        val apiTemperatureUnit = if (temperatureUnit == WeatherWidgetPreferences.CELSIUS) {
-            "celsius"
-        } else {
-            "fahrenheit"
-        }
-        val url = URL(
-            "https://api.open-meteo.com/v1/forecast" +
-                "?latitude=20.9947&longitude=105.8066" +
-                "&current=temperature_2m,weather_code" +
-                "&daily=temperature_2m_max,temperature_2m_min" +
-                "&temperature_unit=$apiTemperatureUnit" +
-                "&timezone=Asia%2FBangkok&forecast_days=1"
-        )
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            connectTimeout = 8000
-            readTimeout = 8000
-            requestMethod = "GET"
-        }
-        try {
-            if (connection.responseCode !in 200..299) {
-                throw IOException("Weather service returned HTTP ${connection.responseCode}")
-            }
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(response)
-            val current = json.getJSONObject("current")
-            val daily = json.getJSONObject("daily")
-            val weatherCode = current.getInt("weather_code")
-            return Weather(
-                temperature = current.getDouble("temperature_2m"),
-                high = daily.getJSONArray("temperature_2m_max").getDouble(0),
-                low = daily.getJSONArray("temperature_2m_min").getDouble(0),
-                descriptionResId = weatherDescription(weatherCode),
-                icon = weatherIcon(weatherCode)
-            )
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun weatherDescription(code: Int): Int = when (code) {
-        0 -> R.string.weather_clear
-        1, 2 -> R.string.weather_partly_cloudy
-        3 -> R.string.weather_cloudy
-        45, 48 -> R.string.weather_fog
-        in 51..57 -> R.string.weather_drizzle
-        in 61..67, in 80..82 -> R.string.weather_rain
-        in 71..77, 85, 86 -> R.string.weather_snow
-        in 95..99 -> R.string.weather_thunderstorm
-        else -> R.string.weather_current
-    }
-
-    private fun weatherIcon(code: Int): String = when (code) {
-        0 -> "☀"
-        1, 2 -> "🌤"
-        3 -> "☁"
-        45, 48 -> "🌫"
-        in 51..67, in 80..82 -> "🌧"
-        in 71..77, 85, 86 -> "❄"
-        in 95..99 -> "⛈"
-        else -> "☁"
     }
 
     private fun openCalendar() {
@@ -418,6 +345,5 @@ abstract class HomeScreenFragment : Fragment() {
 
     private companion object {
         const val TAG = "HomeScreenFragment"
-        const val WEATHER_REFRESH_INTERVAL_MS = 15 * 60 * 1000L
     }
 }

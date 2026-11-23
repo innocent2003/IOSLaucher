@@ -3,7 +3,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_wallpaper"
+    android:background="@color/home_screen_scrim"
     android:fillViewport="true"
     android:clipToPadding="false"
     android:scrollbars="vertical">
@@ -51,6 +51,16 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
+        <!-- Shown until the installed apps are loaded (replaces the old fake folders). -->
+        <ProgressBar
+            android:id="@+id/home_folders_loading"
+            style="?android:attr/progressBarStyle"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="80dp"
+            android:indeterminateTint="#FFFFFF" />
+
         <GridLayout
             android:id="@+id/home_app_folders"
             android:layout_width="match_parent"
@@ -60,215 +70,132 @@
             android:rowCount="3"
             android:visibility="gone"
             android:useDefaultMargins="false">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginEnd="12dp"
-                android:layout_marginBottom="18dp"
-                android:orientation="vertical">
-
-                <GridLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_glass"
-                    android:columnCount="4"
-                    android:padding="10dp">
-
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#EAEAEA" android:text="◉" android:textColor="#2F2F2F" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#4F90FF" android:text="◌" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#1DAD7C" android:text="◍" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FFB041" android:text="◎" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F5F7FA" android:text="◐" android:textColor="#2F2F2F" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#5B9DFF" android:text="◈" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF7F50" android:text="◒" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#7D86FF" android:text="◔" />
-                </GridLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:text="@string/category_other"
-                    android:textColor="#F3F7FB"
-                    android:textSize="16sp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginStart="12dp"
-                android:layout_marginBottom="18dp"
-                android:orientation="vertical">
-
-                <GridLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_glass"
-                    android:columnCount="4"
-                    android:padding="10dp">
-
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#E5EAF5" android:text="◌" android:textColor="#2F2F2F" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#00B4D8" android:text="◍" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#6EE7B7" android:text="◐" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F7D154" android:text="★" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#32B8FF" android:text="◢" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF7E6B" android:text="◈" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#4757D7" android:text="◉" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F1F5F9" android:text="■" android:textColor="#2F2F2F" />
-                </GridLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:text="@string/category_social"
-                    android:textColor="#F3F7FB"
-                    android:textSize="16sp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginEnd="12dp"
-                android:layout_marginBottom="18dp"
-                android:orientation="vertical">
-
-                <GridLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_glass"
-                    android:columnCount="4"
-                    android:padding="10dp">
-
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F1F3F5" android:text="◫" android:textColor="#2F2F2F" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#3A82F7" android:text="◐" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#2CCB8A" android:text="◍" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F7C24A" android:text="◌" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F7F7F8" android:text="◴" android:textColor="#2F2F2F" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#6C63FF" android:text="◉" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF7F50" android:text="◈" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#2FC5E0" android:text="◔" />
-                </GridLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:text="@string/category_productivity"
-                    android:textColor="#F3F7FB"
-                    android:textSize="16sp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginStart="12dp"
-                android:layout_marginBottom="18dp"
-                android:orientation="vertical">
-
-                <GridLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_glass"
-                    android:columnCount="4"
-                    android:padding="10dp">
-
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F3F5F7" android:text="◰" android:textColor="#2F2F2F" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#45A1FF" android:text="◍" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F8B900" android:text="G" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FFFFFF" android:text="◫" android:textColor="#2F2F2F" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF5A5F" android:text="◉" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#6DC9FF" android:text="◡" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#5B5CE0" android:text="◒" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F2F5F9" android:text="◲" android:textColor="#2F2F2F" />
-                </GridLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:text="@string/category_photos"
-                    android:textColor="#F3F7FB"
-                    android:textSize="16sp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginEnd="12dp"
-                android:orientation="vertical">
-
-                <GridLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_glass"
-                    android:columnCount="4"
-                    android:padding="10dp">
-
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F7F8FA" android:text="✉" android:textColor="#2F2F2F" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#1F7BFF" android:text="◫" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#FF9E44" android:text="◉" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#25C97B" android:text="◐" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#3B82F6" android:text="◍" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F34C5B" android:text="◒" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#6AD7FF" android:text="◔" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F2F4F7" android:text="◲" android:textColor="#2F2F2F" />
-                </GridLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:text="@string/category_video"
-                    android:textColor="#F3F7FB"
-                    android:textSize="16sp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginStart="12dp"
-                android:orientation="vertical">
-
-                <GridLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_glass"
-                    android:columnCount="4"
-                    android:padding="10dp">
-
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F5F7FA" android:text="♫" android:textColor="#2F2F2F" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#5D9BFF" android:text="◍" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#A5D8FF" android:text="◉" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F5C45B" android:text="◌" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F15A5A" android:text="◈" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#2EC4B6" android:text="◍" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#F4D35E" android:text="✦" />
-                    <TextView style="@style/AppTileIcon" android:backgroundTint="#E8EDF6" android:text="◲" android:textColor="#2F2F2F" />
-                </GridLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:text="@string/category_news"
-                    android:textColor="#F3F7FB"
-                    android:textSize="16sp" />
-            </LinearLayout>
         </GridLayout>
+
+        <!-- AdMob native ad. HomeSecondFragment moves it into the folder grid, right after
+             the first row of folders, spanning both columns. Hidden until an ad loads. -->
+        <LinearLayout
+            android:id="@+id/home_library_ad"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.gms.ads.nativead.NativeAdView
+                android:id="@+id/home_library_ad_view"
+                android:layout_width="match_parent"
+                android:layout_height="190dp">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+
+                    <com.google.android.gms.ads.nativead.MediaView
+                        android:id="@+id/home_library_ad_media"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_ad_card_media" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="110dp"
+                        android:layout_gravity="bottom"
+                        android:background="@drawable/bg_ad_card_shade" />
+
+                    <ImageView
+                        android:id="@+id/home_library_ad_icon"
+                        android:layout_width="76dp"
+                        android:layout_height="76dp"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="18dp"
+                        android:background="@drawable/bg_ad_icon"
+                        android:contentDescription="@null"
+                        android:scaleType="centerCrop" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="14dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/home_library_ad_headline"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="#FFFFFF"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_ad_badge_blue"
+                                    android:paddingStart="3dp"
+                                    android:paddingEnd="3dp"
+                                    android:text="@string/ad_badge"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="9sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/home_library_ad_body"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="5dp"
+                                    android:layout_weight="1"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="13sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/home_library_ad_cta"
+                            android:layout_width="wrap_content"
+                            android:layout_height="44dp"
+                            android:layout_marginStart="10dp"
+                            android:background="@drawable/bg_ad_cta_glass"
+                            android:maxLines="1"
+                            android:minWidth="0dp"
+                            android:paddingStart="16dp"
+                            android:paddingEnd="16dp"
+                            android:stateListAnimator="@null"
+                            android:textAllCaps="false"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp" />
+                    </LinearLayout>
+                </FrameLayout>
+            </com.google.android.gms.ads.nativead.NativeAdView>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="@string/ad_caption"
+                android:textColor="#F3F7FB"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

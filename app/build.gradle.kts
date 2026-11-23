@@ -60,6 +60,16 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // AdMob native ad unit: Google's public TEST id. Replace it (and the app id in
+        // AndroidManifest.xml) with your own AdMob ids before publishing.
+        resValue("string", "admob_native_home_unit_id", "ca-app-pub-3940256099942544/2247696110")
+        resValue("string", "admob_native_library_unit_id", "ca-app-pub-3940256099942544/2247696110")
+    }
+
+    buildFeatures {
+        // Needed for the AdMob unit id defined with resValue() above.
+        resValues = true
     }
 
     compileOptions {
@@ -84,6 +94,7 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
     implementation(libs.material)
+    implementation(libs.play.services.ads)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

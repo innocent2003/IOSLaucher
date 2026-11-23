@@ -7,6 +7,10 @@
 
     <style name="Theme.Oslaucher" parent="Base.Theme.Oslaucher">
         <item name="android:fontFamily">sans</item>
+        <!-- Draw the phone's own (system) wallpaper behind the launcher, like the stock
+             launcher does, instead of painting a copy of it on every screen. -->
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">#000000</item>
     </style>

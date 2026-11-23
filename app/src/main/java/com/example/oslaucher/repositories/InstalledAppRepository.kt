@@ -8,13 +8,19 @@ import com.example.oslaucher.utils.InstalledAppUtils
 import java.util.concurrent.Executors
 
 class InstalledAppRepository(context: Context) {
+    private val appContext = context.applicationContext
     private val packageManager = context.packageManager
     private val database = AppDatabase(context.applicationContext)
     private val backgroundExecutor = Executors.newSingleThreadExecutor()
 
     fun loadInstalledApps(): List<AppInfo> {
         val cached = database.getCachedApps().mapNotNull { cachedApp ->
-            InstalledAppUtils.loadCachedApp(packageManager, cachedApp.packageName, cachedApp.name)
+            InstalledAppUtils.loadCachedApp(
+                appContext,
+                packageManager,
+                cachedApp.packageName,
+                cachedApp.name
+            )
         }
         if (cached.isNotEmpty()) {
             backgroundExecutor.execute {
@@ -27,7 +33,7 @@ class InstalledAppRepository(context: Context) {
         }
 
         return try {
-            InstalledAppUtils.queryLaunchableApps(packageManager).also { apps ->
+            InstalledAppUtils.queryLaunchableApps(packageManager, appContext).also { apps ->
                 database.replaceApps(apps.map { CachedApp(it.packageName, it.name) })
             }
         } catch (_: Exception) {
