@@ -209,6 +209,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var dragSourceVisibility = View.VISIBLE
     private var appDragCandidate: AppDragCandidate? = null
     private var appOptionsPopup: PopupWindow? = null
+    private var folderPopup: PopupWindow? = null
     private var folderDragState: FolderDragState? = null
     private var dragShadow: ImageView? = null
     private var dragCheckBadge: TextView? = null
@@ -389,7 +390,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
         // HOME only needs the clock/widgets, so draw the launcher first and let the
         // repositories and layout warmup fill in behind it instead of gating the first frame.
-        showScreen(if (launchedAsHome) Screen.HOME else Screen.SETTINGS, 0)
+        // As the default launcher, start on the first page of the app icon screen.
+        showScreen(if (launchedAsHome) Screen.APPS else Screen.SETTINGS, 0)
         initializeLauncherData()
         // GDPR: refresh ad consent and show Google's consent form to EEA/UK users before any
         // ad is requested. Ads load only once consent allows it.
@@ -541,7 +543,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                         settingsReturnScreen = null
                         when {
                             returnScreen != null -> showScreen(returnScreen, -1)
-                            launchedAsHome -> showScreen(Screen.HOME, 1)
+                            launchedAsHome -> showScreen(Screen.APPS, 1)
                             else -> finish()
                         }
                     }
@@ -557,10 +559,53 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         launchedAsHome = intent.categories?.contains(Intent.CATEGORY_HOME) == true
-        if (launchedAsHome) settingsReturnScreen = null
-        if (launchedAsHome && currentScreen != Screen.HOME) {
-            showScreen(Screen.HOME, 0)
+        if (launchedAsHome) {
+            settingsReturnScreen = null
+            goToFirstIconPage()
         }
+    }
+
+    /**
+     * Home button while this is the default launcher: always land on the first page of the
+     * app icon screen, closing anything open on top of it (menus, folders, search, edit mode).
+     */
+    private fun goToFirstIconPage() {
+        appOptionsPopup?.dismiss()
+        appOptionsPopup = null
+        folderPopup?.dismiss()
+        folderPopup = null
+        widgetPickerDialog?.dismiss()
+        if (isAppSearchVisible) closeAppSearch()
+        if (isHomeEditMode || isAppSelectionMode) finishHomeEditMode()
+        if (homeSwipeTransition != null || appPageSwipeTransition != null || homeSwipeSettling) {
+            // A swipe is running: let it settle, then go to the first page.
+            screenContainer.postDelayed({ goToFirstIconPage() }, 400L)
+            return
+        }
+        // Coming back from another app the launcher is not visible yet: jump without animating.
+        val animate = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+        if (currentScreen == Screen.APPS && !isAlphabeticalLibrary) {
+            if (appPageIndex == 0) return
+            if (animate) {
+                showAppPage(0)
+            } else {
+                appPageIndex = 0
+                appsPages?.displayedChild = 0
+                updateAppPageIndicator()
+            }
+            return
+        }
+        isAlphabeticalLibrary = false
+        openAppsAtLastPage = false
+        appPageIndex = 0
+        showScreen(
+            Screen.APPS,
+            when {
+                !animate -> 0
+                currentScreen == Screen.HOME_SECOND -> 1
+                else -> -1
+            }
+        )
     }
 
     private fun startOwnScreen(target: Class<*>) {
@@ -912,7 +957,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         } else if (launchedAsHome && currentScreen == Screen.SETTINGS &&
             settingsReturnScreen == null
         ) {
-            showScreen(Screen.HOME, 0)
+            appPageIndex = 0
+            showScreen(Screen.APPS, 0)
             return
         }
         if (homeRoleChanged && currentScreen != Screen.LOADING) {
@@ -4959,6 +5005,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             isOutsideTouchable = true
             elevation = dp(16).toFloat()
         }
+        folderPopup = popupWindow
         popupWindow.showAtLocation(screenContainer, Gravity.CENTER, 0, 0)
     }
 
