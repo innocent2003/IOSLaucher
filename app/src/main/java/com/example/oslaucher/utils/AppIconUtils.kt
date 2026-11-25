@@ -20,7 +20,9 @@ object AppIconUtils {
         val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         // A custom icon chosen by the user wins; otherwise the calendar app gets its live icon.
         val iconUri = preferences.getString(iconKey(app.packageName), null)
-            ?: return CalendarIconUtils.iconFor(context, app.packageName) ?: app.icon
+            ?: return CalendarIconUtils.iconFor(context, app.packageName)
+                ?: ClockIconDrawable.iconFor(context, app.packageName)
+                ?: app.icon
 
         // Return cached drawable if available
         iconCache.get(iconUri)?.let { return it }
