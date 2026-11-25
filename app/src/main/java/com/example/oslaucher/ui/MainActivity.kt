@@ -90,6 +90,7 @@ import com.example.oslaucher.ui.fragments.HomeScreenActions
 import com.example.oslaucher.ui.fragments.HomeSecondFragment
 import com.example.oslaucher.ui.widgets.AppPagesLayout
 import com.example.oslaucher.ui.widgets.LauncherWidgetFactory
+import com.example.oslaucher.ads.AdConsentManager
 import com.example.oslaucher.utils.AppIconUtils
 import com.example.oslaucher.utils.CalendarIconUtils
 import com.example.oslaucher.utils.DefaultLayoutPlanner
@@ -342,6 +343,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var defaultHomeActive = false
     private var settingsReturnScreen: Screen? = null
     private var cachedAppsScreen: View? = null
+    private var settingsView: View? = null
     /** Day the calendar app icon was last drawn for; re-render icons when it changes. */
     private var calendarIconDayKey: String? = null
     private var dayChangedReceiverRegistered = false
@@ -380,6 +382,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         // repositories and layout warmup fill in behind it instead of gating the first frame.
         showScreen(if (launchedAsHome) Screen.HOME else Screen.SETTINGS, 0)
         initializeLauncherData()
+        // GDPR: refresh ad consent and show Google's consent form to EEA/UK users before any
+        // ad is requested. Ads load only once consent allows it.
+        AdConsentManager.gatherConsent(this) { updatePrivacyOptionsRow() }
     }
 
     private fun initializeLauncherData() {
@@ -1293,6 +1298,11 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 view.findViewById<View>(R.id.hidden_apps_setting).setOnClickListener {
                     startOwnScreen(HiddenAppsActivity::class.java)
                 }
+                view.findViewById<View>(R.id.privacy_options_setting).setOnClickListener {
+                    AdConsentManager.showPrivacyOptionsForm(this) { updatePrivacyOptionsRow() }
+                }
+                settingsView = view
+                updatePrivacyOptionsRow()
                 view.findViewById<View>(R.id.language_setting).setOnClickListener {
                     startOwnScreen(LanguageActivity::class.java)
                 }
@@ -1896,6 +1906,14 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         if (previous == null || previous == dayKey) return
         homeScreenViewCache.entries.removeAll { it.value.parent == null }
         installedApps?.let { renderApps?.invoke(it) }
+    }
+
+    /** Shows "Privacy options" in settings only where consent can be changed (EEA/UK…). */
+    private fun updatePrivacyOptionsRow() {
+        val view = settingsView ?: return
+        val visibility = if (AdConsentManager.isPrivacyOptionsRequired(this)) View.VISIBLE else View.GONE
+        view.findViewById<View?>(R.id.privacy_options_setting)?.visibility = visibility
+        view.findViewById<View?>(R.id.privacy_options_divider)?.visibility = visibility
     }
 
     override fun cachedHomeScreenView(layoutResId: Int): View? =

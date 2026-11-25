@@ -1,5 +1,6 @@
 package com.example.oslaucher.ui.fragments
 
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -13,6 +14,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.example.oslaucher.R
+import com.example.oslaucher.ads.AdConsentManager
 import com.example.oslaucher.models.AppInfo
 import com.example.oslaucher.utils.AppIconUtils
 import com.google.android.gms.ads.AdListener
@@ -64,7 +66,12 @@ class HomeSecondFragment : HomeScreenFragment() {
         folders.visibility = View.VISIBLE
         // A re-used page already shows its folders; rebuilding them (and reading every app's
         // install time) on each swipe was what made swiping into this page stutter.
-        loadLibraryAdIfNeeded(view)
+        // No ad request before GDPR consent allows it (see AdConsentManager).
+        val appContext = requireContext().applicationContext
+        val unitId = getString(R.string.admob_native_library_unit_id)
+        AdConsentManager.runWhenAdsAllowed(appContext) {
+            loadLibraryAdIfNeeded(view, appContext, unitId)
+        }
         if (isReusedView && folders.childCount > 0) return
         (activity as? HomeScreenActions)?.loadHomeScreenApps { apps ->
             if (isAdded && this.view?.findViewById<GridLayout>(R.id.home_app_folders) === folders) {
@@ -95,7 +102,7 @@ class HomeSecondFragment : HomeScreenFragment() {
     /** The ad block, remembered once it has been moved out of its XML parent. */
     private var adBlock: View? = null
 
-    private fun loadLibraryAdIfNeeded(root: View) {
+    private fun loadLibraryAdIfNeeded(root: View, appContext: Context, unitId: String) {
         val adView = root.findViewById<NativeAdView?>(R.id.home_library_ad_view) ?: return
         val loadedAt = adView.getTag(R.id.home_library_ad_view) as? Long
         if (loadedAt != null && SystemClock.elapsedRealtime() - loadedAt < AD_REFRESH_INTERVAL_MS) {
@@ -103,10 +110,7 @@ class HomeSecondFragment : HomeScreenFragment() {
         }
         if (adView.getTag(R.id.home_library_ad_icon) == true) return // request in flight
         adView.setTag(R.id.home_library_ad_icon, true)
-        AdLoader.Builder(
-            requireContext().applicationContext,
-            getString(R.string.admob_native_library_unit_id)
-        )
+        AdLoader.Builder(appContext, unitId)
             .forNativeAd { nativeAd ->
                 adView.setTag(R.id.home_library_ad_icon, false)
                 (adView.getTag(R.id.home_library_ad_media) as? NativeAd)?.destroy()

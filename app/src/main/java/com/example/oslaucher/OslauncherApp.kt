@@ -3,14 +3,13 @@ package com.example.oslaucher
 import android.app.Application
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
-import com.google.android.gms.ads.MobileAds
 
 class OslauncherApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
         applyNightMode(this)
-        MobileAds.initialize(this)
+        // AdMob is initialised by AdConsentManager only after GDPR consent allows ads.
     }
 
     companion object {

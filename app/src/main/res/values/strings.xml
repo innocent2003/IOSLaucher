@@ -182,4 +182,5 @@
     <string name="calendar_tap_for_events">Chạm để xem sự kiện hôm nay</string>
     <string name="calendar_more_events">%1$s và %2$d sự kiện khác</string>
     <string name="ad_caption">Quảng cáo</string>
+    <string name="privacy_options">Tùy chọn quyền riêng tư</string>
 </resources>

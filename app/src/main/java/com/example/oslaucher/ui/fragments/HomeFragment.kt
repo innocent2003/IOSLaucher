@@ -1,5 +1,6 @@
 package com.example.oslaucher.ui.fragments
 
+import android.content.Context
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
@@ -10,6 +11,7 @@ import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.TextView
 import com.example.oslaucher.R
+import com.example.oslaucher.ads.AdConsentManager
 import com.example.oslaucher.models.AppInfo
 import com.example.oslaucher.utils.AppIconUtils
 import com.example.oslaucher.utils.IconMetrics
@@ -32,7 +34,13 @@ class HomeFragment : HomeScreenFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         bindShortcutApps(view)
-        loadNativeAdIfNeeded(view)
+        // No ad request before GDPR consent allows it (see AdConsentManager). Everything the
+        // deferred load needs is captured now: the fragment may be gone when it runs.
+        val appContext = requireContext().applicationContext
+        val unitId = getString(R.string.admob_native_home_unit_id)
+        AdConsentManager.runWhenAdsAllowed(appContext) {
+            loadNativeAdIfNeeded(view, appContext, unitId)
+        }
     }
 
     // ---- Shortcut apps (the 2 x 4 card) ----
@@ -101,7 +109,7 @@ class HomeFragment : HomeScreenFragment() {
 
     // ---- AdMob native ad ----
 
-    private fun loadNativeAdIfNeeded(root: View) {
+    private fun loadNativeAdIfNeeded(root: View, appContext: Context, unitId: String) {
         val adView = root.findViewById<NativeAdView?>(R.id.home_ad_view) ?: return
         val loadedAt = adView.getTag(R.id.home_ad_view) as? Long
         if (loadedAt != null && SystemClock.elapsedRealtime() - loadedAt < AD_REFRESH_INTERVAL_MS) {
@@ -109,8 +117,7 @@ class HomeFragment : HomeScreenFragment() {
         }
         if (adView.getTag(R.id.home_ad_content) == true) return // a request is in flight
         adView.setTag(R.id.home_ad_content, true)
-        val appContext = requireContext().applicationContext
-        AdLoader.Builder(appContext, getString(R.string.admob_native_home_unit_id))
+        AdLoader.Builder(appContext, unitId)
             .forNativeAd { nativeAd ->
                 adView.setTag(R.id.home_ad_content, false)
                 (adView.getTag(R.id.home_ad_media) as? NativeAd)?.destroy()

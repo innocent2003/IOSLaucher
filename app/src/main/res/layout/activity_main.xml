@@ -858,6 +858,55 @@
                     android:textColor="@color/settings_text_secondary"
                     android:textSize="32sp" />
             </LinearLayout>
+
+            <View
+                android:id="@+id/privacy_options_divider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="74dp"
+                android:background="@color/settings_divider"
+                android:visibility="gone" />
+
+            <!-- GDPR: lets users in the EEA/UK review or withdraw ad consent. Shown only when
+                 the consent SDK says it is required. -->
+            <LinearLayout
+                android:id="@+id/privacy_options_setting"
+                android:layout_width="match_parent"
+                android:layout_height="76dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:background="@drawable/bg_round_surface"
+                    android:backgroundTint="#5856D6"
+                    android:gravity="center"
+                    android:text="⛉"
+                    android:textColor="#FFFFFF"
+                    android:textSize="28sp" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="22dp"
+                    android:layout_weight="1"
+                    android:text="@string/privacy_options"
+                    android:textColor="@color/settings_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="24dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="›"
+                    android:textColor="@color/settings_text_secondary"
+                    android:textSize="32sp" />
+            </LinearLayout>
         </LinearLayout>
 
         <TextView
