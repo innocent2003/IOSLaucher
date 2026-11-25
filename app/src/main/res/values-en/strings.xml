@@ -184,4 +184,5 @@
     <string name="ad_caption">Ad</string>
     <string name="privacy_options">Privacy options</string>
     <string name="splash_ads_notice">This action may contain ads</string>
+    <string name="home_widget_remove_action">Remove widget</string>
 </resources>

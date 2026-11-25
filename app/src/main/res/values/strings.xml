@@ -185,4 +185,5 @@
     <string name="privacy_options">Tùy chọn quyền riêng tư</string>
     <string name="splash_app_name" translatable="false">OS Launcher</string>
     <string name="splash_ads_notice">Hành động này có thể chứa quảng cáo</string>
+    <string name="home_widget_remove_action">Xóa tiện ích</string>
 </resources>

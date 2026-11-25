@@ -210,6 +210,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var appDragCandidate: AppDragCandidate? = null
     private var appOptionsPopup: PopupWindow? = null
     private var folderPopup: PopupWindow? = null
+    /** A long-pressed widget that starts dragging once the finger moves (like app icons). */
+    private var widgetDragCandidate: Pair<HomeWidgetPlacement, View>? = null
     private var folderDragState: FolderDragState? = null
     private var dragShadow: ImageView? = null
     private var dragCheckBadge: TextView? = null
@@ -460,7 +462,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         if (splashFinishing || isFinishing || isDestroyed) return
         val elapsed = SystemClock.elapsedRealtime() - splashStartedAt
         val appsReady = installedApps != null
-        val widgetsReady = homeWidgetsLoaded
+        // The icon screen must be fully built, widgets placed and nothing left to re-render,
+        // so the launcher never reloads its widgets right after the loading screen.
+        val widgetsReady = homeWidgetsLoaded && launcherScreenSettled()
         val adStepDone = splashAdRequestDone || elapsed >= SPLASH_AD_WAIT_MS
         val steps = listOf(appsReady, widgetsReady, splashConsentDone, adStepDone)
         // Progress follows the finished steps, with a slow time-based creep in between.
@@ -491,6 +495,17 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             }
         }
         ad.show(this)
+    }
+
+    private fun launcherScreenSettled(): Boolean {
+        if (currentScreen != Screen.APPS || isAlphabeticalLibrary) return true
+        if (!appsGridRendered) return false
+        if (homeWidgets.isEmpty()) return true
+        val widgetLayer = appsWidgetContainer ?: return false
+        return widgetLayer.visibility == View.VISIBLE &&
+            widgetLayer.width > 0 &&
+            !widgetRenderPosted &&
+            !widgetLayoutRetryPosted
     }
 
     private fun hideSplash() {
@@ -3533,11 +3548,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 widgetFrame.removeView(removeButton)
             }
             widgetFrame.setOnLongClickListener {
-                val currentPlacement = homeWidgets.firstOrNull {
-                    it.instanceId == positionedPlacement.instanceId
-                } ?: return@setOnLongClickListener false
-                startWidgetDrag(currentPlacement, widgetFrame)
-                true
+                onWidgetLongPress(positionedPlacement.instanceId, widgetFrame)
             }
             attachWidgetLongPress(widgetContent, positionedPlacement, widgetFrame)
             val layoutParams = FrameLayout.LayoutParams(
@@ -3738,14 +3749,119 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         installedApps?.let { renderApps?.invoke(it) }
     }
 
+    /**
+     * Long-press on a widget behaves exactly like on an app icon: outside edit mode it dims
+     * the screen, lights the widget and shows its menu; moving the finger then drags it.
+     * In edit/selection mode it starts dragging right away.
+     */
+    private fun onWidgetLongPress(instanceId: String, frame: View): Boolean {
+        val placement = homeWidgets.firstOrNull { it.instanceId == instanceId } ?: return false
+        if (isHomeEditMode || isAppSelectionMode) {
+            startWidgetDrag(placement, frame)
+            return true
+        }
+        frame.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        widgetDragCandidate = placement to frame
+        showWidgetOptions(placement, frame)
+        return true
+    }
+
+    private fun showWidgetOptions(placement: HomeWidgetPlacement, frame: View) {
+        if (frame.width <= 0 || frame.height <= 0) return
+        val menu = LayoutInflater.from(this).inflate(R.layout.popup_app_actions, null)
+        listOf(R.id.app_action_hide, R.id.app_action_select, R.id.app_action_info).forEach {
+            menu.findViewById<View>(it).visibility = View.GONE
+        }
+        (menu.findViewById<ViewGroup>(R.id.app_action_delete).getChildAt(1) as? TextView)
+            ?.setText(R.string.home_widget_remove_action)
+
+        val overlay = FrameLayout(this).apply {
+            setBackgroundColor(APP_MENU_SCRIM_COLOR)
+            isClickable = true
+            alpha = 0f
+        }
+        val popupWindow = PopupWindow(
+            overlay,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            true
+        ).apply {
+            setBackgroundDrawable(ColorDrawable(0x00000000))
+            isClippingEnabled = false
+            isFocusable = true
+        }
+        overlay.setOnClickListener { popupWindow.dismiss() }
+        appOptionsPopup = popupWindow
+        popupWindow.setOnDismissListener {
+            if (appOptionsPopup === popupWindow) appOptionsPopup = null
+            widgetDragCandidate = null
+        }
+        menu.findViewById<View>(R.id.app_action_delete).setOnClickListener {
+            popupWindow.dismiss()
+            confirmRemoveHomeWidget(placement)
+        }
+        menu.findViewById<View>(R.id.app_action_edit).setOnClickListener {
+            popupWindow.dismiss()
+            enterHomeEditMode()
+        }
+
+        // Lit copy of the widget above the dim, with the same soft halo as a pressed icon.
+        val snapshot = Bitmap.createBitmap(frame.width, frame.height, Bitmap.Config.ARGB_8888)
+        frame.draw(Canvas(snapshot))
+        val haloWidth = (frame.width * 1.25f).roundToInt()
+        val haloHeight = (frame.height * 1.25f).roundToInt()
+        val halo = View(this).apply {
+            background = GradientDrawable().apply {
+                gradientType = GradientDrawable.RADIAL_GRADIENT
+                gradientRadius = maxOf(haloWidth, haloHeight) / 2f
+                colors = intArrayOf(0x4DFFFFFF, 0x00FFFFFF)
+            }
+        }
+        val litCopy = ImageView(this).apply {
+            setImageBitmap(snapshot)
+            scaleType = ImageView.ScaleType.FIT_XY
+        }
+        overlay.addView(halo, FrameLayout.LayoutParams(haloWidth, haloHeight))
+        overlay.addView(litCopy, FrameLayout.LayoutParams(frame.width, frame.height))
+        overlay.addView(menu, FrameLayout.LayoutParams(dp(240), ViewGroup.LayoutParams.WRAP_CONTENT))
+        overlay.addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
+            override fun onLayoutChange(
+                v: View, left: Int, top: Int, right: Int, bottom: Int,
+                oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
+            ) {
+                overlay.removeOnLayoutChangeListener(this)
+                val origin = IntArray(2).also(overlay::getLocationOnScreen)
+                val location = IntArray(2).also(frame::getLocationOnScreen)
+                val x = (location[0] - origin[0]).toFloat()
+                val y = (location[1] - origin[1]).toFloat()
+                litCopy.translationX = x
+                litCopy.translationY = y
+                halo.translationX = x + frame.width / 2f - haloWidth / 2f
+                halo.translationY = y + frame.height / 2f - haloHeight / 2f
+                val margin = dp(12)
+                val gap = dp(10)
+                menu.translationX = (x + frame.width / 2f - menu.width / 2f)
+                    .coerceIn(margin.toFloat(), (overlay.width - menu.width - margin).toFloat())
+                val below = y + frame.height + gap
+                menu.translationY = if (below + menu.height <= overlay.height - margin) {
+                    below
+                } else {
+                    (y - gap - menu.height).coerceAtLeast(margin.toFloat())
+                }
+            }
+        })
+        popupWindow.showAtLocation(frame, Gravity.NO_GRAVITY, 0, 0)
+        overlay.animate().alpha(1f).setDuration(120L).start()
+        litCopy.animate().scaleX(1.03f).scaleY(1.03f).setDuration(160L).start()
+    }
+
     private fun attachWidgetLongPress(
         view: View,
         placement: HomeWidgetPlacement,
         widgetFrame: View
     ) {
         view.setOnLongClickListener {
-            startWidgetDrag(placement, widgetFrame)
-            true
+            onWidgetLongPress(placement.instanceId, widgetFrame)
         }
         if (view is ViewGroup) {
             for (index in 0 until view.childCount) {
@@ -5508,6 +5624,23 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         (value * resources.displayMetrics.density).toInt()
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        val widgetCandidate = widgetDragCandidate
+        if (widgetCandidate != null) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> {
+                    if (abs(event.x - downX) > swipeTouchSlop ||
+                        abs(event.y - downY) > swipeTouchSlop
+                    ) {
+                        widgetDragCandidate = null
+                        appOptionsPopup?.dismiss()
+                        appOptionsPopup = null
+                        startWidgetDrag(widgetCandidate.first, widgetCandidate.second)
+                        dragMoved = true
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> widgetDragCandidate = null
+            }
+        }
         val dragCandidate = appDragCandidate
         if (dragCandidate != null) {
             when (event.actionMasked) {
