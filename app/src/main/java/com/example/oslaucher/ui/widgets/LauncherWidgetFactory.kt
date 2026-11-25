@@ -26,6 +26,7 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.abs
 
 internal object LauncherWidgetFactory {
     fun create(
@@ -65,45 +66,65 @@ internal object LauncherWidgetFactory {
         // Compact 2x2 tile like the reference: dark glass card with city, big temperature,
         // a small condition icon, the condition text and "H:.. L:..". Caption under the card.
         mainTemperature.apply {
-            setTextSize(TypedValue.COMPLEX_UNIT_DIP, 36f)
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
             includeFontPadding = false
+        }
+        val city = weatherText(context, CITY_DP, bold = true).apply {
+            text = "Thanh Xuân"
+            singleLine()
+        }
+        condition.setTextColor(color(context, R.color.weather_widget_text_primary))
+        condition.singleLine()
+        highLow.setTextColor(color(context, R.color.weather_widget_text_primary))
+        highLow.singleLine()
+        // Icon and condition share one line, which leaves room for "H:.. L:..".
+        val conditionRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(currentIcon)
+            addView(
+                condition,
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = dp(context, 4)
+                }
+            )
+        }
+        val card = LinearLayout(context).apply {
+            background = widgetCardBackground(context)
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(context, 14), dp(context, 10), dp(context, 12), dp(context, 10))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+            addView(city)
+            addView(mainTemperature)
+            addView(View(context), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(conditionRow)
+            addView(highLow)
+        }
+        // Shrink the text when the tile is short (small grid rows, big display size) so the
+        // last line is never cut off.
+        val fitted = listOf(
+            city to CITY_DP,
+            mainTemperature to TEMPERATURE_DP,
+            currentIcon to DETAIL_DP,
+            condition to DETAIL_DP,
+            highLow to DETAIL_DP
+        )
+        applyTextScale(fitted, 1f)
+        card.addOnLayoutChangeListener { view, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            if (bottom - top == oldBottom - oldTop) return@addOnLayoutChangeListener
+            val density = view.resources.displayMetrics.density
+            val available = (bottom - top - view.paddingTop - view.paddingBottom) / density
+            val needed = CITY_DP * LINE + TEMPERATURE_DP * TIGHT_LINE + DETAIL_DP * LINE * 2
+            val scale = (available / needed).coerceIn(0.55f, 1f)
+            if (abs((view.tag as? Float ?: 1f) - scale) > 0.02f) {
+                view.tag = scale
+                view.post { applyTextScale(fitted, scale) }
+            }
         }
         val root = LinearLayout(context).apply {
             gravity = Gravity.CENTER_HORIZONTAL
             orientation = LinearLayout.VERTICAL
-            addView(
-                LinearLayout(context).apply {
-                    background = widgetCardBackground(context)
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(dp(context, 16), dp(context, 12), dp(context, 14), dp(context, 12))
-                    layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        0,
-                        1f
-                    )
-                    addView(weatherText(context, 15f, bold = true).apply {
-                        text = "Thanh Xuân"
-                        singleLine()
-                    })
-                    addView(mainTemperature)
-                    addView(
-                        View(context),
-                        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-                    )
-                    addView(currentIcon.apply { setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f) })
-                    addView(condition.apply {
-                        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f)
-                        setTextColor(color(context, R.color.weather_widget_text_primary))
-                        singleLine()
-                    })
-                    addView(highLow.apply {
-                        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f)
-                        setTextColor(color(context, R.color.weather_widget_text_primary))
-                        singleLine()
-                    })
-                }
-            )
+            addView(card)
             addView(widgetCaption(context, context.getString(R.string.weather_widget_caption)))
         }
 
@@ -264,6 +285,10 @@ internal object LauncherWidgetFactory {
         )
     }
 
+    private fun applyTextScale(views: List<Pair<TextView, Float>>, scale: Float) {
+        views.forEach { (view, baseDp) -> view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, baseDp * scale) }
+    }
+
     private fun widgetCardBackground(context: Context) = GradientDrawable(
         GradientDrawable.Orientation.TOP_BOTTOM,
         intArrayOf(
@@ -330,4 +355,9 @@ internal object LauncherWidgetFactory {
 
     private const val TAG = "LauncherWidgetFactory"
     private const val WIDGET_CORNER_DP = 22
+    private const val CITY_DP = 15f
+    private const val TEMPERATURE_DP = 36f
+    private const val DETAIL_DP = 13f
+    private const val LINE = 1.3f
+    private const val TIGHT_LINE = 1.1f
 }
