@@ -401,9 +401,17 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         initializeLauncherData()
         // GDPR: refresh ad consent and show Google's consent form to EEA/UK users before any
         // ad is requested. Ads load only once consent allows it.
-        AdConsentManager.gatherConsent(this) {
-            updatePrivacyOptionsRow()
-            onSplashConsentFinished()
+        // Started after the first frame is on screen: the consent SDK and AdMob spin up WebView,
+        // which blocks the main thread for seconds; doing it inside onCreate held the activity
+        // launch for ~2.5 s (ANR warning, frozen loading screen).
+        window.decorView.post {
+            window.decorView.postDelayed({
+                if (isFinishing || isDestroyed) return@postDelayed
+                AdConsentManager.gatherConsent(this) {
+                    updatePrivacyOptionsRow()
+                    onSplashConsentFinished()
+                }
+            }, CONSENT_START_DELAY_MS)
         }
     }
 
@@ -6084,6 +6092,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val WIDGET_SIDE_INSET_DP = 12
         const val WIDGET_VERTICAL_GAP_DP = 0
         const val MAX_WIDGET_SIZE_RETRIES = 30
+        const val CONSENT_START_DELAY_MS = 150L
         const val SPLASH_MIN_MS = 1200L
         const val SPLASH_AD_WAIT_MS = 5000L
         const val SPLASH_MAX_MS = 9000L
