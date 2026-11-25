@@ -66,9 +66,9 @@ object InstalledAppUtils {
             AppInfo(
                 packageName = appInfo.packageName,
                 name = packageManager.getApplicationLabel(appInfo).toString(),
-                icon = packageManager.getApplicationIcon(appInfo).let { icon ->
-                    context?.let { IconShapeUtils.normalize(it, icon) } ?: icon
-                }
+                icon = context?.let {
+                    IconDiskCache.shapedIcon(it, packageManager, appInfo.packageName)
+                } ?: packageManager.getApplicationIcon(appInfo)
             )
         }
     }
@@ -83,7 +83,7 @@ object InstalledAppUtils {
             AppInfo(
                 packageName,
                 name,
-                IconShapeUtils.normalize(context, packageManager.getApplicationIcon(packageName))
+                IconDiskCache.shapedIcon(context, packageManager, packageName)
             )
         } catch (_: PackageManager.NameNotFoundException) {
             null

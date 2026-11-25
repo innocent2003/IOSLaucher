@@ -31,6 +31,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.widget.ProgressBar
+import android.os.SystemClock
 import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
@@ -91,6 +93,11 @@ import com.example.oslaucher.ui.fragments.HomeSecondFragment
 import com.example.oslaucher.ui.widgets.AppPagesLayout
 import com.example.oslaucher.ui.widgets.LauncherWidgetFactory
 import com.example.oslaucher.ads.AdConsentManager
+import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.appopen.AppOpenAd
 import com.example.oslaucher.utils.AppIconUtils
 import com.example.oslaucher.utils.CalendarIconUtils
 import com.example.oslaucher.utils.DefaultLayoutPlanner
@@ -377,6 +384,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             )
         }
         setContentView(screenContainer)
+        // Cold start: cover the launcher with the loading screen while everything loads.
+        if (savedInstanceState == null) showSplash()
 
         // HOME only needs the clock/widgets, so draw the launcher first and let the
         // repositories and layout warmup fill in behind it instead of gating the first frame.
@@ -384,7 +393,111 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         initializeLauncherData()
         // GDPR: refresh ad consent and show Google's consent form to EEA/UK users before any
         // ad is requested. Ads load only once consent allows it.
-        AdConsentManager.gatherConsent(this) { updatePrivacyOptionsRow() }
+        AdConsentManager.gatherConsent(this) {
+            updatePrivacyOptionsRow()
+            onSplashConsentFinished()
+        }
+    }
+
+    // ---- Loading screen (cold start) ----
+    // Shown until installed apps (with their cached, shaped icons), home widgets and the GDPR
+    // consent step are ready, so the launcher is fully usable the moment it appears. Then an
+    // app-open ad is shown if one loaded in time, and the loading screen fades out.
+
+    private var splashView: View? = null
+    private var splashStartedAt = 0L
+    private var splashConsentDone = false
+    private var splashAdRequestDone = false
+    private var splashAppOpenAd: AppOpenAd? = null
+    private var splashFinishing = false
+    private val splashHandler = Handler(Looper.getMainLooper())
+    private val splashTick = Runnable { updateSplash() }
+
+    private fun showSplash() {
+        val view = LayoutInflater.from(this).inflate(R.layout.splash_overlay, null)
+        addContentView(
+            view,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        splashView = view
+        splashStartedAt = SystemClock.elapsedRealtime()
+        splashHandler.post(splashTick)
+    }
+
+    private fun onSplashConsentFinished() {
+        if (splashView == null || splashConsentDone) return
+        splashConsentDone = true
+        if (!AdConsentManager.canRequestAds(this)) {
+            splashAdRequestDone = true
+            return
+        }
+        val appContext = applicationContext
+        val unitId = getString(R.string.admob_app_open_unit_id)
+        AdConsentManager.runWhenAdsAllowed(appContext) {
+            AppOpenAd.load(
+                appContext,
+                unitId,
+                AdRequest.Builder().build(),
+                object : AppOpenAd.AppOpenAdLoadCallback() {
+                    override fun onAdLoaded(ad: AppOpenAd) {
+                        splashAppOpenAd = ad
+                        splashAdRequestDone = true
+                    }
+
+                    override fun onAdFailedToLoad(error: LoadAdError) {
+                        Log.w(TAG, "App open ad failed to load: ${error.message}")
+                        splashAdRequestDone = true
+                    }
+                }
+            )
+        }
+    }
+
+    private fun updateSplash() {
+        val view = splashView ?: return
+        if (splashFinishing || isFinishing || isDestroyed) return
+        val elapsed = SystemClock.elapsedRealtime() - splashStartedAt
+        val appsReady = installedApps != null
+        val widgetsReady = homeWidgetsLoaded
+        val adStepDone = splashAdRequestDone || elapsed >= SPLASH_AD_WAIT_MS
+        val steps = listOf(appsReady, widgetsReady, splashConsentDone, adStepDone)
+        // Progress follows the finished steps, with a slow time-based creep in between.
+        val target = steps.count { it } / steps.size.toFloat()
+        val creep = (elapsed / SPLASH_MAX_MS.toFloat()).coerceAtMost(1f) * 0.25f
+        view.findViewById<ProgressBar>(R.id.splash_progress)?.let { bar ->
+            val progress = (maxOf(target * 0.95f, creep) * bar.max).roundToInt()
+            if (progress > bar.progress) bar.progress = progress
+        }
+        val ready = (steps.all { it } && elapsed >= SPLASH_MIN_MS) || elapsed >= SPLASH_MAX_MS
+        if (!ready) {
+            splashHandler.postDelayed(splashTick, SPLASH_TICK_MS)
+            return
+        }
+        splashFinishing = true
+        view.findViewById<ProgressBar>(R.id.splash_progress)?.let { it.progress = it.max }
+        val ad = splashAppOpenAd
+        splashAppOpenAd = null
+        if (ad == null) {
+            hideSplash()
+            return
+        }
+        ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+            override fun onAdDismissedFullScreenContent() = hideSplash()
+            override fun onAdFailedToShowFullScreenContent(error: AdError) {
+                Log.w(TAG, "App open ad failed to show: ${error.message}")
+                hideSplash()
+            }
+        }
+        ad.show(this)
+    }
+
+    private fun hideSplash() {
+        splashHandler.removeCallbacks(splashTick)
+        val view = splashView ?: return
+        splashView = null
+        view.animate().alpha(0f).setDuration(220L).withEndAction {
+            (view.parent as? ViewGroup)?.removeView(view)
+        }.start()
     }
 
     private fun initializeLauncherData() {
@@ -5701,6 +5814,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     override fun onDestroy() {
+        splashHandler.removeCallbacks(splashTick)
         bottomPillHandler.removeCallbacks(restoreSearchPillRunnable)
         cancelDragPageChange()
         appLoadExecutor.shutdownNow()
@@ -5723,6 +5837,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val WIDGET_HORIZONTAL_GAP_DP = APP_GRID_COLUMN_SPACING_DP
         const val WIDGET_SIDE_INSET_DP = 12
         const val WIDGET_VERTICAL_GAP_DP = 0
+        const val SPLASH_MIN_MS = 1200L
+        const val SPLASH_AD_WAIT_MS = 5000L
+        const val SPLASH_MAX_MS = 9000L
+        const val SPLASH_TICK_MS = 50L
         val APP_MENU_SCRIM_COLOR: Int = 0x99000000.toInt()
         const val FOLDER_CORNER_RATIO = 0.225f
         const val FOLDER_FILL_COLOR = 0x59D8DCE2

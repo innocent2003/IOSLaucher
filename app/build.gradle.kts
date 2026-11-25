@@ -23,6 +23,7 @@ val prepareActiveResources by tasks.registering(Sync::class) {
             "activity_weather_settings.xml",
             "activity_hidden_apps.xml",
             "screen_loading.xml",
+            "splash_overlay.xml",
             "item_app.xml",
             "popup_app_actions.xml",
             "popup_home_edit.xml",
@@ -65,6 +66,7 @@ android {
         // AndroidManifest.xml) with your own AdMob ids before publishing.
         resValue("string", "admob_native_home_unit_id", "ca-app-pub-3940256099942544/2247696110")
         resValue("string", "admob_native_library_unit_id", "ca-app-pub-3940256099942544/2247696110")
+        resValue("string", "admob_app_open_unit_id", "ca-app-pub-3940256099942544/9257395921")
     }
 
     buildFeatures {
