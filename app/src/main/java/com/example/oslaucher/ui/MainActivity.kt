@@ -213,6 +213,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     /** A long-pressed widget that starts dragging once the finger moves (like app icons). */
     private var widgetDragCandidate: Pair<HomeWidgetPlacement, View>? = null
     private var widgetSizeRetries = 0
+    /** Icon pages of the running page swipe; the widget layers copy their transform. */
+    private var widgetSwipeOutPage: View? = null
+    private var widgetSwipeInPage: View? = null
     private var folderDragState: FolderDragState? = null
     private var dragShadow: ImageView? = null
     private var dragCheckBadge: TextView? = null
@@ -2324,9 +2327,50 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
 
     }
 
+    /**
+     * Moves the widget layers exactly like the icon pages: the same page-transition effect
+     * (slide, cube, flip, zoom, fade) is applied, with pivots mapped onto the pages' pivots
+     * so the widgets rotate/scale around the same point as the icons of their page.
+     */
     private fun setWidgetSwipeProgress(direction: Int, width: Float, progress: Float) {
-        appsWidgetContainer?.translationX = direction * width * progress
-        appsIncomingWidgetContainer?.translationX = -direction * width * (1f - progress)
+        val outgoing = appsWidgetContainer ?: return
+        val incoming = appsIncomingWidgetContainer ?: return
+        PageTransitionAnimator.applyProgress(
+            this,
+            outgoing,
+            incoming,
+            direction,
+            getPageTransitionEffect(),
+            progress,
+            width
+        )
+        matchPageTransform(widgetSwipeOutPage, outgoing)
+        matchPageTransform(widgetSwipeInPage, incoming)
+    }
+
+    private fun matchPageTransform(page: View?, layer: View) {
+        if (page == null) return
+        val pages = appsPages ?: return
+        val root = layer.parent as? ViewGroup ?: return
+        // Where the pages area sits inside the widget layer's parent.
+        val pageRect = android.graphics.Rect().also(pages::getDrawingRect)
+        try {
+            root.offsetDescendantRectToMyCoords(pages, pageRect)
+        } catch (_: IllegalArgumentException) {
+            return
+        }
+        val pageLeft = (pageRect.left - layer.left).toFloat()
+        val pageTop = (pageRect.top - layer.top).toFloat()
+        // applyProgress put the layer's pivot on its left edge, right edge or centre; move it
+        // to the same edge/centre of the icon page, and vertically to the page's centre.
+        layer.pivotX = when {
+            layer.pivotX <= 0f -> pageLeft
+            layer.pivotX >= layer.width -> pageLeft + pages.width
+            else -> pageLeft + pages.width / 2f
+        }
+        layer.pivotY = pageTop + pages.height / 2f
+        // Same perspective as the page (PageTransitionAnimator uses 4x its largest side).
+        layer.cameraDistance = maxOf(pages.width, pages.height, 1) * 4f
     }
 
     /**
@@ -2335,6 +2379,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
      * in once it settles.
      */
     private fun prepareIncomingPageWidgets(targetPage: Int) {
+        widgetSwipeOutPage = appsPages?.getChildAt(appPageIndex)
+        widgetSwipeInPage = appsPages?.getChildAt(targetPage)
         val incoming = appsIncomingWidgetContainer ?: return
         val container = appsWidgetContainer ?: return
         syncWidgetTopInset()
@@ -2399,8 +2445,10 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private fun resetWidgetSwipe() {
         widgetSwipeAnimator?.cancel()
         widgetSwipeAnimator = null
-        appsWidgetContainer?.translationX = 0f
-        appsIncomingWidgetContainer?.translationX = 0f
+        appsWidgetContainer?.let(PageTransitionAnimator::reset)
+        appsIncomingWidgetContainer?.let(PageTransitionAnimator::reset)
+        widgetSwipeOutPage = null
+        widgetSwipeInPage = null
     }
 
     private fun moveAppPageWithSwipe(direction: Int) {
