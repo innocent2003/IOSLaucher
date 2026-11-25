@@ -212,6 +212,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     private var folderPopup: PopupWindow? = null
     /** A long-pressed widget that starts dragging once the finger moves (like app icons). */
     private var widgetDragCandidate: Pair<HomeWidgetPlacement, View>? = null
+    private var widgetSizeRetries = 0
     private var folderDragState: FolderDragState? = null
     private var dragShadow: ImageView? = null
     private var dragCheckBadge: TextView? = null
@@ -1114,6 +1115,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
     }
 
     private fun onAppsScreenReattached(view: View) {
+        widgetRenderPosted = false
         appsWidgetContainer = view.findViewById(R.id.apps_widget_container)
         appsIncomingWidgetContainer = view.findViewById(R.id.apps_widget_incoming_container)
         PageTransitionAnimator.reset(view)
@@ -1515,6 +1517,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 val modeBar = view.findViewById<View>(R.id.apps_mode_bar)
                 val selectionCount = view.findViewById<TextView>(R.id.apps_selection_count)
                 appsGridRendered = false
+                widgetRenderPosted = false
                 appsPages = pages
                 appsIndicator = pageIndicator
                 appsSearchPill = view.findViewById(R.id.apps_search_button)
@@ -1563,7 +1566,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
                 }
 
                 fun buildHomeApps(apps: List<AppInfo>) {
-                    setWidgetLoading(true)
+                    // Keep the current widgets on screen while the grid is rebuilt; they are
+                    // re-placed before the next frame (see scheduleHomeWidgetRendering).
                     if (isAppSelectionMode || isHomeEditMode) stopDragWiggle()
                     (pages.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
                         params.topMargin = dp(
@@ -2490,14 +2494,37 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         }.start()
     }
 
+    /**
+     * Places the widgets right before the next frame is drawn (after the icon grid has been
+     * laid out), and skips that frame so icons and widgets appear together in the same frame.
+     * It used to run one frame later, so icons showed first and widgets popped in after.
+     */
     private fun scheduleHomeWidgetRendering() {
         if (widgetRenderPosted) return
         val pages = appsPages ?: return
         widgetRenderPosted = true
-        pages.postOnAnimation {
-            widgetRenderPosted = false
-            if (currentScreen == Screen.APPS) renderHomeWidgetViews()
-        }
+        val observer = pages.viewTreeObserver
+        observer.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (observer.isAlive) observer.removeOnPreDrawListener(this)
+                else pages.viewTreeObserver.removeOnPreDrawListener(this)
+                widgetRenderPosted = false
+                val container = appsWidgetContainer ?: return true
+                if (container.width <= 0 || pages.width <= 0 || pages.height <= 0) {
+                    // Still no size (e.g. hidden): retry a few frames later without blocking
+                    // drawing, instead of cancelling frames in a loop.
+                    if (widgetSizeRetries++ < MAX_WIDGET_SIZE_RETRIES) {
+                        pages.postOnAnimation { scheduleHomeWidgetRendering() }
+                    }
+                    return true
+                }
+                widgetSizeRetries = 0
+                renderHomeWidgetViews()
+                // Redraw once more with the widgets in place instead of drawing icons alone.
+                return false
+            }
+        })
+        pages.invalidate()
     }
 
     private fun setWidgetLoading(loading: Boolean) {
@@ -3342,13 +3369,9 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         if (container.width <= 0 || container.height <= 0 ||
             pages == null || pages.width <= 0 || pages.height <= 0
         ) {
-            container.post {
-                if (currentScreen == Screen.APPS &&
-                    container.width > 0 && container.height > 0 &&
-                    appsPages?.width?.let { it > 0 } == true &&
-                    appsPages?.height?.let { it > 0 } == true
-                ) renderHomeWidgetViews()
-            }
+            // Not laid out yet (first frame of the screen): place the widgets as soon as the
+            // layout pass is done, before anything is drawn.
+            scheduleHomeWidgetRendering()
             return
         }
         if (normalizeHomeWidgetPlacements(container) && appsGridRendered) {
@@ -3356,13 +3379,8 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
             return
         }
         if (homeWidgets.isNotEmpty()) {
-            val activeGrid = pages.getChildAt(appPageIndex) as? GridView
-            if (activeGrid == null || activeGrid.childCount < appGridPageSize) {
-                (activeGrid ?: pages).postOnAnimation {
-                    if (currentScreen == Screen.APPS) renderHomeWidgetViews()
-                }
-                return
-            }
+            // Cell bounds are computed from the grid geometry, so there is no need to wait an
+            // extra frame for the GridView to create its children before placing widgets.
             val gridRows = LauncherConfig.gridRows(this, defaultHomeActive)
             val widgetsCoverApps = homeWidgets
                 .map { it.pageIndex }
@@ -6017,6 +6035,7 @@ class MainActivity : AppCompatActivity(), HomeScreenActions {
         const val WIDGET_HORIZONTAL_GAP_DP = APP_GRID_COLUMN_SPACING_DP
         const val WIDGET_SIDE_INSET_DP = 12
         const val WIDGET_VERTICAL_GAP_DP = 0
+        const val MAX_WIDGET_SIZE_RETRIES = 30
         const val SPLASH_MIN_MS = 1200L
         const val SPLASH_AD_WAIT_MS = 5000L
         const val SPLASH_MAX_MS = 9000L
